@@ -561,6 +561,84 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
   --c8:#818cf8;--c9:#4ade80;
 }
 
+/* ══════════════════════════════════════
+   TEACHER MODAL
+══════════════════════════════════════ */
+.tch-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+@media(max-width:500px){.tch-modal-grid{grid-template-columns:1fr}}
+
+/* Subject checkboxes */
+.subj-check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-top:6px}
+.schk{
+  display:flex;align-items:center;gap:7px;
+  padding:7px 10px;border-radius:7px;border:1px solid var(--border);
+  cursor:pointer;font-size:.8rem;font-weight:600;
+  transition:all .15s;background:var(--s2);
+}
+.schk.checked{background:var(--accent-g);border-color:var(--accent);color:var(--accent)}
+.schk input{display:none}
+.schk-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* Assignment table */
+.assign-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:6px}
+.assign-table th{
+  background:var(--s2);border:1px solid var(--border);
+  padding:6px 10px;font-size:.7rem;font-weight:700;
+  color:var(--text-m);letter-spacing:.04em;text-transform:uppercase;text-align:left;
+}
+.assign-table td{border:1px solid var(--border);padding:4px 8px;vertical-align:middle}
+.assign-table tr:hover td{background:var(--s2)}
+.assign-num{
+  width:64px;padding:5px 8px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);font-family:var(--mono);font-size:.82rem;
+  outline:none;transition:border-color .15s;text-align:center;
+}
+.assign-num:focus{border-color:var(--accent)}
+.assign-add-row{display:flex;gap:6px;margin-top:8px;align-items:center}
+.assign-add-row .mselect{flex:1}
+
+/* Teacher card in settings */
+.tch-card{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius-lg);margin-bottom:12px;overflow:hidden;
+}
+.tch-card-header{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;cursor:pointer;transition:background .12s;
+}
+.tch-card-header:hover{background:var(--s2)}
+.tch-card-name{font-weight:700;font-size:.9rem;flex:1}
+.tch-card-abbr{font-family:var(--mono);font-size:.75rem;color:var(--text-m);margin-right:6px}
+.tch-card-badges{display:flex;gap:4px;flex-wrap:wrap;margin-right:8px}
+.tch-badge{
+  font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:4px;
+}
+.tch-card-arr{color:var(--text-m);font-size:.7rem;transition:transform .2s;margin-left:4px}
+.tch-card.open .tch-card-arr{transform:rotate(180deg)}
+.tch-card-body{
+  display:none;padding:14px 16px;border-top:1px solid var(--border);
+  background:var(--s2);
+}
+.tch-card.open .tch-card-body{display:block}
+.tch-info-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:.8rem}
+.tch-info-label{color:var(--text-m);font-weight:600}
+.tch-assign-list{display:flex;flex-direction:column;gap:4px}
+.tch-assign-item{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 10px;border-radius:7px;
+  background:var(--s1);border:1px solid var(--border);font-size:.78rem;
+}
+.tch-assign-cls{font-weight:700;min-width:36px}
+.tch-assign-subj{flex:1}
+.tch-assign-hrs{font-family:var(--mono);color:var(--text-m);font-size:.75rem;white-space:nowrap}
+
+/* progress indicator in stats */
+.assign-progress{display:flex;align-items:center;gap:8px;font-size:.78rem}
+.ap-bar-wrap{flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.ap-bar{height:100%;border-radius:3px;transition:width .3s}
+.ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
+
 /* ── EMPTY STATE ── */
 .empty-state{
   text-align:center;padding:60px 20px;color:var(--text-m);
@@ -780,6 +858,43 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="mDeleteBtn" onclick="deleteLessonModal()" style="display:none;margin-right:auto">Usuń lekcję</button>
       <button class="mbtn mbtn-ghost" onclick="closeLessonModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveLessonModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     TEACHER EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="teacherModal">
+  <div class="modal-box" style="width:580px;max-width:95vw">
+    <div class="modal-title" id="teacherModalTitle">Nauczyciel</div>
+    <div class="tch-modal-grid">
+      <div class="mfield"><label>Imię</label><input class="minput" id="tmFirst" type="text" placeholder="Anna"></div>
+      <div class="mfield"><label>Nazwisko</label><input class="minput" id="tmLast" type="text" placeholder="Kowalska" oninput="tmAutoAbbr()"></div>
+      <div class="mfield"><label>Skrót</label><input class="minput" id="tmAbbr" type="text" placeholder="AKow" maxlength="6"></div>
+      <div class="mfield"><label>Etat (godz./tydz.)</label><input class="minput" id="tmHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
+    </div>
+    <div class="mfield">
+      <label>Nauczane przedmioty</label>
+      <div class="subj-check-grid" id="tmSubjectList"></div>
+    </div>
+    <div class="mfield" style="margin-top:4px">
+      <label>Przydziały: klasa / przedmiot / liczba godz. tygodniowo</label>
+      <table class="assign-table" id="tmAssignTable">
+        <thead><tr><th>Klasa</th><th>Przedmiot</th><th style="width:70px">Godz.</th><th style="width:36px"></th></tr></thead>
+        <tbody id="tmAssignBody"></tbody>
+      </table>
+      <div class="assign-add-row">
+        <select class="mselect" id="tmAddClass" style="flex:1"><option value="">— klasa —</option></select>
+        <select class="mselect" id="tmAddSubject" style="flex:1"><option value="">— przedmiot —</option></select>
+        <input class="assign-num" id="tmAddHours" type="number" min="1" max="10" value="1" style="width:60px">
+        <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap" onclick="tmAddAssignment()">+ Dodaj</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
+      <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -1644,6 +1759,79 @@ function renderStats() {
   });
   html += '</div>';
 
+  // ── Przydziały vs rzeczywistość ──
+  const hasAssignments = appState.teachers.some(t => (t.assignments||[]).length > 0);
+  if (hasAssignments) {
+    html += `<div class="teacher-load-table" style="margin-top:0">
+      <div class="tlt-header">
+        <div class="tlt-name">Nauczyciel</div>
+        <div class="tlt-hours" style="min-width:110px;text-align:left">Plan / Przydział</div>
+        <div class="tlt-bar-wrap" style="padding:0;flex:3">Realizacja etatu</div>
+      </div>`;
+    appState.teachers.filter(t=>(t.assignments||[]).length||t.hoursTotal).forEach(t => {
+      const actual = teacherHours[t.id] || 0;
+      const assigned = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
+      const etat = t.hoursTotal || 0;
+      const refVal = etat || assigned || 1;
+      const pct = Math.min(100, Math.round(actual / refVal * 100));
+      let barColor = 'var(--green)';
+      if (etat > 0) {
+        if (actual > etat) barColor = 'var(--red)';
+        else if (actual < etat * 0.8) barColor = 'var(--yellow)';
+      }
+      const diff = etat ? actual - etat : actual - assigned;
+      const diffStr = etat || assigned ? (diff > 0 ? `+${diff}` : `${diff}`) : '';
+      const diffColor = diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--yellow)' : 'var(--green)';
+
+      html += `<div class="tlt-row">
+        <div class="tlt-name">${t.first} ${t.last}
+          <span style="color:var(--text-m);font-family:var(--mono);font-size:.7rem">${t.abbr}</span>
+        </div>
+        <div class="tlt-hours" style="min-width:110px;text-align:left;font-family:var(--mono)">
+          ${actual}${etat ? '/'+etat : assigned ? ' (przyd. '+assigned+')' : ''} godz.
+          ${diffStr ? `<span style="color:${diffColor};margin-left:3px">(${diffStr})</span>` : ''}
+        </div>
+        <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${barColor}"></div></div>
+      </div>`;
+
+      // Per-class breakdown
+      if ((t.assignments||[]).length) {
+        const byClass = {};
+        (t.assignments||[]).forEach(a => {
+          const cls = appState.classes.find(c=>c.id===a.classId);
+          const subj = appState.subjects.find(s=>s.id===a.subjectId);
+          if (!byClass[a.classId]) byClass[a.classId] = {cls, items:[]};
+          byClass[a.classId].items.push({subj, hours:a.hours});
+        });
+        Object.values(byClass).forEach(({cls, items}) => {
+          items.forEach(({subj, hours}) => {
+            const actH = Object.entries(schedData).filter(([k,v])=>{
+              const parts=k.split('_');
+              return parts[0]===cls?.id && v.teacherId===t.id && v.subjectId===subj?.id;
+            }).length;
+            // Count unique days x hours (not just per-day)
+            const realH = Object.entries(schedData).filter(([k,v])=>{
+              const parts=k.split('_');
+              return parts[0]===(cls?.id||'') && v.teacherId===t.id && v.subjectId===(subj?.id||'');
+            }).length;
+            const rowPct = Math.min(100, Math.round(realH/hours*100));
+            const rowColor = realH > hours ? 'var(--red)' : realH === hours ? 'var(--green)' : 'var(--yellow)';
+            html += `<div class="tlt-row" style="padding-left:28px;background:var(--s2);font-size:.76rem">
+              <div class="tlt-name" style="color:var(--text-m)">
+                ${cls?cls.name:'?'} —
+                <span class="cdot" style="background:${subj?subj.color:'#888'};margin-right:3px;margin-left:4px"></span>
+                ${subj?subj.name:'?'}
+              </div>
+              <div class="tlt-hours" style="min-width:110px;font-family:var(--mono);text-align:left;color:var(--text-m)">${realH}/${hours} godz.</div>
+              <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${rowPct}%;background:${rowColor}"></div></div>
+            </div>`;
+          });
+        });
+      }
+    });
+    html += '</div>';
+  }
+
   document.getElementById('statsContent').innerHTML = html;
 }
 
@@ -1685,18 +1873,58 @@ function renderSettings() {
   });
   html+=`</ul></div>`;
 
-  // Teachers
-  html+=`<div class="settings-card"><div class="settings-card-title">Nauczyciele</div><ul class="settings-list">`;
-  appState.teachers.forEach(t=>{
-    html+=`<li class="settings-item">
-      <div><div class="settings-item-name">${t.first} ${t.last}</div>
-      <div class="settings-item-meta" style="font-family:var(--mono)">${t.abbr}</div></div>
-      <div class="settings-item-actions">
-        <button class="si-btn danger" onclick="removeTeacher('${t.id}')">Usuń</button>
+  // Teachers — rozbudowane karty
+  html+=`<div class="settings-card" style="grid-column:1/-1">
+    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Nauczyciele</span>
+      <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem" onclick="openAddTeacherModal()">+ Dodaj nauczyciela</button>
+    </div>`;
+
+  if (!appState.teachers.length) {
+    html += `<div style="color:var(--text-m);font-size:.82rem;padding:8px 0">Brak nauczycieli — dodaj pierwszego.</div>`;
+  }
+
+  appState.teachers.forEach(t => {
+    const subjects = (t.subjects||[]).map(sid => {
+      const s = appState.subjects.find(s=>s.id===sid);
+      return s ? `<span class="tch-badge" style="background:${hexToRgba(s.color,.18)};color:${s.color}">${s.abbr}</span>` : '';
+    }).join('');
+
+    const totalAssigned = (t.assignments||[]).reduce((sum,a)=>sum+(a.hours||0),0);
+    const etats = t.hoursTotal ? `${totalAssigned}/${t.hoursTotal} godz.` : `${totalAssigned} godz. przydzielonych`;
+    const hoursColor = t.hoursTotal
+      ? (totalAssigned > t.hoursTotal ? 'var(--red)' : totalAssigned === t.hoursTotal ? 'var(--green)' : 'var(--yellow)')
+      : 'var(--text-m)';
+
+    const assignRows = (t.assignments||[]).map(a => {
+      const cls = appState.classes.find(c=>c.id===a.classId);
+      const subj = appState.subjects.find(s=>s.id===a.subjectId);
+      return `<div class="tch-assign-item">
+        <div class="tch-assign-cls">${cls?cls.name:'?'}</div>
+        <div class="tch-assign-subj">
+          <span class="cdot" style="background:${subj?subj.color:'#888'};margin-right:5px"></span>
+          ${subj?subj.name:'?'}
+        </div>
+        <div class="tch-assign-hrs">${a.hours} godz./tydz.</div>
+      </div>`;
+    }).join('');
+
+    html += `<div class="tch-card" id="tcard_${t.id}">
+      <div class="tch-card-header" onclick="toggleTchCard('${t.id}')">
+        <div class="tch-card-name">${t.first} ${t.last}</div>
+        <div class="tch-card-abbr">${t.abbr}</div>
+        <div class="tch-card-badges">${subjects}</div>
+        <span style="font-size:.72rem;color:${hoursColor};font-family:var(--mono);margin-right:4px">${etats}</span>
+        <button class="si-btn" onclick="event.stopPropagation();openEditTeacherModal('${t.id}')" style="margin-right:4px">Edytuj</button>
+        <span class="tch-card-arr">▼</span>
       </div>
-    </li>`;
+      <div class="tch-card-body">
+        ${assignRows || '<div style="color:var(--text-m);font-size:.78rem">Brak przydziałów</div>'}
+      </div>
+    </div>`;
   });
-  html+=`</ul></div>`;
+
+  html += `</div>`;
 
   // Rooms
   html+=`<div class="settings-card"><div class="settings-card-title">Sale</div><ul class="settings-list">`;
@@ -1762,6 +1990,11 @@ function removeSubject(id) {
   appState.subjects=appState.subjects.filter(s=>s.id!==id);
   persistAll();renderSettings();
 }
+function toggleTchCard(id) {
+  const card = document.getElementById('tcard_' + id);
+  if (card) card.classList.toggle('open');
+}
+
 function removeTeacher(id) {
   appState.teachers=appState.teachers.filter(t=>t.id!==id);
   persistAll();populateSelects();renderSettings();
@@ -1846,7 +2079,27 @@ function gChkChange(inp){
 }
 
 function mOnSubjectChange() {
-  // Could auto-fill default teacher for subject
+  const subjId = document.getElementById('mSubject').value;
+  const mt = document.getElementById('mTeacher');
+  if (!subjId || !appState) return;
+  // Highlight teachers who teach this subject
+  Array.from(mt.options).forEach(opt => {
+    if (!opt.value) return;
+    const t = appState.teachers.find(t => t.id === opt.value);
+    const teachesThis = t && (t.subjects || []).includes(subjId);
+    if (teachesThis) {
+      opt.style.fontWeight = '700';
+      if (!opt.text.includes('★')) opt.text = '★ ' + opt.text.replace(/^★ /, '');
+    } else {
+      opt.style.fontWeight = '';
+      opt.text = opt.text.replace(/^★ /, '');
+    }
+  });
+  // Auto-select first teacher who teaches this subject (only if field empty)
+  if (!mt.value) {
+    const first = appState.teachers.find(t => (t.subjects||[]).includes(subjId));
+    if (first) mt.value = first.id;
+  }
 }
 
 function saveLessonModal() {
@@ -2129,10 +2382,30 @@ function buildDemoState() {
       {id:'s7',name:'WF',abbr:'WF',color:'#fb923c'},
     ],
     teachers:[
-      {id:'t1',first:'Anna',last:'Kowalska',abbr:'AKow'},
-      {id:'t2',first:'Jan',last:'Nowak',abbr:'JNow'},
-      {id:'t3',first:'Maria',last:'Wiśniewska',abbr:'MWis'},
-      {id:'t4',first:'Tomasz',last:'Zając',abbr:'TZaj'},
+      {id:'t1',first:'Anna',last:'Kowalska',abbr:'AKow',hoursTotal:18,
+        subjects:['s1','s3'],
+        assignments:[
+          {classId:'c1',subjectId:'s1',hours:3},{classId:'c2',subjectId:'s1',hours:3},
+          {classId:'c3',subjectId:'s1',hours:4},{classId:'c4',subjectId:'s3',hours:2},
+        ]},
+      {id:'t2',first:'Jan',last:'Nowak',abbr:'JNow',hoursTotal:18,
+        subjects:['s2','s4'],
+        assignments:[
+          {classId:'c1',subjectId:'s2',hours:4},{classId:'c2',subjectId:'s2',hours:4},
+          {classId:'c3',subjectId:'s4',hours:2},{classId:'c4',subjectId:'s2',hours:3},
+        ]},
+      {id:'t3',first:'Maria',last:'Wiśniewska',abbr:'MWis',hoursTotal:20,
+        subjects:['s5','s6'],
+        assignments:[
+          {classId:'c1',subjectId:'s6',hours:3},{classId:'c2',subjectId:'s6',hours:3},
+          {classId:'c3',subjectId:'s5',hours:2},{classId:'c4',subjectId:'s6',hours:3},
+        ]},
+      {id:'t4',first:'Tomasz',last:'Zając',abbr:'TZaj',hoursTotal:16,
+        subjects:['s3','s7'],
+        assignments:[
+          {classId:'c1',subjectId:'s7',hours:2},{classId:'c2',subjectId:'s7',hours:2},
+          {classId:'c3',subjectId:'s7',hours:2},{classId:'c4',subjectId:'s3',hours:3},
+        ]},
     ],
     rooms:[
       {id:'r1',name:'101'},{id:'r2',name:'102'},
@@ -2170,6 +2443,174 @@ function buildDemoSched(){
   add('c3',2,2,'s4','t1','r2'); add('c3',2,3,'s1','t1','r1'); add('c3',2,4,'s2','t2','r1');
   return s;
 }
+
+
+// ================================================================
+//  TEACHER MODAL
+// ================================================================
+let _tmId = null; // null = new teacher, id = edit existing
+let _tmAssignments = []; // [{classId, subjectId, hours}]
+
+function openAddTeacherModal() {
+  _tmId = null;
+  _tmAssignments = [];
+  document.getElementById('teacherModalTitle').innerHTML = 'Dodaj <span>nauczyciela</span>';
+  document.getElementById('tmFirst').value = '';
+  document.getElementById('tmLast').value = '';
+  document.getElementById('tmAbbr').value = '';
+  document.getElementById('tmHoursTotal').value = '';
+  document.getElementById('tmDeleteBtn').style.display = 'none';
+  tmRenderSubjects([]);
+  tmRenderAssignments();
+  tmFillSelects();
+  document.getElementById('teacherModal').classList.add('show');
+}
+
+function openEditTeacherModal(id) {
+  const t = appState.teachers.find(t => t.id === id);
+  if (!t) return;
+  _tmId = id;
+  _tmAssignments = JSON.parse(JSON.stringify(t.assignments || []));
+  document.getElementById('teacherModalTitle').innerHTML = `Edytuj: <span>${t.first} ${t.last}</span>`;
+  document.getElementById('tmFirst').value = t.first || '';
+  document.getElementById('tmLast').value = t.last || '';
+  document.getElementById('tmAbbr').value = t.abbr || '';
+  document.getElementById('tmHoursTotal').value = t.hoursTotal || '';
+  document.getElementById('tmDeleteBtn').style.display = '';
+  tmRenderSubjects(t.subjects || []);
+  tmRenderAssignments();
+  tmFillSelects();
+  document.getElementById('teacherModal').classList.add('show');
+}
+
+function tmAutoAbbr() {
+  const f = document.getElementById('tmFirst').value || '';
+  const l = document.getElementById('tmLast').value || '';
+  document.getElementById('tmAbbr').value = (f[0] || '').toUpperCase() + l.slice(0, 3);
+}
+
+function tmRenderSubjects(selected) {
+  const container = document.getElementById('tmSubjectList');
+  if (!appState) { container.innerHTML = ''; return; }
+  container.innerHTML = appState.subjects.map(s => `
+    <label class="schk ${selected.includes(s.id) ? 'checked' : ''}">
+      <input type="checkbox" value="${s.id}" ${selected.includes(s.id) ? 'checked' : ''}
+        onchange="this.parentElement.classList.toggle('checked',this.checked)">
+      <span class="schk-dot" style="background:${s.color}"></span>
+      ${s.name}
+    </label>`).join('');
+}
+
+function tmFillSelects() {
+  if (!appState) return;
+  const cls = document.getElementById('tmAddClass');
+  cls.innerHTML = '<option value="">— klasa —</option>' +
+    appState.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const subj = document.getElementById('tmAddSubject');
+  subj.innerHTML = '<option value="">— przedmiot —</option>' +
+    appState.subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function tmRenderAssignments() {
+  const tbody = document.getElementById('tmAssignBody');
+  if (!appState) { tbody.innerHTML = ''; return; }
+  tbody.innerHTML = _tmAssignments.map((a, i) => {
+    const cls = appState.classes.find(c => c.id === a.classId);
+    const subj = appState.subjects.find(s => s.id === a.subjectId);
+    return `<tr>
+      <td><strong>${cls ? cls.name : '?'}</strong></td>
+      <td>
+        <span class="cdot" style="background:${subj ? subj.color : '#888'};margin-right:5px"></span>
+        ${subj ? subj.name : '?'}
+      </td>
+      <td><input class="assign-num" type="number" min="1" max="20" value="${a.hours}"
+        onchange="_tmAssignments[${i}].hours=parseInt(this.value)||1"></td>
+      <td><span class="tag-del" style="font-size:1rem;cursor:pointer;padding:2px 6px" onclick="_tmAssignments.splice(${i},1);tmRenderAssignments()">×</span></td>
+    </tr>`;
+  }).join('');
+  if (!_tmAssignments.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-m);font-size:.78rem;padding:10px">Brak przydziałów — dodaj klasę, przedmiot i liczbę godzin</td></tr>';
+  }
+}
+
+function tmAddAssignment() {
+  const classId = document.getElementById('tmAddClass').value;
+  const subjectId = document.getElementById('tmAddSubject').value;
+  const hours = parseInt(document.getElementById('tmAddHours').value) || 1;
+  if (!classId) { notify('Wybierz klasę'); return; }
+  if (!subjectId) { notify('Wybierz przedmiot'); return; }
+  // Check duplicate
+  const exists = _tmAssignments.find(a => a.classId === classId && a.subjectId === subjectId);
+  if (exists) { notify('Ten przydział już istnieje'); return; }
+  _tmAssignments.push({ classId, subjectId, hours });
+  // Also auto-add this subject to teacher's subjects
+  const subjCheck = document.querySelector(`#tmSubjectList input[value="${subjectId}"]`);
+  if (subjCheck && !subjCheck.checked) {
+    subjCheck.checked = true;
+    subjCheck.parentElement.classList.add('checked');
+  }
+  document.getElementById('tmAddClass').value = '';
+  document.getElementById('tmAddSubject').value = '';
+  document.getElementById('tmAddHours').value = '1';
+  tmRenderAssignments();
+}
+
+function saveTeacherModal() {
+  const first = document.getElementById('tmFirst').value.trim();
+  const last = document.getElementById('tmLast').value.trim();
+  const abbr = document.getElementById('tmAbbr').value.trim();
+  const hoursTotal = parseInt(document.getElementById('tmHoursTotal').value) || 0;
+  if (!first && !last) { notify('Podaj imię lub nazwisko'); return; }
+  const subjects = [...document.querySelectorAll('#tmSubjectList input:checked')].map(i => i.value);
+
+  if (_tmId) {
+    // Edit existing
+    const t = appState.teachers.find(t => t.id === _tmId);
+    if (t) {
+      t.first = first; t.last = last; t.abbr = abbr;
+      t.hoursTotal = hoursTotal;
+      t.subjects = subjects;
+      t.assignments = _tmAssignments;
+    }
+  } else {
+    // New teacher
+    appState.teachers.push({
+      id: 'tch' + Date.now(),
+      first, last, abbr,
+      hoursTotal,
+      subjects,
+      assignments: _tmAssignments
+    });
+  }
+  persistAll();
+  populateSelects();
+  renderSettings();
+  closeTeacherModal();
+  notify(_tmId ? 'Zaktualizowano nauczyciela' : 'Dodano nauczyciela');
+}
+
+function tmDeleteTeacher() {
+  if (!_tmId) return;
+  const t = appState.teachers.find(t => t.id === _tmId);
+  if (!confirm(`Usunąć nauczyciela ${t ? t.first + ' ' + t.last : ''}?`)) return;
+  appState.teachers = appState.teachers.filter(t => t.id !== _tmId);
+  persistAll();
+  populateSelects();
+  renderSettings();
+  closeTeacherModal();
+  notify('Nauczyciel usunięty');
+}
+
+function closeTeacherModal() {
+  document.getElementById('teacherModal').classList.remove('show');
+  _tmId = null;
+  _tmAssignments = [];
+}
+
+document.getElementById('teacherModal').addEventListener('click', function(e) {
+  if (e.target === this) closeTeacherModal();
+});
+
 
 // ================================================================
 //  BOOT
