@@ -872,7 +872,8 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
       <div class="mfield"><label>Imię</label><input class="minput" id="tmFirst" type="text" placeholder="Anna"></div>
       <div class="mfield"><label>Nazwisko</label><input class="minput" id="tmLast" type="text" placeholder="Kowalska" oninput="tmAutoAbbr()"></div>
       <div class="mfield"><label>Skrót</label><input class="minput" id="tmAbbr" type="text" placeholder="AKow" maxlength="6"></div>
-      <div class="mfield"><label>Etat (godz./tydz.)</label><input class="minput" id="tmHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
+      <div class="mfield"><label>Pensum / etat (godz./tydz.)</label><input class="minput" id="tmHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
+      <div class="mfield"><label>Nadgodziny stałe (godz./tydz.)</label><input class="minput" id="tmHoursExtra" type="number" min="0" max="20" placeholder="np. 2" title="Godziny ponad pensum wynikające z przydziału rocznego"></div>
     </div>
     <div class="mfield">
       <label>Nauczane przedmioty</label>
@@ -1771,24 +1772,31 @@ function renderStats() {
     appState.teachers.filter(t=>(t.assignments||[]).length||t.hoursTotal).forEach(t => {
       const actual = teacherHours[t.id] || 0;
       const assigned = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
-      const etat = t.hoursTotal || 0;
-      const refVal = etat || assigned || 1;
-      const pct = Math.min(100, Math.round(actual / refVal * 100));
+      const pensum = t.hoursTotal || 0;
+      const extra  = t.hoursExtra || 0;
+      const target = pensum + extra;
+      const refVal = target || assigned || 1;
+      const pct    = Math.min(100, Math.round(actual / refVal * 100));
       let barColor = 'var(--green)';
-      if (etat > 0) {
-        if (actual > etat) barColor = 'var(--red)';
-        else if (actual < etat * 0.8) barColor = 'var(--yellow)';
+      if (target > 0) {
+        if (actual > target)           barColor = 'var(--red)';
+        else if (actual < target * 0.8) barColor = 'var(--yellow)';
       }
-      const diff = etat ? actual - etat : actual - assigned;
-      const diffStr = etat || assigned ? (diff > 0 ? `+${diff}` : `${diff}`) : '';
+      const diff = target ? actual - target : actual - assigned;
+      const diffStr = (target || assigned) ? (diff > 0 ? `+${diff}` : `${diff}`) : '';
       const diffColor = diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--yellow)' : 'var(--green)';
+      // Label: "15 / 18+2=20 godz." or "15 / 18 godz."
+      const targetLabel = target
+        ? (extra ? `${pensum}+${extra}=${target}` : `${target}`)
+        : (assigned ? `przyd. ${assigned}` : '');
 
       html += `<div class="tlt-row">
         <div class="tlt-name">${t.first} ${t.last}
           <span style="color:var(--text-m);font-family:var(--mono);font-size:.7rem">${t.abbr}</span>
+          ${extra ? `<span style="font-size:.68rem;color:var(--orange);margin-left:4px" title="Nadgodziny stałe: ${extra} godz.">+${extra} nadg.</span>` : ''}
         </div>
-        <div class="tlt-hours" style="min-width:110px;text-align:left;font-family:var(--mono)">
-          ${actual}${etat ? '/'+etat : assigned ? ' (przyd. '+assigned+')' : ''} godz.
+        <div class="tlt-hours" style="min-width:130px;text-align:left;font-family:var(--mono)">
+          ${actual}${targetLabel ? ' / '+targetLabel : ''} godz.
           ${diffStr ? `<span style="color:${diffColor};margin-left:3px">(${diffStr})</span>` : ''}
         </div>
         <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${barColor}"></div></div>
@@ -1891,9 +1899,12 @@ function renderSettings() {
     }).join('');
 
     const totalAssigned = (t.assignments||[]).reduce((sum,a)=>sum+(a.hours||0),0);
-    const etats = t.hoursTotal ? `${totalAssigned}/${t.hoursTotal} godz.` : `${totalAssigned} godz. przydzielonych`;
-    const hoursColor = t.hoursTotal
-      ? (totalAssigned > t.hoursTotal ? 'var(--red)' : totalAssigned === t.hoursTotal ? 'var(--green)' : 'var(--yellow)')
+    const fullTarget = (t.hoursTotal||0) + (t.hoursExtra||0);
+    const etats = fullTarget
+      ? `${totalAssigned}/${fullTarget} godz.${t.hoursExtra ? ' ('+t.hoursTotal+'+'+t.hoursExtra+')' : ''}`
+      : `${totalAssigned} godz. przydzielonych`;
+    const hoursColor = fullTarget
+      ? (totalAssigned > fullTarget ? 'var(--red)' : totalAssigned === fullTarget ? 'var(--green)' : 'var(--yellow)')
       : 'var(--text-m)';
 
     const assignRows = (t.assignments||[]).map(a => {
@@ -2382,7 +2393,7 @@ function buildDemoState() {
       {id:'s7',name:'WF',abbr:'WF',color:'#fb923c'},
     ],
     teachers:[
-      {id:'t1',first:'Anna',last:'Kowalska',abbr:'AKow',hoursTotal:18,
+      {id:'t1',first:'Anna',last:'Kowalska',abbr:'AKow',hoursTotal:18,hoursExtra:2,
         subjects:['s1','s3'],
         assignments:[
           {classId:'c1',subjectId:'s1',hours:3},{classId:'c2',subjectId:'s1',hours:3},
@@ -2400,7 +2411,7 @@ function buildDemoState() {
           {classId:'c1',subjectId:'s6',hours:3},{classId:'c2',subjectId:'s6',hours:3},
           {classId:'c3',subjectId:'s5',hours:2},{classId:'c4',subjectId:'s6',hours:3},
         ]},
-      {id:'t4',first:'Tomasz',last:'Zając',abbr:'TZaj',hoursTotal:16,
+      {id:'t4',first:'Tomasz',last:'Zając',abbr:'TZaj',hoursTotal:16,hoursExtra:3,
         subjects:['s3','s7'],
         assignments:[
           {classId:'c1',subjectId:'s7',hours:2},{classId:'c2',subjectId:'s7',hours:2},
@@ -2459,6 +2470,7 @@ function openAddTeacherModal() {
   document.getElementById('tmLast').value = '';
   document.getElementById('tmAbbr').value = '';
   document.getElementById('tmHoursTotal').value = '';
+  document.getElementById('tmHoursExtra').value = '';
   document.getElementById('tmDeleteBtn').style.display = 'none';
   tmRenderSubjects([]);
   tmRenderAssignments();
@@ -2476,6 +2488,7 @@ function openEditTeacherModal(id) {
   document.getElementById('tmLast').value = t.last || '';
   document.getElementById('tmAbbr').value = t.abbr || '';
   document.getElementById('tmHoursTotal').value = t.hoursTotal || '';
+  document.getElementById('tmHoursExtra').value = t.hoursExtra || '';
   document.getElementById('tmDeleteBtn').style.display = '';
   tmRenderSubjects(t.subjects || []);
   tmRenderAssignments();
@@ -2560,6 +2573,7 @@ function saveTeacherModal() {
   const last = document.getElementById('tmLast').value.trim();
   const abbr = document.getElementById('tmAbbr').value.trim();
   const hoursTotal = parseInt(document.getElementById('tmHoursTotal').value) || 0;
+  const hoursExtra = parseInt(document.getElementById('tmHoursExtra').value) || 0;
   if (!first && !last) { notify('Podaj imię lub nazwisko'); return; }
   const subjects = [...document.querySelectorAll('#tmSubjectList input:checked')].map(i => i.value);
 
@@ -2569,6 +2583,7 @@ function saveTeacherModal() {
     if (t) {
       t.first = first; t.last = last; t.abbr = abbr;
       t.hoursTotal = hoursTotal;
+      t.hoursExtra = hoursExtra;
       t.subjects = subjects;
       t.assignments = _tmAssignments;
     }
@@ -2578,6 +2593,7 @@ function saveTeacherModal() {
       id: 'tch' + Date.now(),
       first, last, abbr,
       hoursTotal,
+      hoursExtra,
       subjects,
       assignments: _tmAssignments
     });
