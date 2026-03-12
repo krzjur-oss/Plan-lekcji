@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlanLekcji</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0f1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PlanLekcji">
+<meta name="description" content="Aplikacja do układania planu lekcji w szkole">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0a0f1a;
+  --s1:        #0f1625;
+  --s2:        #141d30;
+  --s3:        #1b263d;
+  --s4:        #22304d;
+  --border:    #1e2d48;
+  --border2:   #263858;
+  --accent:    #38bdf8;
+  --accent-d:  #0ea5e9;
+  --accent-g:  rgba(56,189,248,.12);
+  --accent-g2: rgba(56,189,248,.06);
+  --green:     #34d399;
+  --green-g:   rgba(52,211,153,.12);
+  --yellow:    #fbbf24;
+  --yellow-g:  rgba(251,191,36,.12);
+  --red:       #f87171;
+  --red-g:     rgba(248,113,113,.12);
+  --purple:    #a78bfa;
+  --purple-g:  rgba(167,139,250,.12);
+  --teal:      #2dd4bf;
+  --orange:    #fb923c;
+  --pink:      #f472b6;
+  --text:      #e2eaf8;
+  --text-m:    #5a7098;
+  --text-d:    #2a3d60;
+  --font:      'Syne', sans-serif;
+  --mono:      'DM Mono', monospace;
+  --radius:    10px;
+  --radius-lg: 16px;
+  --shadow:    0 4px 24px rgba(0,0,0,.4);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,.6);
+}
+body.light {
+  --bg:      #eef2fa;
+  --s1:      #ffffff;
+  --s2:      #e8edf8;
+  --s3:      #dce4f4;
+  --s4:      #cfd9ee;
+  --border:  #c0cfea;
+  --border2: #a8bcde;
+  --accent:  #0284c7;
+  --accent-g: rgba(2,132,199,.1);
+  --accent-g2: rgba(2,132,199,.05);
+  --green:   #059669;
+  --green-g: rgba(5,150,105,.1);
+  --yellow:  #d97706;
+  --red:     #dc2626;
+  --red-g:   rgba(220,38,38,.1);
+  --purple:  #7c3aed;
+  --purple-g:rgba(124,58,237,.1);
+  --teal:    #0d9488;
+  --text:    #0f1a2e;
+  --text-m:  #5a7098;
+  --text-d:  #a0b4cc;
+  --shadow:  0 2px 16px rgba(0,0,0,.08);
+  --shadow-lg:0 4px 32px rgba(0,0,0,.15);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ══════════════════════════════════════
+   WELCOME SCREEN
+══════════════════════════════════════ */
+#welcomeScreen {
+  display:none;
+  position:fixed;inset:0;
+  background:var(--bg);
+  z-index:900;
+  overflow-y:auto;
+}
+#welcomeScreen.show{display:block}
+.wl-wrap {
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:40px 20px;
+}
+.wl-logo {
+  font-size:2.6rem;font-weight:800;
+  letter-spacing:-1px;
+  color:var(--text);
+  margin-bottom:6px;
+}
+.wl-logo span{color:var(--accent)}
+.wl-tagline{font-size:.88rem;color:var(--text-m);letter-spacing:.05em;margin-bottom:48px}
+.wl-cards {
+  display:flex;gap:16px;flex-wrap:wrap;justify-content:center;
+  max-width:820px;width:100%;
+}
+.wl-card {
+  flex:1;min-width:220px;max-width:260px;
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:28px 24px;
+  cursor:pointer;transition:all .18s;position:relative;overflow:hidden;
+}
+.wl-card::before {
+  content:'';position:absolute;inset:0;
+  background:var(--accent-g2);opacity:0;transition:opacity .18s;
+}
+.wl-card:hover::before{opacity:1}
+.wl-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+.wl-card-icon{font-size:2rem;margin-bottom:14px}
+.wl-card-title{font-size:1rem;font-weight:700;margin-bottom:6px}
+.wl-card-desc{font-size:.8rem;color:var(--text-m);line-height:1.5}
+.wl-card.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+
+/* ══════════════════════════════════════
+   WIZARD
+══════════════════════════════════════ */
+#wizardOverlay {
+  display:none;position:fixed;inset:0;
+  background:rgba(4,8,18,.97);
+  z-index:800;overflow-y:auto;
+  backdrop-filter:blur(8px);
+}
+#wizardOverlay.show{display:block}
+.wiz-wrap {
+  min-height:100vh;display:flex;align-items:flex-start;justify-content:center;
+  padding:40px 20px;
+}
+.wizard{width:720px;max-width:100%}
+.wiz-header{margin-bottom:32px}
+.wiz-badge {
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--accent-g);border:1px solid var(--border2);
+  border-radius:20px;padding:4px 12px;
+  font-size:.7rem;font-weight:700;color:var(--accent);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;
+}
+.wiz-title{font-size:2rem;font-weight:800;line-height:1.1;margin-bottom:6px}
+.wiz-title span{color:var(--accent)}
+.wiz-sub{font-size:.85rem;color:var(--text-m)}
+.wiz-steps{display:flex;align-items:center;gap:0;margin-bottom:28px}
+.ws{display:flex;align-items:center;gap:6px;flex:1}
+.ws-num {
+  width:28px;height:28px;border-radius:50%;
+  background:var(--s2);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:700;color:var(--text-m);flex-shrink:0;
+  transition:all .2s;
+}
+.ws.active .ws-num{background:var(--accent);border-color:var(--accent);color:#fff}
+.ws.done .ws-num{background:var(--green);border-color:var(--green);color:#fff}
+.ws-label{font-size:.72rem;color:var(--text-m);font-weight:600;white-space:nowrap}
+.ws.active .ws-label{color:var(--accent)}
+.ws.done .ws-label{color:var(--green)}
+.ws-line{flex:1;height:1px;background:var(--border);margin:0 4px}
+.wcard{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:28px;margin-bottom:16px;
+}
+.wcard-title{font-size:.75rem;font-weight:700;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px}
+.wfield{margin-bottom:14px}
+.wfield label{display:block;font-size:.75rem;font-weight:600;color:var(--text-m);margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase}
+.winput, .wselect, .wtextarea {
+  width:100%;padding:9px 12px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);
+  font-family:var(--font);font-size:.85rem;
+  transition:border-color .15s,box-shadow .15s;outline:none;
+}
+.winput:focus,.wselect:focus,.wtextarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-g);
+}
+.wselect{appearance:none;cursor:pointer}
+.wtextarea{resize:vertical;min-height:80px;font-family:var(--mono);font-size:.78rem}
+.wrow{display:flex;gap:10px}
+.wrow .wfield{flex:1}
+.wbtn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+.wbtn{
+  padding:9px 20px;border-radius:var(--radius);border:none;
+  font-family:var(--font);font-size:.85rem;font-weight:700;
+  cursor:pointer;transition:all .15s;
+}
+.wbtn-primary{background:var(--accent);color:#fff}
+.wbtn-primary:hover{background:var(--accent-d);transform:translateY(-1px)}
+.wbtn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-m)}
+.wbtn-ghost:hover{border-color:var(--border2);color:var(--text);background:var(--s2)}
+.wbtn-danger{background:var(--red-g);border:1px solid rgba(248,113,113,.3);color:var(--red)}
+.wbtn-danger:hover{background:rgba(248,113,113,.2)}
+
+/* tag list */
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;min-height:28px}
+.tag{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--s3);border:1px solid var(--border);
+  border-radius:6px;padding:3px 8px;
+  font-size:.75rem;font-weight:600;
+}
+.tag-del{cursor:pointer;color:var(--text-m);transition:color .1s;font-size:.9rem;line-height:1;padding:0 2px}
+.tag-del:hover{color:var(--red)}
+.tag-add-row{display:flex;gap:6px;margin-top:6px}
+.tag-add-row .winput{flex:1}
+.tag-add-btn{
+  padding:8px 14px;border-radius:var(--radius);border:1px solid var(--border);
+  background:var(--s2);color:var(--text);font-family:var(--font);
+  font-size:.85rem;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.tag-add-btn:hover{background:var(--s3);border-color:var(--border2)}
+
+/* color dot */
+.cdot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+
+/* subject list */
+.subj-row{
+  display:flex;align-items:center;gap:8px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;
+}
+.subj-name{flex:1;font-size:.85rem;font-weight:600}
+.subj-abbr{font-size:.75rem;color:var(--text-m);font-family:var(--mono);min-width:40px}
+.color-pick{display:flex;gap:4px;flex-wrap:wrap}
+.color-swatch{
+  width:18px;height:18px;border-radius:50%;cursor:pointer;
+  border:2px solid transparent;transition:transform .1s,border-color .1s;
+}
+.color-swatch:hover{transform:scale(1.2)}
+.color-swatch.sel{border-color:var(--text)}
+
+/* import hint */
+.import-hint{font-size:.75rem;color:var(--text-m);margin-top:6px;line-height:1.5}
+
+/* ══════════════════════════════════════
+   MAIN APP LAYOUT
+══════════════════════════════════════ */
+#appRoot{display:none}
+#appRoot.show{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── TOPBAR ── */
+.topbar {
+  display:flex;align-items:center;gap:0;
+  background:var(--s1);border-bottom:1px solid var(--border);
+  padding:0 20px;height:54px;position:sticky;top:0;z-index:100;
+  flex-shrink:0;
+}
+.topbar-logo{font-size:1.1rem;font-weight:800;margin-right:24px;white-space:nowrap}
+.topbar-logo span{color:var(--accent)}
+.topbar-tabs{display:flex;gap:2px;flex:1;overflow-x:auto;padding:8px 0}
+.topbar-tabs::-webkit-scrollbar{height:0}
+.ttab{
+  padding:6px 14px;border-radius:6px;
+  font-size:.78rem;font-weight:700;
+  cursor:pointer;color:var(--text-m);
+  border:none;background:transparent;font-family:var(--font);
+  transition:all .15s;white-space:nowrap;
+}
+.ttab:hover{background:var(--s2);color:var(--text)}
+.ttab.active{background:var(--accent-g);color:var(--accent)}
+.topbar-actions{display:flex;gap:6px;align-items:center;margin-left:auto}
+.icon-btn{
+  width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
+  background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text-m);transition:all .15s;font-size:.9rem;
+}
+.icon-btn:hover{background:var(--s2);color:var(--text);border-color:var(--border2)}
+
+/* ── MAIN CONTENT ── */
+.main-content{flex:1;padding:20px;overflow:auto}
+
+/* view panels */
+.view-panel{display:none}
+.view-panel.active{display:block}
+
+/* ── VIEW SELECTOR (sub-nav) ── */
+.view-selector {
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;
+}
+.view-selector-label{font-size:.72rem;font-weight:700;color:var(--text-m);letter-spacing:.06em;text-transform:uppercase}
+.vs-select{
+  padding:7px 12px;background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:.85rem;
+  cursor:pointer;outline:none;transition:border-color .15s;
+}
+.vs-select:focus{border-color:var(--accent)}
+
+/* ══════════════════════════════════════
+   SCHEDULE GRID
+══════════════════════════════════════ */
+.grid-wrap{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border)}
+.sched-grid{
+  border-collapse:collapse;width:100%;min-width:600px;
+  background:var(--s1);
+}
+.sched-grid th {
+  background:var(--s2);border:1px solid var(--border);
+  padding:9px 12px;font-size:.72rem;font-weight:700;
+  color:var(--text-m);letter-spacing:.05em;text-transform:uppercase;
+  white-space:nowrap;
+}
+.sched-grid th.day-header{
+  font-size:.8rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:700;
+}
+.sched-grid th.hour-header{width:52px;text-align:center}
+.sched-grid td {
+  border:1px solid var(--border);
+  padding:3px;vertical-align:top;
+  min-width:130px;height:52px;
+  position:relative;
+  transition:background .1s;
+}
+.sched-grid td.droptarget-hover{background:var(--accent-g);outline:2px dashed var(--accent);outline-offset:-2px}
+.sched-grid td.empty-cell{cursor:pointer}
+.sched-grid td.empty-cell:hover{background:var(--accent-g2)}
+.hour-cell{
+  background:var(--s2);text-align:center;font-size:.75rem;
+  font-family:var(--mono);color:var(--text-m);font-weight:500;
+  padding:0 8px;width:52px;
+}
+/* lesson chip */
+.lesson-chip {
+  display:flex;flex-direction:column;justify-content:center;
+  border-radius:6px;padding:4px 7px;
+  height:100%;cursor:grab;
+  user-select:none;position:relative;overflow:hidden;
+  transition:filter .1s, transform .1s;
+  min-height:44px;
+}
+.lesson-chip:active{cursor:grabbing;transform:scale(.97)}
+.lesson-chip.dragging{opacity:.4}
+.lesson-chip-subj{font-size:.78rem;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lesson-chip-meta{font-size:.67rem;opacity:.75;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lesson-chip-del{
+  position:absolute;top:2px;right:3px;
+  width:14px;height:14px;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;opacity:0;transition:opacity .1s;cursor:pointer;
+  background:rgba(0,0,0,.3);color:#fff;
+}
+.lesson-chip:hover .lesson-chip-del{opacity:1}
+.conflict-chip{outline:2px solid var(--red);outline-offset:-1px}
+.conflict-dot{
+  position:absolute;bottom:3px;right:3px;
+  width:6px;height:6px;border-radius:50%;background:var(--red);
+}
+.add-cell-btn {
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;color:var(--text-d);opacity:0;
+  transition:opacity .15s;cursor:pointer;background:none;border:none;
+}
+td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
+
+/* ══════════════════════════════════════
+   CONFLICT PANEL
+══════════════════════════════════════ */
+.conflict-bar {
+  display:flex;align-items:center;gap:10px;
+  background:var(--red-g);border:1px solid rgba(248,113,113,.25);
+  border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;
+  font-size:.82rem;color:var(--red);font-weight:600;cursor:pointer;
+  transition:background .15s;
+}
+.conflict-bar:hover{background:rgba(248,113,113,.18)}
+.conflict-bar .cbar-count{
+  background:var(--red);color:#fff;border-radius:4px;
+  padding:1px 7px;font-size:.72rem;font-weight:700;
+}
+.conflict-bar .cbar-arr{margin-left:auto;transition:transform .2s}
+.conflict-bar.open .cbar-arr{transform:rotate(180deg)}
+.conflict-list{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:16px;overflow:hidden;
+  display:none;
+}
+.conflict-list.show{display:block}
+.conflict-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  font-size:.8rem;
+}
+.conflict-item:last-child{border-bottom:none}
+.conflict-item-icon{font-size:1rem;flex-shrink:0}
+.conflict-item-text{flex:1;line-height:1.4}
+.conflict-item-text strong{color:var(--text)}
+.conflict-item-text span{color:var(--text-m)}
+.conflict-goto{
+  padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--accent);font-family:var(--font);
+  font-size:.72rem;font-weight:700;cursor:pointer;transition:all .15s;
+}
+.conflict-goto:hover{background:var(--accent-g)}
+
+/* ══════════════════════════════════════
+   LESSON MODAL
+══════════════════════════════════════ */
+.modal-overlay {
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.6);z-index:500;
+  align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.show{display:flex}
+.modal-box {
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:28px;
+  width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;
+  box-shadow:var(--shadow-lg);animation:modal-in .18s ease;
+}
+@keyframes modal-in{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
+.modal-title{font-size:1.1rem;font-weight:800;margin-bottom:20px}
+.modal-title span{color:var(--accent)}
+.mfield{margin-bottom:14px}
+.mfield label{display:block;font-size:.72rem;font-weight:700;color:var(--text-m);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px}
+.minput,.mselect{
+  width:100%;padding:9px 12px;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);
+  font-family:var(--font);font-size:.85rem;
+  outline:none;transition:border-color .15s;
+}
+.minput:focus,.mselect:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-g)}
+.mrow{display:flex;gap:10px}
+.mrow .mfield{flex:1}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.mbtn{
+  padding:9px 18px;border-radius:var(--radius);border:none;
+  font-family:var(--font);font-size:.85rem;font-weight:700;cursor:pointer;
+  transition:all .15s;
+}
+.mbtn-primary{background:var(--accent);color:#fff}
+.mbtn-primary:hover{background:var(--accent-d)}
+.mbtn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-m)}
+.mbtn-ghost:hover{background:var(--s2);color:var(--text)}
+.mbtn-danger{background:var(--red-g);border:1px solid rgba(248,113,113,.3);color:var(--red)}
+.mbtn-danger:hover{background:rgba(248,113,113,.2)}
+
+/* group chips in modal */
+.group-check-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.gchk{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:6px;border:1px solid var(--border);
+  cursor:pointer;font-size:.78rem;font-weight:600;
+  transition:all .15s;background:var(--s2);
+}
+.gchk.checked{background:var(--accent-g);border-color:var(--accent);color:var(--accent)}
+.gchk input{display:none}
+
+/* ══════════════════════════════════════
+   STATS / OVERVIEW PANEL
+══════════════════════════════════════ */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+}
+.stat-num{font-size:1.8rem;font-weight:800;line-height:1;margin-bottom:4px}
+.stat-label{font-size:.72rem;color:var(--text-m);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.teacher-load-table{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;margin-bottom:24px;
+}
+.tlt-header{
+  display:flex;align-items:center;padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  font-size:.72rem;font-weight:700;color:var(--text-m);letter-spacing:.05em;text-transform:uppercase;
+}
+.tlt-row{
+  display:flex;align-items:center;padding:10px 16px;
+  border-bottom:1px solid var(--border);font-size:.82rem;
+  transition:background .1s;
+}
+.tlt-row:last-child{border-bottom:none}
+.tlt-row:hover{background:var(--s2)}
+.tlt-name{flex:2;font-weight:600}
+.tlt-hours{flex:1;text-align:center;font-family:var(--mono);font-size:.85rem}
+.tlt-bar-wrap{flex:3;height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.tlt-bar{height:100%;border-radius:3px;transition:width .3s}
+
+/* ══════════════════════════════════════
+   MATRIX / SCHOOL VIEW
+══════════════════════════════════════ */
+.matrix-grid{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border)}
+.matrix-table{border-collapse:collapse;white-space:nowrap;background:var(--s1)}
+.matrix-table th,.matrix-table td{border:1px solid var(--border);padding:6px 10px;font-size:.72rem}
+.matrix-table th{background:var(--s2);font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em}
+.matrix-table td{vertical-align:top;min-width:90px}
+.matrix-chips{display:flex;flex-wrap:wrap;gap:2px}
+.mchip{
+  border-radius:4px;padding:2px 5px;
+  font-size:.65rem;font-weight:700;white-space:nowrap;
+}
+
+/* ══════════════════════════════════════
+   SETTINGS PANEL
+══════════════════════════════════════ */
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.settings-card{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:20px;
+}
+.settings-card-title{font-size:.72rem;font-weight:700;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
+.settings-list{list-style:none}
+.settings-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:.82rem;
+}
+.settings-item:last-child{border-bottom:none}
+.settings-item-name{font-weight:600}
+.settings-item-meta{font-size:.72rem;color:var(--text-m);margin-top:1px}
+.settings-item-actions{display:flex;gap:4px}
+.si-btn{
+  padding:3px 8px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text-m);font-family:var(--font);font-size:.72rem;
+  cursor:pointer;transition:all .12s;
+}
+.si-btn:hover{background:var(--s2);color:var(--text)}
+.si-btn.danger:hover{background:var(--red-g);color:var(--red);border-color:rgba(248,113,113,.3)}
+
+/* toggle switch */
+.toggle{position:relative;display:inline-block;width:36px;height:20px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{
+  position:absolute;inset:0;background:var(--s3);border-radius:10px;
+  cursor:pointer;transition:background .2s;border:1px solid var(--border);
+}
+.toggle-slider::before{
+  content:'';position:absolute;height:14px;width:14px;
+  left:2px;bottom:2px;background:var(--text-m);border-radius:50%;
+  transition:transform .2s, background .2s;
+}
+.toggle input:checked+.toggle-slider{background:var(--accent);border-color:var(--accent)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(16px);background:#fff}
+
+/* ── NOTIFY TOAST ── */
+#notify{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--s3);border:1px solid var(--border2);border-radius:10px;
+  padding:10px 20px;font-size:.82rem;font-weight:600;
+  white-space:nowrap;z-index:9999;transition:transform .25s;pointer-events:none;
+  box-shadow:var(--shadow);
+}
+#notify.show{transform:translateX(-50%) translateY(0)}
+
+/* ══════════════════════════════════════
+   SUBJECT COLOR SWATCHES
+══════════════════════════════════════ */
+.subj-colors {
+  --c0:#38bdf8;--c1:#34d399;--c2:#fbbf24;--c3:#f87171;
+  --c4:#a78bfa;--c5:#2dd4bf;--c6:#fb923c;--c7:#f472b6;
+  --c8:#818cf8;--c9:#4ade80;
+}
+
+/* ── EMPTY STATE ── */
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--text-m);
+}
+.empty-state-icon{font-size:3rem;margin-bottom:12px}
+.empty-state-title{font-size:1rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.empty-state-sub{font-size:.82rem;line-height:1.5}
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  .topbar{padding:0 12px}
+  .main-content{padding:12px}
+  .wcard{padding:18px}
+  .modal-box{padding:20px}
+  .wiz-title{font-size:1.5rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     WELCOME SCREEN
+══════════════════════════════════ -->
+<div id="welcomeScreen">
+  <div class="wl-wrap">
+    <div class="wl-logo">Plan<span>Lekcji</span></div>
+    <div class="wl-tagline">Inteligentne układanie planów lekcji dla szkół</div>
+    <div class="wl-cards">
+      <div class="wl-card" onclick="wlStartNew()">
+        <div class="wl-card-icon">✨</div>
+        <div class="wl-card-title">Nowy plan</div>
+        <div class="wl-card-desc">Skonfiguruj nowy rok szkolny krok po kroku</div>
+      </div>
+      <div class="wl-card" id="wlContinueCard" onclick="wlContinue()" style="display:none">
+        <div class="wl-card-icon">📋</div>
+        <div class="wl-card-title">Kontynuuj</div>
+        <div class="wl-card-desc" id="wlContinueDesc">Wróć do istniejącego planu</div>
+      </div>
+      <div class="wl-card" onclick="wlImport()">
+        <div class="wl-card-icon">📂</div>
+        <div class="wl-card-title">Importuj</div>
+        <div class="wl-card-desc">Wczytaj plan z pliku JSON</div>
+      </div>
+      <div class="wl-card" onclick="wlDemo()">
+        <div class="wl-card-icon">🎓</div>
+        <div class="wl-card-title">Demo</div>
+        <div class="wl-card-desc">Przeglądaj przykładowy plan szkolny</div>
+      </div>
+    </div>
+    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(this.files[0])">
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SETUP WIZARD
+══════════════════════════════════ -->
+<div id="wizardOverlay">
+  <div class="wiz-wrap">
+    <div class="wizard">
+      <div class="wiz-header">
+        <div class="wiz-badge">⚙ Konfiguracja</div>
+        <div class="wiz-title">Nowy <span>plan lekcji</span></div>
+        <div class="wiz-sub">Uzupełnij dane szkoły, aby zacząć układać plan</div>
+      </div>
+      <div class="wiz-steps" id="wizSteps"></div>
+      <div id="wizBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     MAIN APP
+══════════════════════════════════ -->
+<div id="appRoot">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-logo">Plan<span>Lekcji</span></div>
+    <div class="topbar-tabs" id="topbarTabs">
+      <button class="ttab active" data-view="class" onclick="switchView('class',this)">📚 Klasy</button>
+      <button class="ttab" data-view="teacher" onclick="switchView('teacher',this)">👩‍🏫 Nauczyciele</button>
+      <button class="ttab" data-view="room" onclick="switchView('room',this)">🏫 Sale</button>
+      <button class="ttab" data-view="matrix" onclick="switchView('matrix',this)">🔲 Macierz</button>
+      <button class="ttab" data-view="stats" onclick="switchView('stats',this)">📊 Statystyki</button>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" title="Eksportuj JSON" onclick="exportJSON()">💾</button>
+      <button class="icon-btn" title="Motyw" onclick="toggleTheme()" id="themeBtn">☀️</button>
+      <button class="icon-btn" title="Ustawienia" onclick="switchView('settings',document.querySelector('[data-view=settings]'))">⚙️</button>
+      <button class="icon-btn" title="Nowy plan / zmień konfigurację" onclick="openSettings()">🔄</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-content">
+
+    <!-- CONFLICT BAR -->
+    <div id="conflictBar" class="conflict-bar" onclick="toggleConflicts()" style="display:none">
+      <span>⚠️</span>
+      <span id="conflictBarText">Wykryto konflikty</span>
+      <span class="cbar-count" id="conflictCount">0</span>
+      <span class="cbar-arr">▼</span>
+    </div>
+    <div id="conflictList" class="conflict-list"></div>
+
+    <!-- VIEW: KLASY -->
+    <div class="view-panel active" id="view-class">
+      <div class="view-selector">
+        <span class="view-selector-label">Klasa:</span>
+        <select class="vs-select" id="classSelect" onchange="renderClassView()">
+          <option value="">— wybierz klasę —</option>
+        </select>
+        <span class="view-selector-label" style="margin-left:10px">Dzień:</span>
+        <select class="vs-select" id="classDaySelect" onchange="renderClassView()">
+          <option value="all">Cały tydzień</option>
+        </select>
+      </div>
+      <div id="classGridWrap"></div>
+    </div>
+
+    <!-- VIEW: NAUCZYCIELE -->
+    <div class="view-panel" id="view-teacher">
+      <div class="view-selector">
+        <span class="view-selector-label">Nauczyciel:</span>
+        <select class="vs-select" id="teacherSelect" onchange="renderTeacherView()">
+          <option value="">— wybierz nauczyciela —</option>
+        </select>
+        <span class="view-selector-label" style="margin-left:10px">Dzień:</span>
+        <select class="vs-select" id="teacherDaySelect" onchange="renderTeacherView()">
+          <option value="all">Cały tydzień</option>
+        </select>
+      </div>
+      <div id="teacherGridWrap"></div>
+    </div>
+
+    <!-- VIEW: SALE -->
+    <div class="view-panel" id="view-room">
+      <div class="view-selector">
+        <span class="view-selector-label">Sala:</span>
+        <select class="vs-select" id="roomSelect" onchange="renderRoomView()">
+          <option value="">— wybierz salę —</option>
+        </select>
+        <span class="view-selector-label" style="margin-left:10px">Dzień:</span>
+        <select class="vs-select" id="roomDaySelect" onchange="renderRoomView()">
+          <option value="all">Cały tydzień</option>
+        </select>
+      </div>
+      <div id="roomGridWrap"></div>
+    </div>
+
+    <!-- VIEW: MACIERZ -->
+    <div class="view-panel" id="view-matrix">
+      <div class="view-selector">
+        <span class="view-selector-label">Dzień:</span>
+        <select class="vs-select" id="matrixDaySelect" onchange="renderMatrixView()">
+        </select>
+        <span class="view-selector-label" style="margin-left:10px">Pokaż:</span>
+        <select class="vs-select" id="matrixModeSelect" onchange="renderMatrixView()">
+          <option value="class">Klasy × Godziny</option>
+          <option value="teacher">Nauczyciele × Godziny</option>
+        </select>
+      </div>
+      <div id="matrixGridWrap"></div>
+    </div>
+
+    <!-- VIEW: STATYSTYKI -->
+    <div class="view-panel" id="view-stats">
+      <div id="statsContent"></div>
+    </div>
+
+    <!-- VIEW: USTAWIENIA -->
+    <div class="view-panel" id="view-settings">
+      <div id="settingsContent"></div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /appRoot -->
+
+<!-- ══════════════════════════════════
+     LESSON MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="lessonModal">
+  <div class="modal-box">
+    <div class="modal-title" id="lessonModalTitle">Dodaj lekcję</div>
+    <div class="mfield">
+      <label>Przedmiot</label>
+      <select class="mselect" id="mSubject" onchange="mOnSubjectChange()">
+        <option value="">— wybierz przedmiot —</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Nauczyciel</label>
+      <select class="mselect" id="mTeacher">
+        <option value="">— wybierz nauczyciela —</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Sala</label>
+      <select class="mselect" id="mRoom">
+        <option value="">— brak / wybierz salę —</option>
+      </select>
+    </div>
+    <div class="mfield" id="mGroupField">
+      <label>Grupy (jeśli dotyczy)</label>
+      <div class="group-check-list" id="mGroupList"></div>
+    </div>
+    <div class="mfield" id="mClassField" style="display:none">
+      <label>Klasa</label>
+      <select class="mselect" id="mClass">
+        <option value="">— wybierz klasę —</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Uwagi (opcjonalnie)</label>
+      <input class="minput" id="mNote" type="text" placeholder="np. zastępstwo, podwójna lekcja...">
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="mDeleteBtn" onclick="deleteLessonModal()" style="display:none;margin-right:auto">Usuń lekcję</button>
+      <button class="mbtn mbtn-ghost" onclick="closeLessonModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveLessonModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFY TOAST -->
+<div id="notify"></div>
+
+<script>
+// ================================================================
+//  CONSTANTS & PALETTE
+// ================================================================
+const DAYS = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
+const SUBJ_COLORS = [
+  '#38bdf8','#34d399','#fbbf24','#f87171',
+  '#a78bfa','#2dd4bf','#fb923c','#f472b6',
+  '#818cf8','#4ade80','#e879f9','#67e8f9'
+];
+const WIZ_STEPS = ['Szkoła','Klasy','Przedmioty','Nauczyciele','Sale','Godziny'];
+const LS = {
+  STATE:    'pl_state',
+  SCHED:    'pl_sched',
+  THEME:    'pl_theme',
+};
+
+// ================================================================
+//  STATE
+// ================================================================
+let appState = null; // {name, year, hours[], classes[], subjects[], teachers[], rooms[]}
+let schedData = {};  // {classKey: {dayIdx: {hourIdx: lessonObj}}}
+// lessonObj: {subjectId, teacherId, roomId, groups[], note}
+let _demoMode = false;
+let _currentView = 'class';
+let _dragData = null; // {classKey,dayIdx,hourIdx}
+
+// modal state
+let _mCtx = null; // {mode:'add'|'edit', classKey, dayIdx, hourIdx}
+
+// ================================================================
+//  STORAGE
+// ================================================================
+function loadAll() {
+  try { appState = JSON.parse(localStorage.getItem(LS.STATE)||'null'); } catch(e){appState=null;}
+  try { schedData = JSON.parse(localStorage.getItem(LS.SCHED)||'{}'); } catch(e){schedData={};}
+}
+function persistAll() {
+  if(_demoMode) return;
+  localStorage.setItem(LS.STATE, JSON.stringify(appState));
+  localStorage.setItem(LS.SCHED, JSON.stringify(schedData));
+}
+
+// ================================================================
+//  INIT
+// ================================================================
+function init() {
+  loadAll();
+  applyTheme();
+  if(appState) {
+    showApp();
+  } else {
+    showWelcome();
+  }
+}
+
+function showWelcome() {
+  const ws = document.getElementById('welcomeScreen');
+  ws.classList.add('show');
+  const cont = document.getElementById('wlContinueCard');
+  const desc = document.getElementById('wlContinueDesc');
+  // If local data exists from a previous session
+  try {
+    const s = JSON.parse(localStorage.getItem(LS.STATE)||'null');
+    if(s) {
+      cont.style.display='';
+      desc.textContent = s.name + ' · ' + (s.year||'');
+    }
+  } catch(e){}
+}
+
+function showApp() {
+  document.getElementById('welcomeScreen').classList.remove('show');
+  document.getElementById('wizardOverlay').classList.remove('show');
+  const app = document.getElementById('appRoot');
+  app.classList.add('show');
+  populateSelects();
+  renderCurrentView();
+  detectAndShowConflicts();
+}
+
+// ================================================================
+//  WELCOME ACTIONS
+// ================================================================
+function wlStartNew() {
+  document.getElementById('welcomeScreen').classList.remove('show');
+  startWizard();
+}
+function wlContinue() {
+  loadAll();
+  if(appState) showApp();
+}
+function wlImport() {
+  document.getElementById('importFileInput').click();
+}
+function wlDemo() {
+  _demoMode = true;
+  appState = buildDemoState();
+  schedData = buildDemoSched();
+  document.getElementById('welcomeScreen').classList.remove('show');
+  showApp();
+  notify('Tryb demo — zmiany nie są zapisywane');
+}
+function openSettings() {
+  // Allow reconfiguring
+  document.getElementById('welcomeScreen').classList.add('show');
+  document.getElementById('appRoot').classList.remove('show');
+}
+
+// ================================================================
+//  WIZARD
+// ================================================================
+let wStep = 0;
+let wData = { name:'', year:'', classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+
+function startWizard() {
+  wStep = 0;
+  wData = { name:'', year:'', classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+  document.getElementById('wizardOverlay').classList.add('show');
+  renderWizStep();
+}
+
+function renderWizStepsIndicator() {
+  const el = document.getElementById('wizSteps');
+  el.innerHTML = WIZ_STEPS.map((s,i) => `
+    <div class="ws ${i===wStep?'active':i<wStep?'done':''}">
+      <div class="ws-num">${i<wStep?'✓':i+1}</div>
+      <div class="ws-label">${s}</div>
+      ${i<WIZ_STEPS.length-1?'<div class="ws-line"></div>':''}
+    </div>
+  `).join('');
+}
+
+function renderWizStep() {
+  renderWizStepsIndicator();
+  const body = document.getElementById('wizBody');
+  switch(wStep) {
+    case 0: body.innerHTML = wizStep0(); break;
+    case 1: body.innerHTML = wizStep1(); break;
+    case 2: body.innerHTML = wizStep2(); break;
+    case 3: body.innerHTML = wizStep3(); break;
+    case 4: body.innerHTML = wizStep4(); break;
+    case 5: body.innerHTML = wizStep5(); break;
+  }
+}
+
+// Step 0: School info
+function wizStep0() {
+  return `<div class="wcard">
+    <div class="wcard-title">Informacje o szkole</div>
+    <div class="wfield"><label>Nazwa szkoły</label>
+      <input class="winput" id="wName" value="${wData.name}" placeholder="np. Szkoła Podstawowa nr 1"></div>
+    <div class="wfield"><label>Rok szkolny</label>
+      <input class="winput" id="wYear" value="${wData.year||currentSchoolYear()}" placeholder="2025/2026"></div>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+// Step 1: Classes
+function wizStep1() {
+  const tags = wData.classes.map((c,i) => `
+    <div class="tag">
+      <span>${c.name}${c.groups&&c.groups.length?' (gr: '+c.groups.join(', ')+')':''}</span>
+      <span class="tag-del" onclick="wRemoveClass(${i})">×</span>
+    </div>`).join('');
+  return `<div class="wcard">
+    <div class="wcard-title">Klasy</div>
+    <div class="wrow">
+      <div class="wfield"><label>Nazwa klasy</label><input class="winput" id="wClassName" placeholder="np. 1a, 2b, 3c"></div>
+      <div class="wfield"><label>Grupy (opcjonalnie, rozdziel przecinkami)</label><input class="winput" id="wClassGroups" placeholder="np. gr1, gr2"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddClass()">+ Dodaj klasę</button>
+    <div class="tag-list">${tags}</div>
+    <p class="import-hint">Możesz też wpisać wiele klas naraz w formacie: <em>1a;1b;2a;2b</em></p>
+    <div class="tag-add-row">
+      <input class="winput" id="wClassBulk" placeholder="1a;1b;2a;2b — masowe dodawanie">
+      <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
+    </div>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+// Step 2: Subjects
+function wizStep2() {
+  const rows = wData.subjects.map((s,i) => {
+    const swatches = SUBJ_COLORS.map(c => 
+      `<div class="color-swatch ${s.color===c?'sel':''}" style="background:${c}" onclick="wSetSubjColor(${i},'${c}')"></div>`
+    ).join('');
+    return `<div class="subj-row">
+      <div class="cdot" style="background:${s.color}"></div>
+      <div class="subj-name">${s.name}</div>
+      <div class="subj-abbr">${s.abbr}</div>
+      <div class="color-pick">${swatches}</div>
+      <span class="tag-del" onclick="wRemoveSubj(${i})">×</span>
+    </div>`;
+  }).join('');
+  return `<div class="wcard">
+    <div class="wcard-title">Przedmioty</div>
+    <div class="wrow">
+      <div class="wfield"><label>Nazwa przedmiotu</label><input class="winput" id="wSubjName" placeholder="np. Matematyka"></div>
+      <div class="wfield"><label>Skrót</label><input class="winput" id="wSubjAbbr" placeholder="np. MAT" maxlength="5"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddSubj()">+ Dodaj przedmiot</button>
+    ${rows}
+    <p class="import-hint">Szybkie dodawanie: <em>Matematyka;Język polski;Historia;Biologia</em></p>
+    <div class="tag-add-row">
+      <input class="winput" id="wSubjBulk" placeholder="Matematyka;Fizyka;Chemia — masowe dodawanie">
+      <button class="tag-add-btn" onclick="wAddSubjBulk()">Importuj</button>
+    </div>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+// Step 3: Teachers
+function wizStep3() {
+  const rows = wData.teachers.map((t,i) => `
+    <div class="subj-row">
+      <div class="subj-name">${t.first} ${t.last}</div>
+      <div class="subj-abbr" style="font-family:var(--mono)">${t.abbr}</div>
+      <span class="tag-del" onclick="wRemoveTeacher(${i})">×</span>
+    </div>`).join('');
+  return `<div class="wcard">
+    <div class="wcard-title">Nauczyciele</div>
+    <div class="wrow">
+      <div class="wfield"><label>Imię</label><input class="winput" id="wTFirst" placeholder="Anna"></div>
+      <div class="wfield"><label>Nazwisko</label><input class="winput" id="wTLast" placeholder="Kowalska" oninput="wAutoAbbr()"></div>
+      <div class="wfield"><label>Skrót</label><input class="winput" id="wTAbbr" placeholder="AKow" maxlength="6"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddTeacher()">+ Dodaj nauczyciela</button>
+    ${rows}
+    <p class="import-hint">Masowe: <em>Anna;Kowalska;AKow</em> — jeden nauczyciel na linię</p>
+    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow&#10;Jan;Nowak;JNow&#10;Maria;Wiśniewska;MWis"></textarea>
+    <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wAddTeacherBulk()">Importuj z pola</button>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+// Step 4: Rooms
+function wizStep4() {
+  const tags = wData.rooms.map((r,i) => `
+    <div class="tag"><span>${r}</span><span class="tag-del" onclick="wRemoveRoom(${i})">×</span></div>
+  `).join('');
+  return `<div class="wcard">
+    <div class="wcard-title">Sale lekcyjne</div>
+    <div class="tag-add-row">
+      <input class="winput" id="wRoomInput" placeholder="np. 101, Sala gimnastyczna" onkeydown="if(event.key==='Enter')wAddRoom()">
+      <button class="tag-add-btn" onclick="wAddRoom()">+ Dodaj</button>
+    </div>
+    <div class="tag-list" style="margin-top:10px">${tags}</div>
+    <p class="import-hint">Masowe: <em>101;102;103;Sala gimnastyczna</em></p>
+    <div class="tag-add-row" style="margin-top:8px">
+      <input class="winput" id="wRoomBulk" placeholder="101;102;103;Aula">
+      <button class="tag-add-btn" onclick="wAddRoomBulk()">Importuj</button>
+    </div>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+// Step 5: Hours
+function wizStep5() {
+  const tags = wData.hours.map((h,i) => `
+    <div class="tag">
+      <span>${h.num}. ${h.start}–${h.end}</span>
+      <span class="tag-del" onclick="wRemoveHour(${i})">×</span>
+    </div>`).join('');
+  return `<div class="wcard">
+    <div class="wcard-title">Godziny lekcyjne</div>
+    <div class="wrow">
+      <div class="wfield"><label>Nr lekcji</label><input class="winput" id="wHNum" type="number" min="1" max="15" placeholder="1" style="width:70px"></div>
+      <div class="wfield"><label>Początek</label><input class="winput" id="wHStart" type="time" value="08:00"></div>
+      <div class="wfield"><label>Koniec</label><input class="winput" id="wHEnd" type="time" value="08:45"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddHour()">+ Dodaj godzinę</button>
+    <div class="tag-list">${tags}</div>
+    <p class="import-hint">Lub wygeneruj automatycznie:</p>
+    <div class="wrow" style="margin-top:6px">
+      <div class="wfield"><label>Lekcja 1 od</label><input class="winput" id="wHAutoFrom" type="time" value="08:00"></div>
+      <div class="wfield"><label>Czas lekcji (min)</label><input class="winput" id="wHAutoLen" type="number" value="45" min="30" max="90"></div>
+      <div class="wfield"><label>Przerwa (min)</label><input class="winput" id="wHAutoBreak" type="number" value="10" min="0" max="30"></div>
+      <div class="wfield"><label>Liczba lekcji</label><input class="winput" id="wHAutoCount" type="number" value="8" min="1" max="12"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wGenerateHours()">⚡ Generuj godziny</button>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizFinish()">✓ Utwórz plan</button>
+  </div>`;
+}
+
+// Wizard navigation
+function wizNext() {
+  if(!wizCollectStep()) return;
+  wStep = Math.min(wStep+1, WIZ_STEPS.length-1);
+  renderWizStep();
+}
+function wizPrev() {
+  wStep = Math.max(wStep-1, 0);
+  renderWizStep();
+}
+
+function wizCollectStep() {
+  switch(wStep) {
+    case 0:
+      wData.name = document.getElementById('wName').value.trim();
+      wData.year = document.getElementById('wYear').value.trim();
+      if(!wData.name) { notify('Podaj nazwę szkoły'); return false; }
+      break;
+    case 1:
+      if(!wData.classes.length) { notify('Dodaj co najmniej jedną klasę'); return false; }
+      break;
+    case 2:
+      if(!wData.subjects.length) { notify('Dodaj co najmniej jeden przedmiot'); return false; }
+      break;
+    case 3:
+      if(!wData.teachers.length) { notify('Dodaj co najmniej jednego nauczyciela'); return false; }
+      break;
+  }
+  return true;
+}
+
+function wizFinish() {
+  if(!wData.hours.length) { notify('Dodaj co najmniej jedną godzinę lekcyjną'); return; }
+  // Build appState
+  appState = {
+    name: wData.name,
+    year: wData.year,
+    classes: wData.classes.map((c,i)=>({id:'cls'+i, name:c.name, groups:c.groups||[]})),
+    subjects: wData.subjects.map((s,i)=>({id:'subj'+i, name:s.name, abbr:s.abbr, color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length]})),
+    teachers: wData.teachers.map((t,i)=>({id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr})),
+    rooms: wData.rooms.map((r,i)=>({id:'room'+i, name:r})),
+    hours: wData.hours.sort((a,b)=>a.num-b.num),
+  };
+  schedData = {};
+  _demoMode = false;
+  persistAll();
+  showApp();
+  notify('Plan został utworzony!');
+}
+
+// Wizard helpers
+function wAddClass() {
+  const n = document.getElementById('wClassName').value.trim();
+  const g = document.getElementById('wClassGroups').value.trim();
+  if(!n) return;
+  wData.classes.push({name:n, groups: g ? g.split(',').map(x=>x.trim()).filter(Boolean) : []});
+  document.getElementById('wClassName').value='';
+  document.getElementById('wClassGroups').value='';
+  renderWizStep();
+}
+function wAddClassBulk() {
+  const raw = document.getElementById('wClassBulk').value.trim();
+  if(!raw) return;
+  raw.split(';').forEach(n=>{n=n.trim();if(n&&!wData.classes.find(c=>c.name===n))wData.classes.push({name:n,groups:[]});});
+  renderWizStep();
+}
+function wRemoveClass(i){wData.classes.splice(i,1);renderWizStep();}
+
+function wAddSubj() {
+  const n = document.getElementById('wSubjName').value.trim();
+  const a = document.getElementById('wSubjAbbr').value.trim()||n.slice(0,3).toUpperCase();
+  if(!n) return;
+  wData.subjects.push({name:n,abbr:a,color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length]});
+  document.getElementById('wSubjName').value='';
+  document.getElementById('wSubjAbbr').value='';
+  renderWizStep();
+}
+function wAddSubjBulk() {
+  const raw = document.getElementById('wSubjBulk').value.trim();
+  if(!raw) return;
+  raw.split(';').forEach(n=>{
+    n=n.trim(); if(!n)return;
+    if(!wData.subjects.find(s=>s.name===n))
+      wData.subjects.push({name:n,abbr:n.slice(0,3).toUpperCase(),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length]});
+  });
+  renderWizStep();
+}
+function wRemoveSubj(i){wData.subjects.splice(i,1);renderWizStep();}
+function wSetSubjColor(i,c){wData.subjects[i].color=c;renderWizStep();}
+
+function wAutoAbbr() {
+  const f=(document.getElementById('wTFirst')||{}).value||'';
+  const l=(document.getElementById('wTLast')||{}).value||'';
+  const abbr = (f[0]||'').toUpperCase() + l.slice(0,3);
+  const el = document.getElementById('wTAbbr');
+  if(el) el.value = abbr;
+}
+function wAddTeacher() {
+  const f=document.getElementById('wTFirst').value.trim();
+  const l=document.getElementById('wTLast').value.trim();
+  const a=document.getElementById('wTAbbr').value.trim()||((f[0]||'').toUpperCase()+l.slice(0,3));
+  if(!f&&!l) return;
+  wData.teachers.push({first:f,last:l,abbr:a});
+  document.getElementById('wTFirst').value='';
+  document.getElementById('wTLast').value='';
+  document.getElementById('wTAbbr').value='';
+  renderWizStep();
+}
+function wAddTeacherBulk() {
+  const raw = document.getElementById('wTeacherBulk').value.trim();
+  if(!raw) return;
+  raw.split('\n').forEach(line=>{
+    const [f,l,a]=(line||'').split(';').map(x=>x.trim());
+    if(f||l) wData.teachers.push({first:f||'',last:l||'',abbr:a||(f?f[0]:'')+(l?l.slice(0,3):'')});
+  });
+  renderWizStep();
+}
+function wRemoveTeacher(i){wData.teachers.splice(i,1);renderWizStep();}
+
+function wAddRoom() {
+  const v=document.getElementById('wRoomInput').value.trim();
+  if(!v)return;
+  if(!wData.rooms.includes(v))wData.rooms.push(v);
+  document.getElementById('wRoomInput').value='';
+  renderWizStep();
+}
+function wAddRoomBulk() {
+  const raw=document.getElementById('wRoomBulk').value.trim();
+  if(!raw)return;
+  raw.split(';').forEach(r=>{r=r.trim();if(r&&!wData.rooms.includes(r))wData.rooms.push(r);});
+  renderWizStep();
+}
+function wRemoveRoom(i){wData.rooms.splice(i,1);renderWizStep();}
+
+function wAddHour() {
+  const num=parseInt(document.getElementById('wHNum').value)||wData.hours.length+1;
+  const start=document.getElementById('wHStart').value;
+  const end=document.getElementById('wHEnd').value;
+  if(!start||!end)return;
+  if(!wData.hours.find(h=>h.num===num))wData.hours.push({num,start,end});
+  else{const h=wData.hours.find(h=>h.num===num);h.start=start;h.end=end;}
+  wData.hours.sort((a,b)=>a.num-b.num);
+  // auto-increment
+  document.getElementById('wHNum').value=num+1;
+  // calc next start = end + 10min
+  const [eh,em]=end.split(':').map(Number);
+  const nm=eh*60+em+10;
+  document.getElementById('wHStart').value=`${String(Math.floor(nm/60)).padStart(2,'0')}:${String(nm%60).padStart(2,'0')}`;
+  const len=parseInt(document.getElementById('wHAutoLen')||{value:45}.value)||45;
+  const nm2=nm+len;
+  document.getElementById('wHEnd').value=`${String(Math.floor(nm2/60)).padStart(2,'0')}:${String(nm2%60).padStart(2,'0')}`;
+  renderWizStep();
+}
+function wRemoveHour(i){wData.hours.splice(i,1);renderWizStep();}
+function wGenerateHours() {
+  const from=document.getElementById('wHAutoFrom').value||'08:00';
+  const len=parseInt(document.getElementById('wHAutoLen').value)||45;
+  const brk=parseInt(document.getElementById('wHAutoBreak').value)||10;
+  const cnt=parseInt(document.getElementById('wHAutoCount').value)||8;
+  const [sh,sm]=from.split(':').map(Number);
+  let cur=sh*60+sm;
+  wData.hours=[];
+  for(let i=0;i<cnt;i++){
+    const s=`${String(Math.floor(cur/60)).padStart(2,'0')}:${String(cur%60).padStart(2,'0')}`;
+    cur+=len;
+    const e=`${String(Math.floor(cur/60)).padStart(2,'0')}:${String(cur%60).padStart(2,'0')}`;
+    wData.hours.push({num:i+1,start:s,end:e});
+    cur+=brk;
+  }
+  renderWizStep();
+}
+
+function currentSchoolYear(){
+  const now=new Date();
+  const y=now.getFullYear();
+  return now.getMonth()>=8 ? `${y}/${y+1}` : `${y-1}/${y}`;
+}
+
+// ================================================================
+//  POPULATE SELECTS
+// ================================================================
+function populateSelects() {
+  if(!appState) return;
+
+  // Days to day selects
+  ['classDaySelect','teacherDaySelect','roomDaySelect'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.innerHTML='<option value="all">Cały tydzień</option>' +
+      DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('');
+  });
+
+  // Matrix day select
+  const mds=document.getElementById('matrixDaySelect');
+  if(mds) mds.innerHTML=DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('');
+
+  // Class select
+  const cs=document.getElementById('classSelect');
+  if(cs){
+    cs.innerHTML='<option value="">— wybierz klasę —</option>' +
+      appState.classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    if(appState.classes.length) cs.value=appState.classes[0].id;
+  }
+
+  // Teacher select
+  const ts=document.getElementById('teacherSelect');
+  if(ts){
+    ts.innerHTML='<option value="">— wybierz nauczyciela —</option>' +
+      appState.teachers.map(t=>`<option value="${t.id}">${t.first} ${t.last}</option>`).join('');
+    if(appState.teachers.length) ts.value=appState.teachers[0].id;
+  }
+
+  // Room select
+  const rs=document.getElementById('roomSelect');
+  if(rs){
+    rs.innerHTML='<option value="">— wybierz salę —</option>' +
+      appState.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+    if(appState.rooms.length) rs.value=appState.rooms[0].id;
+  }
+
+  // Modal selects
+  populateModalSelects();
+}
+
+function populateModalSelects() {
+  const ms=document.getElementById('mSubject');
+  if(ms) ms.innerHTML='<option value="">— wybierz przedmiot —</option>' +
+    appState.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+
+  const mt=document.getElementById('mTeacher');
+  if(mt) mt.innerHTML='<option value="">— wybierz nauczyciela —</option>' +
+    appState.teachers.map(t=>`<option value="${t.id}">${t.first} ${t.last} (${t.abbr})</option>`).join('');
+
+  const mr=document.getElementById('mRoom');
+  if(mr) mr.innerHTML='<option value="">— brak / bez sali —</option>' +
+    appState.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+
+  const mc=document.getElementById('mClass');
+  if(mc) mc.innerHTML='<option value="">— wybierz klasę —</option>' +
+    appState.classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+// ================================================================
+//  VIEW SWITCHING
+// ================================================================
+function switchView(name, btn) {
+  _currentView=name;
+  document.querySelectorAll('.view-panel').forEach(p=>p.classList.remove('active'));
+  const panel=document.getElementById('view-'+name);
+  if(panel) panel.classList.add('active');
+  document.querySelectorAll('.ttab').forEach(t=>t.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderCurrentView();
+}
+
+function renderCurrentView() {
+  switch(_currentView){
+    case 'class':   renderClassView();   break;
+    case 'teacher': renderTeacherView(); break;
+    case 'room':    renderRoomView();    break;
+    case 'matrix':  renderMatrixView();  break;
+    case 'stats':   renderStats();       break;
+    case 'settings':renderSettings();    break;
+  }
+}
+
+// ================================================================
+//  SCHEDULE GRID RENDERER
+// ================================================================
+// schedData key: clsId + '_' + dayIdx + '_' + hourIdx => lessonObj
+
+function lessonKey(clsId, dayIdx, hourIdx) {
+  return `${clsId}_${dayIdx}_${hourIdx}`;
+}
+
+function getLesson(clsId, dayIdx, hourIdx) {
+  return schedData[lessonKey(clsId,dayIdx,hourIdx)] || null;
+}
+
+function setLesson(clsId, dayIdx, hourIdx, lesson) {
+  const k=lessonKey(clsId,dayIdx,hourIdx);
+  if(lesson===null) delete schedData[k];
+  else schedData[k]=lesson;
+  persistAll();
+}
+
+function renderGrid(columns, getLabel, getDays, opts={}) {
+  // columns: [{id, label}], getDays: filtered DAYS indices
+  // returns HTML string
+  const days = getDays; // array of day indices
+  const hours = appState.hours;
+  if(!hours||!hours.length) return '<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';
+
+  let html = `<div class="grid-wrap"><table class="sched-grid"><thead><tr>
+    <th class="hour-header">Nr</th>`;
+
+  if(days.length>1){
+    days.forEach(di=>{
+      const colspan = columns.length;
+      html += `<th class="day-header" colspan="${colspan}">${DAYS[di]}</th>`;
+    });
+  } else {
+    columns.forEach(col=>{
+      html += `<th class="day-header">${col.label}</th>`;
+    });
+  }
+  html += '</tr>';
+
+  // subheader if multi-day and multi-column
+  if(days.length>1 && columns.length>1){
+    html += '<tr><th></th>';
+    days.forEach(()=>{
+      columns.forEach(col=>{
+        html += `<th style="font-size:.65rem;padding:4px 8px">${col.label}</th>`;
+      });
+    });
+    html += '</tr>';
+  }
+  html += '</thead><tbody>';
+
+  hours.forEach(h=>{
+    html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+    days.forEach(di=>{
+      columns.forEach(col=>{
+        const lesson = getLesson(col.id, di, h.num);
+        const key = lessonKey(col.id, di, h.num);
+        if(lesson){
+          const subj = appState.subjects.find(s=>s.id===lesson.subjectId);
+          const tch  = appState.teachers.find(t=>t.id===lesson.teacherId);
+          const room = appState.rooms.find(r=>r.id===lesson.roomId);
+          const color = subj?.color||'#38bdf8';
+          const isDark = isDarkColor(color);
+          const textCol = isDark ? '#fff' : '#111';
+          const bg = hexToRgba(color,.18);
+          const border = hexToRgba(color,.45);
+          const hasConflict = checkCellConflict(col.id, di, h.num, lesson);
+          html += `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
+            draggable="false"
+            ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(this)">
+            <div class="lesson-chip ${hasConflict?'conflict-chip':''}"
+              style="background:${bg};border-left:3px solid ${color};color:${textCol}"
+              draggable="true"
+              ondragstart="doDragStart(event,'${col.id}',${di},${h.num})"
+              ondragend="doDragEnd(event)"
+              onclick="event.stopPropagation();openEditModal('${col.id}',${di},${h.num})">
+              <div class="lesson-chip-subj">${subj?.abbr||'?'} ${lesson.groups&&lesson.groups.length?'('+lesson.groups.join('/')+')':''}</div>
+              <div class="lesson-chip-meta">${tch?tch.abbr:''} ${room?'· '+room.name:''}</div>
+              <div class="lesson-chip-del" onclick="event.stopPropagation();deleteLesson('${col.id}',${di},${h.num})">×</div>
+              ${hasConflict?'<div class="conflict-dot"></div>':''}
+            </div>
+          </td>`;
+        } else {
+          html += `<td class="empty-cell" data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
+            ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(this)"
+            onclick="openAddModal('${col.id}',${di},${h.num},'${opts.fixTeacher||''}','${opts.fixRoom||''}')">
+            <button class="add-cell-btn" tabindex="-1">＋</button>
+          </td>`;
+        }
+      });
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// ── CLASS VIEW ──
+function renderClassView() {
+  if(!appState) return;
+  const clsId = document.getElementById('classSelect').value;
+  const dayVal = document.getElementById('classDaySelect').value;
+  const wrap = document.getElementById('classGridWrap');
+  if(!clsId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📚</div><div class="empty-state-title">Wybierz klasę z listy</div></div>`;return;}
+  const cls = appState.classes.find(c=>c.id===clsId);
+  const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
+  wrap.innerHTML = renderGrid([{id:clsId,label:cls?.name||''}], null, days);
+}
+
+// ── TEACHER VIEW ──
+function renderTeacherView() {
+  if(!appState) return;
+  const tchId = document.getElementById('teacherSelect').value;
+  const dayVal = document.getElementById('teacherDaySelect').value;
+  const wrap = document.getElementById('teacherGridWrap');
+  if(!tchId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">👩‍🏫</div><div class="empty-state-title">Wybierz nauczyciela z listy</div></div>`;return;}
+  const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
+  // For teacher view: show all classes that have a lesson with this teacher
+  const hours = appState.hours;
+  const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
+  // Build a virtual grid: for teacher, we show all classes
+  wrap.innerHTML = renderGrid(cols, null, days, {fixTeacher:tchId});
+  // Overlay: grey out cells where lesson has a different teacher
+  wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
+    const clsId=td.dataset.clsid;
+    const di=parseInt(td.dataset.day);
+    const hn=parseInt(td.dataset.hour);
+    const lesson=getLesson(clsId,di,hn);
+    if(lesson && lesson.teacherId!==tchId){
+      td.querySelector('.lesson-chip')&&(td.querySelector('.lesson-chip').style.opacity='.2');
+    }
+    if(!lesson){
+      // In teacher view, clicking empty cell should pre-fill teacher
+      td.onclick=()=>openAddModal(clsId,di,hn,tchId,'');
+    }
+  });
+}
+
+// ── ROOM VIEW ──
+function renderRoomView() {
+  if(!appState) return;
+  const roomId = document.getElementById('roomSelect').value;
+  const dayVal = document.getElementById('roomDaySelect').value;
+  const wrap = document.getElementById('roomGridWrap');
+  if(!roomId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">Wybierz salę z listy</div></div>`;return;}
+  const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
+  const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
+  wrap.innerHTML = renderGrid(cols, null, days, {fixRoom:roomId});
+  wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
+    const clsId=td.dataset.clsid;
+    const di=parseInt(td.dataset.day);
+    const hn=parseInt(td.dataset.hour);
+    const lesson=getLesson(clsId,di,hn);
+    if(lesson && lesson.roomId!==roomId){
+      const chip=td.querySelector('.lesson-chip');
+      if(chip)chip.style.opacity='.15';
+    }
+    if(!lesson){
+      td.onclick=()=>openAddModal(clsId,di,hn,'',roomId);
+    }
+  });
+}
+
+// ── MATRIX VIEW ──
+function renderMatrixView() {
+  if(!appState) return;
+  const dayIdx = parseInt(document.getElementById('matrixDaySelect').value)||0;
+  const mode = document.getElementById('matrixModeSelect').value;
+  const wrap = document.getElementById('matrixGridWrap');
+  const hours = appState.hours;
+  if(!hours||!hours.length){wrap.innerHTML='<div class="empty-state">Brak godzin</div>';return;}
+
+  if(mode==='class'){
+    // Rows = hours, Cols = classes
+    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr><th>Godz.</th>`;
+    appState.classes.forEach(c=>html+=`<th>${c.name}</th>`);
+    html+='</tr></thead><tbody>';
+    hours.forEach(h=>{
+      html+=`<tr><td style="font-size:.72rem;font-family:var(--mono);text-align:center">${h.num}<br>${h.start}</td>`;
+      appState.classes.forEach(c=>{
+        const lesson=getLesson(c.id,dayIdx,h.num);
+        if(lesson){
+          const subj=appState.subjects.find(s=>s.id===lesson.subjectId);
+          const tch=appState.teachers.find(t=>t.id===lesson.teacherId);
+          const color=subj?.color||'#38bdf8';
+          const hasC=checkCellConflict(c.id,dayIdx,h.num,lesson);
+          html+=`<td style="${hasC?'background:var(--red-g)':''}">
+            <div class="matrix-chips">
+              <div class="mchip" style="background:${hexToRgba(color,.2)};color:${color}">${subj?.abbr||'?'}</div>
+              ${tch?`<div class="mchip" style="background:var(--s2);color:var(--text-m)">${tch.abbr}</div>`:''}
+            </div></td>`;
+        } else {
+          html+=`<td></td>`;
+        }
+      });
+      html+='</tr>';
+    });
+    html+='</tbody></table></div>';
+    wrap.innerHTML=html;
+  } else {
+    // Rows = hours, Cols = teachers
+    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr><th>Godz.</th>`;
+    appState.teachers.forEach(t=>html+=`<th>${t.abbr}</th>`);
+    html+='</tr></thead><tbody>';
+    hours.forEach(h=>{
+      html+=`<tr><td style="font-size:.72rem;font-family:var(--mono);text-align:center">${h.num}<br>${h.start}</td>`;
+      appState.teachers.forEach(t=>{
+        // Find if this teacher has any lesson at this hour/day
+        const lesson=Object.entries(schedData).find(([k,v])=>{
+          const [,di,hn]=[...k.split('_').map((x,i)=>i===0?x:parseInt(x))];
+          return di===dayIdx && hn===h.num && v.teacherId===t.id;
+        });
+        if(lesson){
+          const [key,l]=lesson;
+          const clsId=key.split('_')[0];
+          const cls=appState.classes.find(c=>c.id===clsId);
+          const subj=appState.subjects.find(s=>s.id===l.subjectId);
+          const color=subj?.color||'#38bdf8';
+          html+=`<td><div class="matrix-chips">
+            <div class="mchip" style="background:${hexToRgba(color,.2)};color:${color}">${subj?.abbr||'?'}</div>
+            ${cls?`<div class="mchip" style="background:var(--s2);color:var(--text-m)">${cls.name}</div>`:''}
+          </div></td>`;
+        } else {
+          html+=`<td></td>`;
+        }
+      });
+      html+='</tr>';
+    });
+    html+='</tbody></table></div>';
+    wrap.innerHTML=html;
+  }
+}
+
+// ================================================================
+//  STATS VIEW
+// ================================================================
+function renderStats() {
+  if(!appState){ document.getElementById('statsContent').innerHTML=''; return; }
+  const allLessons = Object.values(schedData);
+  const totalLessons = allLessons.length;
+  const teacherHours = {};
+  appState.teachers.forEach(t=>{teacherHours[t.id]=0;});
+  allLessons.forEach(l=>{if(l.teacherId)teacherHours[l.teacherId]=(teacherHours[l.teacherId]||0)+1;});
+  const maxH = Math.max(...Object.values(teacherHours),1);
+  const conflicts = detectConflicts();
+
+  let html = `<div class="stats-grid">
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${totalLessons}</div><div class="stat-label">Lekcji w planie</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--green)">${appState.classes.length}</div><div class="stat-label">Klas</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--purple)">${appState.teachers.length}</div><div class="stat-label">Nauczycieli</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:${conflicts.length?'var(--red)':'var(--green)'}">${conflicts.length}</div><div class="stat-label">Konfliktów</div></div>
+  </div>`;
+
+  html += `<div class="teacher-load-table">
+    <div class="tlt-header"><div class="tlt-name">Nauczyciel</div><div class="tlt-hours">Godz.</div><div class="tlt-bar-wrap" style="padding:0">Obciążenie</div></div>`;
+  appState.teachers.sort((a,b)=>(teacherHours[b.id]||0)-(teacherHours[a.id]||0)).forEach(t=>{
+    const h=teacherHours[t.id]||0;
+    const pct=Math.round(h/maxH*100);
+    const barColor = pct>80?'var(--red)':pct>60?'var(--yellow)':'var(--green)';
+    html+=`<div class="tlt-row">
+      <div class="tlt-name">${t.first} ${t.last} <span style="color:var(--text-m);font-family:var(--mono);font-size:.72rem">${t.abbr}</span></div>
+      <div class="tlt-hours">${h}</div>
+      <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${barColor}"></div></div>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Subject distribution
+  const subjCount={};
+  allLessons.forEach(l=>{if(l.subjectId)subjCount[l.subjectId]=(subjCount[l.subjectId]||0)+1;});
+  const maxS=Math.max(...Object.values(subjCount),1);
+  html+=`<div class="teacher-load-table">
+    <div class="tlt-header"><div class="tlt-name">Przedmiot</div><div class="tlt-hours">Godz.</div><div class="tlt-bar-wrap" style="padding:0">Udział</div></div>`;
+  appState.subjects.filter(s=>subjCount[s.id]).sort((a,b)=>(subjCount[b.id]||0)-(subjCount[a.id]||0)).forEach(s=>{
+    const cnt=subjCount[s.id]||0;
+    const pct=Math.round(cnt/maxS*100);
+    html+=`<div class="tlt-row">
+      <div class="tlt-name"><span class="cdot" style="background:${s.color};margin-right:6px"></span>${s.name}</div>
+      <div class="tlt-hours">${cnt}</div>
+      <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${s.color}"></div></div>
+    </div>`;
+  });
+  html += '</div>';
+
+  document.getElementById('statsContent').innerHTML = html;
+}
+
+// ================================================================
+//  SETTINGS VIEW
+// ================================================================
+function renderSettings() {
+  if(!appState){ document.getElementById('settingsContent').innerHTML=''; return; }
+  let html = `<div class="settings-grid">`;
+
+  // Classes
+  html+=`<div class="settings-card"><div class="settings-card-title">Klasy</div><ul class="settings-list">`;
+  appState.classes.forEach(c=>{
+    html+=`<li class="settings-item">
+      <div><div class="settings-item-name">${c.name}</div>
+      <div class="settings-item-meta">${c.groups&&c.groups.length?'Grupy: '+c.groups.join(', '):'Brak grup'}</div></div>
+      <div class="settings-item-actions">
+        <button class="si-btn danger" onclick="removeClass('${c.id}')">Usuń</button>
+      </div>
+    </li>`;
+  });
+  html+=`</ul>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <input class="winput" id="sAddClassName" placeholder="Nowa klasa" style="flex:1">
+      <button class="wbtn wbtn-primary" style="padding:7px 12px;font-size:.78rem" onclick="settingsAddClass()">+</button>
+    </div>
+  </div>`;
+
+  // Subjects
+  html+=`<div class="settings-card"><div class="settings-card-title">Przedmioty</div><ul class="settings-list">`;
+  appState.subjects.forEach(s=>{
+    html+=`<li class="settings-item">
+      <div><div class="settings-item-name"><span class="cdot" style="background:${s.color};margin-right:6px"></span>${s.name}</div>
+      <div class="settings-item-meta" style="font-family:var(--mono)">${s.abbr}</div></div>
+      <div class="settings-item-actions">
+        <button class="si-btn danger" onclick="removeSubject('${s.id}')">Usuń</button>
+      </div>
+    </li>`;
+  });
+  html+=`</ul></div>`;
+
+  // Teachers
+  html+=`<div class="settings-card"><div class="settings-card-title">Nauczyciele</div><ul class="settings-list">`;
+  appState.teachers.forEach(t=>{
+    html+=`<li class="settings-item">
+      <div><div class="settings-item-name">${t.first} ${t.last}</div>
+      <div class="settings-item-meta" style="font-family:var(--mono)">${t.abbr}</div></div>
+      <div class="settings-item-actions">
+        <button class="si-btn danger" onclick="removeTeacher('${t.id}')">Usuń</button>
+      </div>
+    </li>`;
+  });
+  html+=`</ul></div>`;
+
+  // Rooms
+  html+=`<div class="settings-card"><div class="settings-card-title">Sale</div><ul class="settings-list">`;
+  appState.rooms.forEach(r=>{
+    html+=`<li class="settings-item">
+      <div><div class="settings-item-name">${r.name}</div></div>
+      <div class="settings-item-actions">
+        <button class="si-btn danger" onclick="removeRoom('${r.id}')">Usuń</button>
+      </div>
+    </li>`;
+  });
+  html+=`</ul>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <input class="winput" id="sAddRoomName" placeholder="Nowa sala" style="flex:1">
+      <button class="wbtn wbtn-primary" style="padding:7px 12px;font-size:.78rem" onclick="settingsAddRoom()">+</button>
+    </div>
+  </div>`;
+
+  // Hours
+  html+=`<div class="settings-card"><div class="settings-card-title">Godziny lekcyjne</div><ul class="settings-list">`;
+  appState.hours.forEach(h=>{
+    html+=`<li class="settings-item">
+      <div class="settings-item-name">${h.num}. ${h.start} – ${h.end}</div>
+      <div class="settings-item-actions">
+        <button class="si-btn danger" onclick="removeHour(${h.num})">Usuń</button>
+      </div>
+    </li>`;
+  });
+  html+=`</ul></div>`;
+
+  // Danger zone
+  html+=`<div class="settings-card">
+    <div class="settings-card-title" style="color:var(--red)">Strefa niebezpieczna</div>
+    <div style="font-size:.82rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">Operacje, których nie można cofnąć.</div>
+    <button class="wbtn wbtn-danger" onclick="clearSchedule()" style="width:100%;margin-bottom:8px">🗑 Wyczyść cały plan lekcji</button>
+    <button class="wbtn wbtn-danger" onclick="resetApp()" style="width:100%">⚠️ Resetuj całą aplikację</button>
+  </div>`;
+
+  html += `</div>`;
+  document.getElementById('settingsContent').innerHTML = html;
+}
+
+function settingsAddClass() {
+  const n=document.getElementById('sAddClassName')?.value.trim();
+  if(!n)return;
+  appState.classes.push({id:'cls'+Date.now(),name:n,groups:[]});
+  persistAll();populateSelects();renderSettings();notify('Dodano klasę: '+n);
+}
+function settingsAddRoom() {
+  const n=document.getElementById('sAddRoomName')?.value.trim();
+  if(!n)return;
+  appState.rooms.push({id:'room'+Date.now(),name:n});
+  persistAll();populateSelects();renderSettings();notify('Dodano salę: '+n);
+}
+function removeClass(id) {
+  if(!confirm('Usunąć klasę? Lekcje tej klasy zostaną usunięte.'))return;
+  appState.classes=appState.classes.filter(c=>c.id!==id);
+  // Remove lessons
+  Object.keys(schedData).filter(k=>k.startsWith(id+'_')).forEach(k=>delete schedData[k]);
+  persistAll();populateSelects();renderCurrentView();renderSettings();
+}
+function removeSubject(id) {
+  appState.subjects=appState.subjects.filter(s=>s.id!==id);
+  persistAll();renderSettings();
+}
+function removeTeacher(id) {
+  appState.teachers=appState.teachers.filter(t=>t.id!==id);
+  persistAll();populateSelects();renderSettings();
+}
+function removeRoom(id) {
+  appState.rooms=appState.rooms.filter(r=>r.id!==id);
+  persistAll();populateSelects();renderSettings();
+}
+function removeHour(num) {
+  appState.hours=appState.hours.filter(h=>h.num!==num);
+  persistAll();renderSettings();
+}
+function clearSchedule() {
+  if(!confirm('Wyczyścić cały plan? Wszystkie lekcje zostaną usunięte.'))return;
+  schedData={};persistAll();renderCurrentView();detectAndShowConflicts();notify('Plan wyczyszczony');
+}
+function resetApp() {
+  if(!confirm('UWAGA: Zresetować całą aplikację? Stracisz wszystkie dane!'))return;
+  localStorage.removeItem(LS.STATE);localStorage.removeItem(LS.SCHED);
+  appState=null;schedData={};
+  document.getElementById('appRoot').classList.remove('show');
+  showWelcome();
+}
+
+// ================================================================
+//  LESSON MODAL
+// ================================================================
+function openAddModal(clsId, dayIdx, hourIdx, prefTeacherId='', prefRoomId='') {
+  if(!appState)return;
+  _mCtx = {mode:'add', clsId, dayIdx, hourIdx};
+  const h=appState.hours.find(h=>h.num===hourIdx);
+  document.getElementById('lessonModalTitle').innerHTML =
+    `Dodaj lekcję — <span>${DAYS[dayIdx]}, godz. ${hourIdx} (${h?h.start+'-'+h.end:''})</span>`;
+  document.getElementById('mSubject').value='';
+  document.getElementById('mTeacher').value=prefTeacherId||'';
+  document.getElementById('mRoom').value=prefRoomId||'';
+  document.getElementById('mNote').value='';
+  document.getElementById('mDeleteBtn').style.display='none';
+  populateGroupsInModal(clsId,[]);
+
+  // Show/hide class field based on context
+  const mClassField=document.getElementById('mClassField');
+  const mClass=document.getElementById('mClass');
+  mClassField.style.display='none';
+  if(mClass)mClass.value=clsId;
+
+  document.getElementById('lessonModal').classList.add('show');
+}
+
+function openEditModal(clsId, dayIdx, hourIdx) {
+  const lesson=getLesson(clsId,dayIdx,hourIdx);
+  if(!lesson)return;
+  _mCtx = {mode:'edit', clsId, dayIdx, hourIdx};
+  const h=appState.hours.find(h=>h.num===hourIdx);
+  const cls=appState.classes.find(c=>c.id===clsId);
+  document.getElementById('lessonModalTitle').innerHTML =
+    `Edytuj lekcję — <span>${cls?.name||''}, ${DAYS[dayIdx]}, godz. ${hourIdx}</span>`;
+  document.getElementById('mSubject').value=lesson.subjectId||'';
+  document.getElementById('mTeacher').value=lesson.teacherId||'';
+  document.getElementById('mRoom').value=lesson.roomId||'';
+  document.getElementById('mNote').value=lesson.note||'';
+  document.getElementById('mDeleteBtn').style.display='';
+  populateGroupsInModal(clsId, lesson.groups||[]);
+  document.getElementById('lessonModal').classList.add('show');
+}
+
+function populateGroupsInModal(clsId, selectedGroups) {
+  const cls=appState?.classes.find(c=>c.id===clsId);
+  const container=document.getElementById('mGroupList');
+  const field=document.getElementById('mGroupField');
+  if(!cls||!cls.groups||!cls.groups.length){field.style.display='none';return;}
+  field.style.display='';
+  container.innerHTML=cls.groups.map(g=>`
+    <label class="gchk ${selectedGroups.includes(g)?'checked':''}">
+      <input type="checkbox" value="${g}" ${selectedGroups.includes(g)?'checked':''} onchange="gChkChange(this)">
+      ${g}
+    </label>`).join('');
+}
+
+function gChkChange(inp){
+  inp.parentElement.classList.toggle('checked',inp.checked);
+}
+
+function mOnSubjectChange() {
+  // Could auto-fill default teacher for subject
+}
+
+function saveLessonModal() {
+  const subjId=document.getElementById('mSubject').value;
+  const tchId=document.getElementById('mTeacher').value;
+  const roomId=document.getElementById('mRoom').value;
+  const note=document.getElementById('mNote').value.trim();
+  if(!subjId){notify('Wybierz przedmiot');return;}
+  if(!tchId){notify('Wybierz nauczyciela');return;}
+  const groups=[...document.querySelectorAll('#mGroupList input:checked')].map(i=>i.value);
+  const lesson={subjectId:subjId,teacherId:tchId,roomId:roomId||null,groups,note};
+  setLesson(_mCtx.clsId,_mCtx.dayIdx,_mCtx.hourIdx,lesson);
+  closeLessonModal();
+  renderCurrentView();
+  detectAndShowConflicts();
+  notify('Lekcja zapisana');
+}
+
+function deleteLessonModal() {
+  if(!confirm('Usunąć tę lekcję?'))return;
+  setLesson(_mCtx.clsId,_mCtx.dayIdx,_mCtx.hourIdx,null);
+  closeLessonModal();
+  renderCurrentView();
+  detectAndShowConflicts();
+  notify('Lekcja usunięta');
+}
+
+function deleteLesson(clsId,dayIdx,hourIdx){
+  setLesson(clsId,dayIdx,hourIdx,null);
+  renderCurrentView();
+  detectAndShowConflicts();
+  notify('Lekcja usunięta');
+}
+
+function closeLessonModal(){
+  document.getElementById('lessonModal').classList.remove('show');
+  _mCtx=null;
+}
+
+// Close modal on backdrop click
+document.getElementById('lessonModal').addEventListener('click',function(e){
+  if(e.target===this)closeLessonModal();
+});
+
+// ================================================================
+//  DRAG & DROP
+// ================================================================
+function doDragStart(e, clsId, dayIdx, hourIdx) {
+  _dragData={clsId,dayIdx,hourIdx};
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>{const chip=e.target;if(chip)chip.classList.add('dragging');},0);
+}
+function doDragEnd(e){
+  document.querySelectorAll('.dragging').forEach(el=>el.classList.remove('dragging'));
+  _dragData=null;
+}
+function doDragOver(e,td){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  td.classList.add('droptarget-hover');
+}
+function doDragLeave(td){td.classList.remove('droptarget-hover');}
+function doDrop(e,toClsId,toDayIdx,toHourIdx){
+  e.preventDefault();
+  document.querySelectorAll('.droptarget-hover').forEach(el=>el.classList.remove('droptarget-hover'));
+  if(!_dragData)return;
+  const {clsId,dayIdx,hourIdx}=_dragData;
+  if(clsId===toClsId&&dayIdx===toDayIdx&&hourIdx===toHourIdx)return;
+  const src=getLesson(clsId,dayIdx,hourIdx);
+  const dst=getLesson(toClsId,toDayIdx,toHourIdx);
+  setLesson(toClsId,toDayIdx,toHourIdx,src);
+  setLesson(clsId,dayIdx,hourIdx,dst||null);
+  renderCurrentView();
+  detectAndShowConflicts();
+  notify('Lekcja przeniesiona');
+}
+
+// ================================================================
+//  CONFLICT DETECTION
+// ================================================================
+function detectConflicts() {
+  const conflicts=[];
+  if(!appState)return conflicts;
+  const hours=appState.hours;
+
+  // Group all lessons by (dayIdx, hourNum)
+  const bySlot={};
+  Object.entries(schedData).forEach(([k,v])=>{
+    const parts=k.split('_');
+    const clsId=parts[0];
+    const dayIdx=parseInt(parts[1]);
+    const hourNum=parseInt(parts[2]);
+    const slotKey=`${dayIdx}_${hourNum}`;
+    if(!bySlot[slotKey])bySlot[slotKey]=[];
+    bySlot[slotKey].push({clsId,dayIdx,hourNum,lesson:v,k});
+  });
+
+  Object.entries(bySlot).forEach(([slot,entries])=>{
+    const [dayIdx,hourNum]=slot.split('_').map(Number);
+    // Teacher conflict: same teacher in 2+ entries
+    const byTeacher={};
+    entries.forEach(e=>{
+      if(!e.lesson.teacherId)return;
+      if(!byTeacher[e.lesson.teacherId])byTeacher[e.lesson.teacherId]=[];
+      byTeacher[e.lesson.teacherId].push(e);
+    });
+    Object.entries(byTeacher).forEach(([tchId,ents])=>{
+      if(ents.length>1){
+        const tch=appState.teachers.find(t=>t.id===tchId);
+        const clsNames=ents.map(e=>{const c=appState.classes.find(c=>c.id===e.clsId);return c?.name||'?';}).join(', ');
+        conflicts.push({type:'teacher',tchId,dayIdx,hourNum,clsIds:ents.map(e=>e.clsId),
+          text:`<strong>${tch?.abbr||'?'} ${tch?.last||''}</strong> <span>ma jednocześnie lekcje w klasach: ${clsNames} (${DAYS[dayIdx]}, godz. ${hourNum})</span>`});
+      }
+    });
+    // Room conflict: same room in 2+ entries
+    const byRoom={};
+    entries.forEach(e=>{
+      if(!e.lesson.roomId)return;
+      if(!byRoom[e.lesson.roomId])byRoom[e.lesson.roomId]=[];
+      byRoom[e.lesson.roomId].push(e);
+    });
+    Object.entries(byRoom).forEach(([roomId,ents])=>{
+      if(ents.length>1){
+        const room=appState.rooms.find(r=>r.id===roomId);
+        const clsNames=ents.map(e=>{const c=appState.classes.find(c=>c.id===e.clsId);return c?.name||'?';}).join(', ');
+        conflicts.push({type:'room',roomId,dayIdx,hourNum,clsIds:ents.map(e=>e.clsId),
+          text:`<strong>Sala ${room?.name||'?'}</strong> <span>zajęta jednocześnie przez klasy: ${clsNames} (${DAYS[dayIdx]}, godz. ${hourNum})</span>`});
+      }
+    });
+  });
+  return conflicts;
+}
+
+function checkCellConflict(clsId, dayIdx, hourIdx, lesson) {
+  if(!lesson||!appState)return false;
+  // quick check: does teacher or room appear elsewhere in same slot?
+  const slotEntries=Object.entries(schedData).filter(([k,v])=>{
+    const parts=k.split('_');
+    return parseInt(parts[1])===dayIdx&&parseInt(parts[2])===hourIdx&&parts[0]!==clsId;
+  });
+  if(lesson.teacherId&&slotEntries.some(([,v])=>v.teacherId===lesson.teacherId))return true;
+  if(lesson.roomId&&slotEntries.some(([,v])=>v.roomId===lesson.roomId))return true;
+  return false;
+}
+
+function detectAndShowConflicts() {
+  const conflicts=detectConflicts();
+  const bar=document.getElementById('conflictBar');
+  const count=document.getElementById('conflictCount');
+  const list=document.getElementById('conflictList');
+  if(!conflicts.length){bar.style.display='none';list.classList.remove('show');return;}
+  bar.style.display='flex';
+  count.textContent=conflicts.length;
+  document.getElementById('conflictBarText').textContent=
+    `${conflicts.length} ${conflicts.length===1?'konflikt':conflicts.length<5?'konflikty':'konfliktów'} w planie`;
+
+  list.innerHTML=conflicts.map((c,i)=>`
+    <div class="conflict-item">
+      <div class="conflict-item-icon">${c.type==='teacher'?'👩‍🏫':'🏫'}</div>
+      <div class="conflict-item-text">${c.text}</div>
+      <button class="conflict-goto" onclick="gotoConflict(${i})">Przejdź →</button>
+    </div>`).join('');
+}
+
+function toggleConflicts() {
+  const bar=document.getElementById('conflictBar');
+  const list=document.getElementById('conflictList');
+  bar.classList.toggle('open');
+  list.classList.toggle('show');
+}
+
+function gotoConflict(idx) {
+  const conflicts=detectConflicts();
+  const c=conflicts[idx];
+  if(!c)return;
+  if(c.clsIds&&c.clsIds[0]){
+    switchView('class',document.querySelector('[data-view=class]'));
+    document.getElementById('classSelect').value=c.clsIds[0];
+    document.getElementById('classDaySelect').value=c.dayIdx;
+    renderClassView();
+  }
+}
+
+// ================================================================
+//  EXPORT / IMPORT
+// ================================================================
+function exportJSON() {
+  if(!appState){notify('Brak danych do eksportu');return;}
+  const data={version:1,appState,schedData,exportDate:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const y=(appState.year||'').replace('/','_');
+  a.href=url;a.download=`planlekcji_${y}_${Date.now()}.json`;
+  a.click();URL.revokeObjectURL(url);
+  notify('Wyeksportowano plan do JSON');
+}
+
+function handleImportFile(file) {
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.appState)throw new Error('Nieprawidłowy format pliku');
+      appState=data.appState;
+      schedData=data.schedData||{};
+      _demoMode=false;
+      persistAll();
+      document.getElementById('welcomeScreen').classList.remove('show');
+      showApp();
+      notify('Zaimportowano plan: '+appState.name);
+    }catch(err){
+      notify('Błąd importu: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ================================================================
+//  THEME
+// ================================================================
+function applyTheme(){
+  const t=localStorage.getItem(LS.THEME)||'dark';
+  document.body.classList.toggle('light',t==='light');
+  const btn=document.getElementById('themeBtn');
+  if(btn)btn.textContent=t==='light'?'🌙':'☀️';
+}
+function toggleTheme(){
+  const isLight=document.body.classList.toggle('light');
+  localStorage.setItem(LS.THEME,isLight?'light':'dark');
+  const btn=document.getElementById('themeBtn');
+  if(btn)btn.textContent=isLight?'🌙':'☀️';
+}
+
+// ================================================================
+//  NOTIFY TOAST
+// ================================================================
+let _notifyTimer=null;
+function notify(msg){
+  const el=document.getElementById('notify');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(_notifyTimer);
+  _notifyTimer=setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ================================================================
+//  COLOR UTILS
+// ================================================================
+function hexToRgba(hex,alpha){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function isDarkColor(hex){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return (r*299+g*587+b*114)/1000 < 128;
+}
+
+// ================================================================
+//  DEMO DATA
+// ================================================================
+function buildDemoState() {
+  return {
+    name:'SP nr 5 im. Jana Pawła II',year:'2025/2026',
+    classes:[
+      {id:'c1',name:'1a',groups:[]},{id:'c2',name:'1b',groups:[]},
+      {id:'c3',name:'2a',groups:['gr1','gr2']},{id:'c4',name:'3a',groups:[]},
+    ],
+    subjects:[
+      {id:'s1',name:'Matematyka',abbr:'MAT',color:'#38bdf8'},
+      {id:'s2',name:'Język polski',abbr:'POL',color:'#34d399'},
+      {id:'s3',name:'Fizyka',abbr:'FIZ',color:'#fbbf24'},
+      {id:'s4',name:'Historia',abbr:'HIS',color:'#a78bfa'},
+      {id:'s5',name:'Biologia',abbr:'BIO',color:'#2dd4bf'},
+      {id:'s6',name:'Angielski',abbr:'ANG',color:'#f472b6'},
+      {id:'s7',name:'WF',abbr:'WF',color:'#fb923c'},
+    ],
+    teachers:[
+      {id:'t1',first:'Anna',last:'Kowalska',abbr:'AKow'},
+      {id:'t2',first:'Jan',last:'Nowak',abbr:'JNow'},
+      {id:'t3',first:'Maria',last:'Wiśniewska',abbr:'MWis'},
+      {id:'t4',first:'Tomasz',last:'Zając',abbr:'TZaj'},
+    ],
+    rooms:[
+      {id:'r1',name:'101'},{id:'r2',name:'102'},
+      {id:'r3',name:'Sala gym.'},{id:'r4',name:'Laboratorium'},
+    ],
+    hours:[
+      {num:1,start:'08:00',end:'08:45'},{num:2,start:'08:55',end:'09:40'},
+      {num:3,start:'09:50',end:'10:35'},{num:4,start:'10:45',end:'11:30'},
+      {num:5,start:'11:40',end:'12:25'},{num:6,start:'13:00',end:'13:45'},
+      {num:7,start:'13:55',end:'14:40'},
+    ]
+  };
+}
+function buildDemoSched(){
+  // Some sample lessons
+  const s={};
+  function add(clsId,day,hour,subjId,tchId,roomId){
+    s[`${clsId}_${day}_${hour}`]={subjectId:subjId,teacherId:tchId,roomId,groups:[],note:''};
+  }
+  // class c1
+  add('c1',0,1,'s1','t1','r1'); add('c1',0,2,'s2','t2','r2'); add('c1',0,3,'s6','t3','r1');
+  add('c1',1,1,'s3','t4','r4'); add('c1',1,2,'s4','t1','r2'); add('c1',1,4,'s7','t4','r3');
+  add('c1',2,1,'s2','t2','r1'); add('c1',2,2,'s1','t1','r1'); add('c1',2,5,'s5','t3','r4');
+  add('c1',3,1,'s6','t3','r2'); add('c1',3,3,'s1','t1','r1'); add('c1',3,4,'s4','t2','r2');
+  add('c1',4,1,'s7','t4','r3'); add('c1',4,2,'s3','t4','r4'); add('c1',4,3,'s2','t2','r1');
+  // class c2
+  add('c2',0,1,'s2','t2','r2'); add('c2',0,2,'s1','t1','r1'); add('c2',0,4,'s7','t4','r3');
+  add('c2',1,1,'s6','t3','r2'); add('c2',1,2,'s5','t3','r4'); add('c2',1,3,'s2','t2','r2');
+  add('c2',2,1,'s3','t4','r4'); add('c2',2,2,'s4','t1','r1'); add('c2',2,3,'s7','t4','r3');
+  add('c2',3,2,'s1','t1','r1'); add('c2',3,3,'s6','t3','r2'); add('c2',3,5,'s4','t2','r2');
+  add('c2',4,1,'s2','t2','r1'); add('c2',4,2,'s5','t3','r4'); add('c2',4,4,'s1','t1','r1');
+  // class c3
+  add('c3',0,1,'s1','t1','r1'); add('c3',0,3,'s6','t3','r2'); add('c3',0,4,'s4','t2','r2');
+  add('c3',1,1,'s2','t2','r1'); add('c3',1,2,'s7','t4','r3'); add('c3',1,5,'s3','t4','r4');
+  add('c3',2,2,'s4','t1','r2'); add('c3',2,3,'s1','t1','r1'); add('c3',2,4,'s2','t2','r1');
+  return s;
+}
+
+// ================================================================
+//  BOOT
+// ================================================================
+init();
+</script>
+</body>
+</html>
