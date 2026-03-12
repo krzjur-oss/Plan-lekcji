@@ -830,9 +830,10 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
     </div>
     <div class="mfield">
       <label>Nauczyciel</label>
-      <select class="mselect" id="mTeacher">
+      <select class="mselect" id="mTeacher" onchange="mOnTeacherChange()">
         <option value="">— wybierz nauczyciela —</option>
       </select>
+      <div id="mTeacherWarn" style="display:none;margin-top:5px;padding:6px 10px;border-radius:6px;background:var(--yellow-g);border:1px solid rgba(251,191,36,.3);font-size:.75rem;color:var(--yellow)"></div>
     </div>
     <div class="mfield">
       <label>Sala</label>
@@ -1850,23 +1851,61 @@ function renderSettings() {
   if(!appState){ document.getElementById('settingsContent').innerHTML=''; return; }
   let html = `<div class="settings-grid">`;
 
-  // Classes
-  html+=`<div class="settings-card"><div class="settings-card-title">Klasy</div><ul class="settings-list">`;
-  appState.classes.forEach(c=>{
-    html+=`<li class="settings-item">
-      <div><div class="settings-item-name">${c.name}</div>
-      <div class="settings-item-meta">${c.groups&&c.groups.length?'Grupy: '+c.groups.join(', '):'Brak grup'}</div></div>
-      <div class="settings-item-actions">
-        <button class="si-btn danger" onclick="removeClass('${c.id}')">Usuń</button>
+  // Classes — rozbudowane karty z przypisanymi nauczycielami
+  html+=`<div class="settings-card" style="grid-column:1/-1">
+    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Klasy</span>
+      <div style="display:flex;gap:6px">
+        <input class="winput" id="sAddClassName" placeholder="Nowa klasa" style="width:130px;padding:5px 10px">
+        <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem" onclick="settingsAddClass()">+ Dodaj klasę</button>
       </div>
-    </li>`;
+    </div>`;
+
+  if (!appState.classes.length) {
+    html += `<div style="color:var(--text-m);font-size:.82rem;padding:8px 0">Brak klas.</div>`;
+  }
+
+  appState.classes.forEach(c => {
+    // Zbierz nauczycieli przypisanych do tej klasy (mają przydział z tą klasą)
+    const assignedTeachers = appState.teachers.filter(t =>
+      (t.assignments||[]).some(a => a.classId === c.id)
+    );
+
+    const tchBadges = assignedTeachers.map(t => {
+      const subjIds = (t.assignments||[]).filter(a=>a.classId===c.id).map(a=>a.subjectId);
+      const subjDots = subjIds.map(sid => {
+        const s = appState.subjects.find(s=>s.id===sid);
+        return s ? `<span class="cdot" style="background:${s.color}" title="${s.name}"></span>` : '';
+      }).join('');
+      const totalHours = (t.assignments||[]).filter(a=>a.classId===c.id).reduce((s,a)=>s+(a.hours||0),0);
+      return `<div class="tch-assign-item" style="cursor:pointer" onclick="event.stopPropagation();openEditTeacherModal('${t.id}')" title="Edytuj ${t.first} ${t.last}">
+        <div class="tch-assign-cls" style="min-width:44px">${t.abbr}</div>
+        <div class="tch-assign-subj" style="display:flex;align-items:center;gap:4px">${subjDots}
+          <span style="font-size:.72rem;color:var(--text-m)">${(t.assignments||[]).filter(a=>a.classId===c.id).map(a=>{const s=appState.subjects.find(s=>s.id===a.subjectId);return s?s.abbr:'?';}).join(', ')}</span>
+        </div>
+        <div class="tch-assign-hrs">${totalHours} godz.</div>
+      </div>`;
+    }).join('');
+
+    const totalHoursInClass = assignedTeachers.reduce((sum,t)=>
+      sum + (t.assignments||[]).filter(a=>a.classId===c.id).reduce((s,a)=>s+(a.hours||0),0), 0);
+
+    html += `<div class="tch-card" id="ccard_${c.id}">
+      <div class="tch-card-header" onclick="toggleClsCard('${c.id}')">
+        <div class="tch-card-name">${c.name}</div>
+        <span style="font-size:.72rem;color:var(--text-m);margin-right:6px">
+          ${c.groups&&c.groups.length ? 'gr: '+c.groups.join(', ') : ''}
+        </span>
+        <span style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-right:6px">${assignedTeachers.length} nauczycieli · ${totalHoursInClass} godz.</span>
+        <button class="si-btn danger" onclick="event.stopPropagation();removeClass('${c.id}')" style="margin-right:6px">Usuń</button>
+        <span class="tch-card-arr">▼</span>
+      </div>
+      <div class="tch-card-body">
+        ${tchBadges || '<div style="color:var(--text-m);font-size:.78rem">Brak przypisanych nauczycieli — przypisz ich w kartach nauczycieli.</div>'}
+      </div>
+    </div>`;
   });
-  html+=`</ul>
-    <div style="margin-top:10px;display:flex;gap:6px">
-      <input class="winput" id="sAddClassName" placeholder="Nowa klasa" style="flex:1">
-      <button class="wbtn wbtn-primary" style="padding:7px 12px;font-size:.78rem" onclick="settingsAddClass()">+</button>
-    </div>
-  </div>`;
+  html += `</div>`;
 
   // Subjects
   html+=`<div class="settings-card"><div class="settings-card-title">Przedmioty</div><ul class="settings-list">`;
@@ -2006,6 +2045,11 @@ function toggleTchCard(id) {
   if (card) card.classList.toggle('open');
 }
 
+function toggleClsCard(id) {
+  const card = document.getElementById('ccard_' + id);
+  if (card) card.classList.toggle('open');
+}
+
 function removeTeacher(id) {
   appState.teachers=appState.teachers.filter(t=>t.id!==id);
   persistAll();populateSelects();renderSettings();
@@ -2040,10 +2084,9 @@ function openAddModal(clsId, dayIdx, hourIdx, prefTeacherId='', prefRoomId='') {
   document.getElementById('lessonModalTitle').innerHTML =
     `Dodaj lekcję — <span>${DAYS[dayIdx]}, godz. ${hourIdx} (${h?h.start+'-'+h.end:''})</span>`;
   document.getElementById('mSubject').value='';
-  document.getElementById('mTeacher').value=prefTeacherId||'';
-  document.getElementById('mRoom').value=prefRoomId||'';
   document.getElementById('mNote').value='';
   document.getElementById('mDeleteBtn').style.display='none';
+  document.getElementById('mTeacherWarn').style.display='none';
   populateGroupsInModal(clsId,[]);
 
   // Show/hide class field based on context
@@ -2051,6 +2094,11 @@ function openAddModal(clsId, dayIdx, hourIdx, prefTeacherId='', prefRoomId='') {
   const mClass=document.getElementById('mClass');
   mClassField.style.display='none';
   if(mClass)mClass.value=clsId;
+
+  // Zbuduj listę nauczycieli z podziałem (bez filtra przedmiotu)
+  rebuildTeacherOptions();
+  if(prefTeacherId) document.getElementById('mTeacher').value=prefTeacherId;
+  document.getElementById('mRoom').value=prefRoomId||'';
 
   document.getElementById('lessonModal').classList.add('show');
 }
@@ -2064,11 +2112,16 @@ function openEditModal(clsId, dayIdx, hourIdx) {
   document.getElementById('lessonModalTitle').innerHTML =
     `Edytuj lekcję — <span>${cls?.name||''}, ${DAYS[dayIdx]}, godz. ${hourIdx}</span>`;
   document.getElementById('mSubject').value=lesson.subjectId||'';
-  document.getElementById('mTeacher').value=lesson.teacherId||'';
-  document.getElementById('mRoom').value=lesson.roomId||'';
   document.getElementById('mNote').value=lesson.note||'';
   document.getElementById('mDeleteBtn').style.display='';
+  document.getElementById('mTeacherWarn').style.display='none';
   populateGroupsInModal(clsId, lesson.groups||[]);
+  // Zbuduj listę nauczycieli z podziałem uwzględniając przedmiot i klasę
+  rebuildTeacherOptions();
+  document.getElementById('mTeacher').value=lesson.teacherId||'';
+  document.getElementById('mRoom').value=lesson.roomId||'';
+  // Sprawdź walidację dla istniejącej lekcji
+  mOnTeacherChange();
   document.getElementById('lessonModal').classList.add('show');
 }
 
@@ -2090,26 +2143,122 @@ function gChkChange(inp){
 }
 
 function mOnSubjectChange() {
+  rebuildTeacherOptions();
+  mOnTeacherChange();
+}
+
+function rebuildTeacherOptions() {
   const subjId = document.getElementById('mSubject').value;
   const mt = document.getElementById('mTeacher');
-  if (!subjId || !appState) return;
-  // Highlight teachers who teach this subject
-  Array.from(mt.options).forEach(opt => {
-    if (!opt.value) return;
-    const t = appState.teachers.find(t => t.id === opt.value);
-    const teachesThis = t && (t.subjects || []).includes(subjId);
-    if (teachesThis) {
-      opt.style.fontWeight = '700';
-      if (!opt.text.includes('★')) opt.text = '★ ' + opt.text.replace(/^★ /, '');
-    } else {
-      opt.style.fontWeight = '';
-      opt.text = opt.text.replace(/^★ /, '');
-    }
+  const clsId = _mCtx ? _mCtx.clsId : null;
+  if (!appState) return;
+
+  const prevVal = mt.value;
+  mt.innerHTML = '<option value="">— wybierz nauczyciela —</option>';
+
+  // Podziel nauczycieli na 3 grupy:
+  // 1. Ma przydział do tej klasy I tego przedmiotu
+  // 2. Uczy tego przedmiotu (subjects[]) ale nie ma przydziału do tej klasy
+  // 3. Pozostali
+  const g1 = [], g2 = [], g3 = [];
+  appState.teachers.forEach(t => {
+    const hasAssignment = clsId && subjId &&
+      (t.assignments||[]).some(a => a.classId === clsId && a.subjectId === subjId);
+    const teachesSubj = subjId && (t.subjects||[]).includes(subjId);
+    if (hasAssignment)       g1.push(t);
+    else if (teachesSubj)    g2.push(t);
+    else                     g3.push(t);
   });
-  // Auto-select first teacher who teaches this subject (only if field empty)
-  if (!mt.value) {
-    const first = appState.teachers.find(t => (t.subjects||[]).includes(subjId));
-    if (first) mt.value = first.id;
+
+  function addGroup(teachers, label, prefix) {
+    if (!teachers.length) return;
+    const og = document.createElement('optgroup');
+    og.label = label;
+    teachers.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = prefix + t.first + ' ' + t.last + ' (' + t.abbr + ')';
+      opt.style.fontWeight = prefix ? '700' : '';
+      og.appendChild(opt);
+    });
+    mt.appendChild(og);
+  }
+
+  if (subjId || clsId) {
+    addGroup(g1, '✓ Przypisani do tej klasy i przedmiotu', '');
+    addGroup(g2, '~ Uczą tego przedmiotu (bez przydziału do klasy)', '');
+    addGroup(g3, 'Pozostali nauczyciele', '');
+  } else {
+    // Brak filtra — pokaż wszystkich płasko
+    appState.teachers.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.first + ' ' + t.last + ' (' + t.abbr + ')';
+      mt.appendChild(opt);
+    });
+  }
+
+  // Przywróć poprzednią wartość jeśli dostępna
+  if (prevVal && [...mt.options].some(o => o.value === prevVal)) {
+    mt.value = prevVal;
+  } else if (g1.length && !prevVal) {
+    mt.value = g1[0].id; // auto-wybierz pierwszy z grupy 1
+  } else if (g2.length && !prevVal) {
+    mt.value = g2[0].id;
+  }
+}
+
+function mOnTeacherChange() {
+  const subjId  = document.getElementById('mSubject').value;
+  const tchId   = document.getElementById('mTeacher').value;
+  const warn    = document.getElementById('mTeacherWarn');
+  const clsId   = _mCtx ? _mCtx.clsId : null;
+  if (!warn) return;
+
+  if (!tchId || !clsId) { warn.style.display = 'none'; return; }
+
+  const t    = appState.teachers.find(t => t.id === tchId);
+  const cls  = appState.classes.find(c => c.id === clsId);
+  const subj = appState.subjects.find(s => s.id === subjId);
+
+  if (!t) { warn.style.display = 'none'; return; }
+
+  // Sprawdź czy ma przydział do tej klasy i przedmiotu
+  const hasExactAssignment = subjId &&
+    (t.assignments||[]).some(a => a.classId === clsId && a.subjectId === subjId);
+  const hasClassAssignment =
+    (t.assignments||[]).some(a => a.classId === clsId);
+  const teachesSubject = subjId && (t.subjects||[]).includes(subjId);
+
+  if (hasExactAssignment) {
+    warn.style.display = 'none';
+    return;
+  }
+
+  let msg = '';
+  if (!teachesSubject && subjId) {
+    msg = `⚠️ ${t.abbr} nie ma ${subj ? subj.name : 'tego przedmiotu'} wśród nauczanych przedmiotów.`;
+  } else if (!hasClassAssignment && subjId) {
+    msg = `ℹ️ ${t.abbr} nie ma przydziału do klasy ${cls ? cls.name : ''} dla ${subj ? subj.name : 'tego przedmiotu'}.`;
+  } else if (subjId) {
+    msg = `ℹ️ ${t.abbr} uczy ${subj ? subj.name : 'tego przedmiotu'}, ale bez formalnego przydziału do klasy ${cls ? cls.name : ''}.`;
+  }
+
+  if (msg) {
+    warn.textContent = msg;
+    warn.style.display = '';
+    // Ostrzeżenie vs błąd
+    if (msg.startsWith('⚠️')) {
+      warn.style.background = 'var(--red-g)';
+      warn.style.borderColor = 'rgba(248,113,113,.3)';
+      warn.style.color = 'var(--red)';
+    } else {
+      warn.style.background = 'var(--yellow-g)';
+      warn.style.borderColor = 'rgba(251,191,36,.3)';
+      warn.style.color = 'var(--yellow)';
+    }
+  } else {
+    warn.style.display = 'none';
   }
 }
 
