@@ -492,14 +492,48 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
 ══════════════════════════════════════ */
 .matrix-grid{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border)}
 .matrix-table{border-collapse:collapse;white-space:nowrap;background:var(--s1)}
-.matrix-table th,.matrix-table td{border:1px solid var(--border);padding:6px 10px;font-size:.72rem}
-.matrix-table th{background:var(--s2);font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em}
-.matrix-table td{vertical-align:top;min-width:90px}
-.matrix-chips{display:flex;flex-wrap:wrap;gap:2px}
+.matrix-table th,.matrix-table td{border:1px solid var(--border);padding:0;font-size:.72rem}
+.matrix-table th{background:var(--s2);font-weight:700;color:var(--text-m);text-transform:uppercase;
+  letter-spacing:.04em;padding:7px 10px;position:sticky;top:0;z-index:2}
+.matrix-table th.row-header{position:sticky;left:0;z-index:3}
+.matrix-table td{vertical-align:top;min-width:100px;height:48px;position:relative}
+.matrix-table td.m-hour{
+  background:var(--s2);text-align:center;font-size:.7rem;
+  font-family:var(--mono);color:var(--text-m);padding:4px 8px;
+  position:sticky;left:0;z-index:1;min-width:52px;
+}
+.matrix-table td.m-empty{cursor:pointer}
+.matrix-table td.m-empty:hover{background:var(--accent-g2)}
+.matrix-table td.droptarget-hover{background:var(--accent-g)!important;outline:2px dashed var(--accent);outline-offset:-2px}
+.matrix-chips{display:flex;flex-wrap:wrap;gap:2px;padding:4px}
 .mchip{
   border-radius:4px;padding:2px 5px;
   font-size:.65rem;font-weight:700;white-space:nowrap;
 }
+/* Chip w macierzy — pełna komórka, draggable */
+.m-chip {
+  display:flex;flex-direction:column;justify-content:center;
+  padding:4px 7px;border-radius:5px;height:100%;
+  cursor:grab;user-select:none;position:relative;overflow:hidden;
+  transition:filter .1s,transform .1s;min-height:40px;
+}
+.m-chip:active{cursor:grabbing;transform:scale(.97)}
+.m-chip.dragging{opacity:.35}
+.m-chip-subj{font-size:.72rem;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-chip-meta{font-size:.62rem;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-chip-del{
+  position:absolute;top:2px;right:2px;width:13px;height:13px;
+  border-radius:3px;display:flex;align-items:center;justify-content:center;
+  font-size:.55rem;opacity:0;transition:opacity .1s;cursor:pointer;
+  background:rgba(0,0,0,.35);color:#fff;
+}
+.m-chip:hover .m-chip-del{opacity:1}
+.m-add-btn{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:1rem;color:var(--text-d);opacity:0;transition:opacity .15s;
+  cursor:pointer;background:none;border:none;
+}
+td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 
 /* ══════════════════════════════════════
    SETTINGS PANEL
@@ -847,7 +881,7 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
     </div>
     <div class="mfield" id="mClassField" style="display:none">
       <label>Klasa</label>
-      <select class="mselect" id="mClass">
+      <select class="mselect" id="mClass" onchange="mOnClassChange()">
         <option value="">— wybierz klasę —</option>
       </select>
     </div>
@@ -1644,63 +1678,100 @@ function renderRoomView() {
 function renderMatrixView() {
   if(!appState) return;
   const dayIdx = parseInt(document.getElementById('matrixDaySelect').value)||0;
-  const mode = document.getElementById('matrixModeSelect').value;
-  const wrap = document.getElementById('matrixGridWrap');
-  const hours = appState.hours;
-  if(!hours||!hours.length){wrap.innerHTML='<div class="empty-state">Brak godzin</div>';return;}
+  const mode   = document.getElementById('matrixModeSelect').value;
+  const wrap   = document.getElementById('matrixGridWrap');
+  const hours  = appState.hours;
+  if(!hours||!hours.length){wrap.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';return;}
+
+  // ── helper: renderuje jedną komórkę macierzy (klasa×godzina lub nauczyciel×godzina) ──
+  function mCell(clsId, di, hnum, lesson, extraData={}) {
+    if(lesson){
+      const subj  = appState.subjects.find(s=>s.id===lesson.subjectId);
+      const tch   = appState.teachers.find(t=>t.id===lesson.teacherId);
+      const room  = appState.rooms.find(r=>r.id===lesson.roomId);
+      const color = subj?.color||'#38bdf8';
+      const bg    = hexToRgba(color,.18);
+      const bord  = hexToRgba(color,.5);
+      const textC = isDarkColor(color)?'#fff':'#111';
+      const hasC  = checkCellConflict(clsId,di,hnum,lesson);
+      // line2: zależy od trybu — w trybie klas pokaż nauczyciela, w trybie nauczycieli pokaż klasę
+      const line2 = extraData.line2||'';
+      return `<td data-clsid="${clsId}" data-day="${di}" data-hour="${hnum}"
+          style="${hasC?'background:var(--red-g)':''}"
+          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${hnum})" ondragleave="doDragLeave(this)">
+          <div class="m-chip ${hasC?'conflict-chip':''}"
+            style="background:${bg};border-left:3px solid ${color};color:${textC}"
+            draggable="true"
+            ondragstart="doDragStart(event,'${clsId}',${di},${hnum})"
+            ondragend="doDragEnd(event)"
+            onclick="event.stopPropagation();openEditModal('${clsId}',${di},${hnum})">
+            <div class="m-chip-subj">${subj?.abbr||'?'}${lesson.groups&&lesson.groups.length?' ('+lesson.groups.join('/')+')':''}</div>
+            <div class="m-chip-meta">${line2}</div>
+            <div class="m-chip-del" onclick="event.stopPropagation();deleteLesson('${clsId}',${di},${hnum})">×</div>
+            ${hasC?'<div class="conflict-dot"></div>':''}
+          </div>
+        </td>`;
+    } else {
+      return `<td class="m-empty" data-clsid="${clsId}" data-day="${di}" data-hour="${hnum}"
+          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${hnum})" ondragleave="doDragLeave(this)"
+          onclick="openAddModal('${clsId}',${di},${hnum},'${extraData.prefTeacher||''}','')">
+          <button class="m-add-btn" tabindex="-1">＋</button>
+        </td>`;
+    }
+  }
 
   if(mode==='class'){
-    // Rows = hours, Cols = classes
-    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr><th>Godz.</th>`;
+    // Wiersze = godziny, Kolumny = klasy
+    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>
+      <th class="row-header" style="min-width:52px">Godz.</th>`;
     appState.classes.forEach(c=>html+=`<th>${c.name}</th>`);
     html+='</tr></thead><tbody>';
     hours.forEach(h=>{
-      html+=`<tr><td style="font-size:.72rem;font-family:var(--mono);text-align:center">${h.num}<br>${h.start}</td>`;
+      html+=`<tr><td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
       appState.classes.forEach(c=>{
         const lesson=getLesson(c.id,dayIdx,h.num);
-        if(lesson){
-          const subj=appState.subjects.find(s=>s.id===lesson.subjectId);
-          const tch=appState.teachers.find(t=>t.id===lesson.teacherId);
-          const color=subj?.color||'#38bdf8';
-          const hasC=checkCellConflict(c.id,dayIdx,h.num,lesson);
-          html+=`<td style="${hasC?'background:var(--red-g)':''}">
-            <div class="matrix-chips">
-              <div class="mchip" style="background:${hexToRgba(color,.2)};color:${color}">${subj?.abbr||'?'}</div>
-              ${tch?`<div class="mchip" style="background:var(--s2);color:var(--text-m)">${tch.abbr}</div>`:''}
-            </div></td>`;
-        } else {
-          html+=`<td></td>`;
-        }
+        const tch=lesson?appState.teachers.find(t=>t.id===lesson.teacherId):null;
+        const room=lesson?appState.rooms.find(r=>r.id===lesson.roomId):null;
+        const line2=[tch?.abbr, room?.name].filter(Boolean).join(' · ');
+        html += mCell(c.id, dayIdx, h.num, lesson, {line2});
       });
       html+='</tr>';
     });
     html+='</tbody></table></div>';
     wrap.innerHTML=html;
+
   } else {
-    // Rows = hours, Cols = teachers
-    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr><th>Godz.</th>`;
-    appState.teachers.forEach(t=>html+=`<th>${t.abbr}</th>`);
+    // Wiersze = godziny, Kolumny = nauczyciele
+    // W tym trybie komórka dotyczy: nauczyciel ma lekcję → szukamy jego clsId
+    // Dodajemy możliwość edycji: klik w pustą komórkę → modal z pre-wypełnionym nauczycielem
+    // ale clsId trzeba wybrać → otwieramy modal z wyborem klasy
+    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>
+      <th class="row-header" style="min-width:52px">Godz.</th>`;
+    appState.teachers.forEach(t=>html+=`<th title="${t.first} ${t.last}">${t.abbr}</th>`);
     html+='</tr></thead><tbody>';
     hours.forEach(h=>{
-      html+=`<tr><td style="font-size:.72rem;font-family:var(--mono);text-align:center">${h.num}<br>${h.start}</td>`;
+      html+=`<tr><td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
       appState.teachers.forEach(t=>{
-        // Find if this teacher has any lesson at this hour/day
-        const lesson=Object.entries(schedData).find(([k,v])=>{
-          const [,di,hn]=[...k.split('_').map((x,i)=>i===0?x:parseInt(x))];
-          return di===dayIdx && hn===h.num && v.teacherId===t.id;
+        // Znajdź lekcję tego nauczyciela w tej godzinie
+        const entry=Object.entries(schedData).find(([k,v])=>{
+          const parts=k.split('_');
+          return parseInt(parts[1])===dayIdx && parseInt(parts[2])===h.num && v.teacherId===t.id;
         });
-        if(lesson){
-          const [key,l]=lesson;
+        if(entry){
+          const [key,lesson]=entry;
           const clsId=key.split('_')[0];
           const cls=appState.classes.find(c=>c.id===clsId);
-          const subj=appState.subjects.find(s=>s.id===l.subjectId);
-          const color=subj?.color||'#38bdf8';
-          html+=`<td><div class="matrix-chips">
-            <div class="mchip" style="background:${hexToRgba(color,.2)};color:${color}">${subj?.abbr||'?'}</div>
-            ${cls?`<div class="mchip" style="background:var(--s2);color:var(--text-m)">${cls.name}</div>`:''}
-          </div></td>`;
+          const room=appState.rooms.find(r=>r.id===lesson.roomId);
+          const line2=[cls?.name, room?.name].filter(Boolean).join(' · ');
+          html += mCell(clsId, dayIdx, h.num, lesson, {line2});
         } else {
-          html+=`<td></td>`;
+          // Pusta komórka: kliknięcie otwiera modal z pre-wybranym nauczycielem
+          // Klasa musi być wybrana w modalu — prefTeacher pre-wypełnia pole
+          html+=`<td class="m-empty" data-day="${dayIdx}" data-hour="${h.num}" data-teacher="${t.id}"
+            ondragover="doDragOver(event,this)" ondrop="doDropTeacherCell(event,'${t.id}',${dayIdx},${h.num})" ondragleave="doDragLeave(this)"
+            onclick="openAddModalForTeacher('${t.id}',${dayIdx},${h.num})">
+            <button class="m-add-btn" tabindex="-1">＋</button>
+          </td>`;
         }
       });
       html+='</tr>';
@@ -1708,6 +1779,50 @@ function renderMatrixView() {
     html+='</tbody></table></div>';
     wrap.innerHTML=html;
   }
+}
+
+// Otwiera modal dodawania lekcji w trybie nauczyciela — wymaga wyboru klasy
+function openAddModalForTeacher(tchId, dayIdx, hourIdx) {
+  if(!appState)return;
+  _mCtx = {mode:'add', clsId:null, dayIdx, hourIdx, prefTeacher:tchId};
+  const h=appState.hours.find(h=>h.num===hourIdx);
+  const tch=appState.teachers.find(t=>t.id===tchId);
+  document.getElementById('lessonModalTitle').innerHTML =
+    `Dodaj lekcję — <span>${DAYS[dayIdx]}, godz. ${hourIdx} (${h?h.start+'-'+h.end:''})</span>`;
+  document.getElementById('mSubject').value='';
+  document.getElementById('mNote').value='';
+  document.getElementById('mDeleteBtn').style.display='none';
+  document.getElementById('mTeacherWarn').style.display='none';
+
+  // Pokaż pole wyboru klasy (wymagane w tym trybie)
+  const mClassField=document.getElementById('mClassField');
+  const mClass=document.getElementById('mClass');
+  mClassField.style.display='';
+  if(mClass)mClass.value='';
+
+  rebuildTeacherOptions();
+  document.getElementById('mTeacher').value=tchId;
+  document.getElementById('mRoom').value='';
+  populateGroupsInModal(null,[]);
+
+  document.getElementById('lessonModal').classList.add('show');
+}
+
+// Drop w trybie nauczyciela — przenosimy lekcję do tej samej godziny ale zostawiamy klasę
+function doDropTeacherCell(e, tchId, toDayIdx, toHourIdx) {
+  e.preventDefault();
+  document.querySelectorAll('.droptarget-hover').forEach(el=>el.classList.remove('droptarget-hover'));
+  if(!_dragData)return;
+  const {clsId,dayIdx,hourIdx}=_dragData;
+  // Przenosimy lekcję tej samej klasy do nowej godziny/dnia
+  const src=getLesson(clsId,dayIdx,hourIdx);
+  const dst=getLesson(clsId,toDayIdx,toHourIdx);
+  if(!src)return;
+  setLesson(clsId,toDayIdx,toHourIdx,src);
+  setLesson(clsId,dayIdx,hourIdx,dst||null);
+  renderCurrentView();
+  detectAndShowConflicts();
+  notify('Lekcja przeniesiona');
 }
 
 // ================================================================
@@ -2138,6 +2253,17 @@ function populateGroupsInModal(clsId, selectedGroups) {
     </label>`).join('');
 }
 
+// Gdy zmienia się klasa w modalu (tryb macierzy nauczyciela)
+function mOnClassChange() {
+  const clsId=document.getElementById('mClass')?.value;
+  if(clsId && _mCtx) {
+    _mCtx.clsId=clsId; // tymczasowo ustaw żeby rebuildTeacherOptions wiedział o klasie
+    populateGroupsInModal(clsId,[]);
+    rebuildTeacherOptions();
+    mOnTeacherChange();
+  }
+}
+
 function gChkChange(inp){
   inp.parentElement.classList.toggle('checked',inp.checked);
 }
@@ -2269,9 +2395,16 @@ function saveLessonModal() {
   const note=document.getElementById('mNote').value.trim();
   if(!subjId){notify('Wybierz przedmiot');return;}
   if(!tchId){notify('Wybierz nauczyciela');return;}
+  // clsId: z kontekstu lub z pola wyboru klasy (tryb macierzy nauczyciel)
+  let clsId = _mCtx.clsId;
+  if(!clsId){
+    clsId=document.getElementById('mClass')?.value;
+    if(!clsId){notify('Wybierz klasę');return;}
+  }
   const groups=[...document.querySelectorAll('#mGroupList input:checked')].map(i=>i.value);
+  // Jeśli zmieniono klasę, odśwież grupy (nie blokuj zapisu)
   const lesson={subjectId:subjId,teacherId:tchId,roomId:roomId||null,groups,note};
-  setLesson(_mCtx.clsId,_mCtx.dayIdx,_mCtx.hourIdx,lesson);
+  setLesson(clsId,_mCtx.dayIdx,_mCtx.hourIdx,lesson);
   closeLessonModal();
   renderCurrentView();
   detectAndShowConflicts();
