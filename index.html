@@ -948,7 +948,7 @@ const SUBJ_COLORS = [
   '#a78bfa','#2dd4bf','#fb923c','#f472b6',
   '#818cf8','#4ade80','#e879f9','#67e8f9'
 ];
-const WIZ_STEPS = ['Szkoła','Klasy','Przedmioty','Nauczyciele','Sale','Godziny'];
+const WIZ_STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny'];
 const LS = {
   STATE:    'pl_state',
   SCHED:    'pl_sched',
@@ -1051,11 +1051,11 @@ function openSettings() {
 //  WIZARD
 // ================================================================
 let wStep = 0;
-let wData = { name:'', year:'', classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+let wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
 
 function startWizard() {
   wStep = 0;
-  wData = { name:'', year:'', classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+  wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
   document.getElementById('wizardOverlay').classList.add('show');
   renderWizStep();
 }
@@ -1081,6 +1081,7 @@ function renderWizStep() {
     case 3: body.innerHTML = wizStep3(); break;
     case 4: body.innerHTML = wizStep4(); break;
     case 5: body.innerHTML = wizStep5(); break;
+    case 6: body.innerHTML = wizStep6(); break;
   }
 }
 
@@ -1099,7 +1100,52 @@ function wizStep0() {
 }
 
 // Step 1: Classes
+// Step 1: Buildings / Locations
 function wizStep1() {
+  const BCOLORS = ['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
+  const rows = wData.buildings.map((b,i) => {
+    const swatches = BCOLORS.map(c =>
+      `<div class="color-swatch ${b.color===c?'sel':''}" style="background:${c};width:16px;height:16px" onclick="wSetBldColor(${i},'${c}')"></div>`
+    ).join('');
+    return `<div class="subj-row">
+      <div class="cdot" style="background:${b.color||'#38bdf8'}"></div>
+      <div class="subj-name">${b.name}</div>
+      <div class="subj-abbr" style="font-size:.72rem;color:var(--text-m);flex:2">${b.address||''}</div>
+      <div class="color-pick">${swatches}</div>
+      <span class="tag-del" onclick="wRemoveBuilding(${i})">×</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="wcard">
+    <div class="wcard-title">Budynki i lokalizacje zajęć</div>
+    <p style="font-size:.82rem;color:var(--text-m);margin-bottom:16px;line-height:1.5">
+      Wpisz wszystkie miejsca, w których szkoła realizuje zajęcia — budynek główny, hale sportowe,
+      baseny, filie itp. Każda sala będzie przypisana do budynku. Jeśli szkoła ma tylko jeden budynek,
+      możesz ten krok pominąć.
+    </p>
+    <div class="wfield"><label>Adres / siedziba główna szkoły</label>
+      <input class="winput" id="wMainAddress" value="${wData.mainAddress||''}" placeholder="np. ul. Szkolna 1, Warszawa"></div>
+    <div class="wrow" style="margin-top:4px">
+      <div class="wfield"><label>Nazwa budynku / lokalizacji</label>
+        <input class="winput" id="wBldName" placeholder="np. Budynek A, Hala sportowa, Basen"></div>
+      <div class="wfield"><label>Adres (opcjonalnie)</label>
+        <input class="winput" id="wBldAddress" placeholder="np. ul. Sportowa 5"></div>
+    </div>
+    <div class="wfield"><label>Uwagi (opcjonalnie)</label>
+      <input class="winput" id="wBldNote" placeholder="np. dojazd autobusem, 15 min od szkoły"></div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:12px" onclick="wAddBuilding()">+ Dodaj lokalizację</button>
+    ${rows}
+    ${!wData.buildings.length ? `<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">
+      Brak dodanych lokalizacji — krok opcjonalny, możesz kontynuować.
+    </div>` : ''}
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+function wizStep2() {
   const tags = wData.classes.map((c,i) => `
     <div class="tag">
       <span>${c.name}${c.groups&&c.groups.length?' (gr: '+c.groups.join(', ')+')':''}</span>
@@ -1126,7 +1172,7 @@ function wizStep1() {
 }
 
 // Step 2: Subjects
-function wizStep2() {
+function wizStep3() {
   const rows = wData.subjects.map((s,i) => {
     const swatches = SUBJ_COLORS.map(c => 
       `<div class="color-swatch ${s.color===c?'sel':''}" style="background:${c}" onclick="wSetSubjColor(${i},'${c}')"></div>`
@@ -1160,7 +1206,7 @@ function wizStep2() {
 }
 
 // Step 3: Teachers
-function wizStep3() {
+function wizStep4() {
   const rows = wData.teachers.map((t,i) => `
     <div class="subj-row">
       <div class="subj-name">${t.first} ${t.last}</div>
@@ -1186,20 +1232,39 @@ function wizStep3() {
   </div>`;
 }
 
-// Step 4: Rooms
-function wizStep4() {
-  const tags = wData.rooms.map((r,i) => `
-    <div class="tag"><span>${r}</span><span class="tag-del" onclick="wRemoveRoom(${i})">×</span></div>
-  `).join('');
+// Step 5: Rooms
+function wizStep5() {
+  const hasBld = wData.buildings.length > 0;
+  const bldOptions = hasBld
+    ? '<option value="">— budynek główny / nieokreślony —</option>' +
+      wData.buildings.map((b,i)=>`<option value="${i}">${b.name}</option>`).join('')
+    : '';
+
+  const rows = wData.rooms.map((r,i) => {
+    const bld = (r.buildingId !== null && r.buildingId !== undefined && r.buildingId !== '')
+      ? wData.buildings[parseInt(r.buildingId)] : null;
+    return `<div class="subj-row">
+      ${bld ? `<div class="cdot" style="background:${bld.color||'#888'}"></div>` : '<div class="cdot" style="background:var(--border)"></div>'}
+      <div class="subj-name">${r.name}</div>
+      <div class="subj-abbr" style="font-size:.72rem;color:var(--text-m);flex:2">${bld?bld.name:''}</div>
+      <span class="tag-del" onclick="wRemoveRoom(${i})">×</span>
+    </div>`;
+  }).join('');
+
   return `<div class="wcard">
     <div class="wcard-title">Sale lekcyjne</div>
-    <div class="tag-add-row">
-      <input class="winput" id="wRoomInput" placeholder="np. 101, Sala gimnastyczna" onkeydown="if(event.key==='Enter')wAddRoom()">
-      <button class="tag-add-btn" onclick="wAddRoom()">+ Dodaj</button>
+    <div class="wrow">
+      <div class="wfield" style="flex:2"><label>Nazwa sali</label>
+        <input class="winput" id="wRoomInput" placeholder="np. 101, Sala gimnastyczna, Basen" onkeydown="if(event.key==='Enter')wAddRoom()"></div>
+      ${hasBld ? `<div class="wfield"><label>Budynek / lokalizacja</label>
+        <select class="wselect" id="wRoomBuilding">${bldOptions}</select></div>` : ''}
     </div>
-    <div class="tag-list" style="margin-top:10px">${tags}</div>
-    <p class="import-hint">Masowe: <em>101;102;103;Sala gimnastyczna</em></p>
-    <div class="tag-add-row" style="margin-top:8px">
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddRoom()">+ Dodaj salę</button>
+    ${rows}
+    <p class="import-hint">${hasBld
+      ? 'Masowe (bez przypisania budynku): <em>101;102;103;Aula</em>'
+      : 'Masowe: <em>101;102;103;Sala gimnastyczna</em>'}</p>
+    <div class="tag-add-row" style="margin-top:6px">
       <input class="winput" id="wRoomBulk" placeholder="101;102;103;Aula">
       <button class="tag-add-btn" onclick="wAddRoomBulk()">Importuj</button>
     </div>
@@ -1211,7 +1276,7 @@ function wizStep4() {
 }
 
 // Step 5: Hours
-function wizStep5() {
+function wizStep6() {
   const tags = wData.hours.map((h,i) => `
     <div class="tag">
       <span>${h.num}. ${h.start}–${h.end}</span>
@@ -1260,12 +1325,16 @@ function wizCollectStep() {
       if(!wData.name) { notify('Podaj nazwę szkoły'); return false; }
       break;
     case 1:
-      if(!wData.classes.length) { notify('Dodaj co najmniej jedną klasę'); return false; }
+      // Budynki — opcjonalne, zbieramy przez wAddBuilding, tu tylko zapisujemy opis głównego
+      wData.mainAddress = (document.getElementById('wMainAddress')||{}).value||'';
       break;
     case 2:
-      if(!wData.subjects.length) { notify('Dodaj co najmniej jeden przedmiot'); return false; }
+      if(!wData.classes.length) { notify('Dodaj co najmniej jedną klasę'); return false; }
       break;
     case 3:
+      if(!wData.subjects.length) { notify('Dodaj co najmniej jeden przedmiot'); return false; }
+      break;
+    case 4:
       if(!wData.teachers.length) { notify('Dodaj co najmniej jednego nauczyciela'); return false; }
       break;
   }
@@ -1278,10 +1347,12 @@ function wizFinish() {
   appState = {
     name: wData.name,
     year: wData.year,
+    mainAddress: wData.mainAddress||'',
+    buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||''})),
     classes: wData.classes.map((c,i)=>({id:'cls'+i, name:c.name, groups:c.groups||[]})),
     subjects: wData.subjects.map((s,i)=>({id:'subj'+i, name:s.name, abbr:s.abbr, color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length]})),
     teachers: wData.teachers.map((t,i)=>({id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr})),
-    rooms: wData.rooms.map((r,i)=>({id:'room'+i, name:r})),
+    rooms: wData.rooms.map((r,i)=>({id:'room'+i, name:r.name, buildingId:r.buildingId||null})),
     hours: wData.hours.sort((a,b)=>a.num-b.num),
   };
   schedData = {};
@@ -1360,17 +1431,39 @@ function wAddTeacherBulk() {
 }
 function wRemoveTeacher(i){wData.teachers.splice(i,1);renderWizStep();}
 
+// ── Budynki ──
+function wAddBuilding() {
+  const name = (document.getElementById('wBldName')||{}).value?.trim();
+  const address = (document.getElementById('wBldAddress')||{}).value?.trim()||'';
+  const note = (document.getElementById('wBldNote')||{}).value?.trim()||'';
+  if(!name){notify('Podaj nazwę lokalizacji');return;}
+  const BCOLORS=['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
+  wData.buildings.push({name, address, note, color:BCOLORS[wData.buildings.length%BCOLORS.length]});
+  document.getElementById('wBldName').value='';
+  document.getElementById('wBldAddress').value='';
+  document.getElementById('wBldNote').value='';
+  renderWizStep();
+}
+function wRemoveBuilding(i){wData.buildings.splice(i,1);renderWizStep();}
+function wSetBldColor(i,c){wData.buildings[i].color=c;renderWizStep();}
+
+// ── Sale (z budynkiem) ──
 function wAddRoom() {
   const v=document.getElementById('wRoomInput').value.trim();
   if(!v)return;
-  if(!wData.rooms.includes(v))wData.rooms.push(v);
+  const bldEl=document.getElementById('wRoomBuilding');
+  const buildingId=(bldEl&&bldEl.value!=='')?bldEl.value:null;
+  if(!wData.rooms.find(r=>r.name===v))wData.rooms.push({name:v,buildingId});
   document.getElementById('wRoomInput').value='';
   renderWizStep();
 }
 function wAddRoomBulk() {
   const raw=document.getElementById('wRoomBulk').value.trim();
   if(!raw)return;
-  raw.split(';').forEach(r=>{r=r.trim();if(r&&!wData.rooms.includes(r))wData.rooms.push(r);});
+  raw.split(';').forEach(r=>{
+    r=r.trim();
+    if(r&&!wData.rooms.find(x=>x.name===r))wData.rooms.push({name:r,buildingId:null});
+  });
   renderWizStep();
 }
 function wRemoveRoom(i){wData.rooms.splice(i,1);renderWizStep();}
@@ -1475,8 +1568,32 @@ function populateModalSelects() {
     appState.teachers.map(t=>`<option value="${t.id}">${t.first} ${t.last} (${t.abbr})</option>`).join('');
 
   const mr=document.getElementById('mRoom');
-  if(mr) mr.innerHTML='<option value="">— brak / bez sali —</option>' +
-    appState.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  if(mr) {
+    // Grupuj sale wg budynku jeśli budynki istnieją
+    const hasBld = (appState.buildings||[]).length > 0;
+    if(hasBld){
+      let roomOpts='<option value="">— brak / bez sali —</option>';
+      // Sale bez budynku
+      const noBld=appState.rooms.filter(r=>!r.buildingId);
+      if(noBld.length){
+        const og=document.createElement('optgroup'); og.label='Budynek główny';
+        noBld.forEach(r=>{ const o=document.createElement('option');o.value=r.id;o.textContent=r.name; og.appendChild(o); });
+        // Dodamy przez innerHTML pomocnicze
+      }
+      // Buduj przez innerHTML z optgroup
+      let html='<option value="">— brak / bez sali —</option>';
+      (appState.buildings||[]).forEach(b=>{
+        const bRooms=appState.rooms.filter(r=>r.buildingId===b.id);
+        if(bRooms.length) html+=`<optgroup label="${b.name}">`+bRooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')+'</optgroup>';
+      });
+      const noBldRooms=appState.rooms.filter(r=>!r.buildingId);
+      if(noBldRooms.length) html+='<optgroup label="Budynek główny">'+noBldRooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')+'</optgroup>';
+      mr.innerHTML=html;
+    } else {
+      mr.innerHTML='<option value="">— brak / bez sali —</option>' +
+        appState.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+    }
+  }
 
   const mc=document.getElementById('mClass');
   if(mc) mc.innerHTML='<option value="">— wybierz klasę —</option>' +
@@ -1587,7 +1704,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
               ondragend="doDragEnd(event)"
               onclick="event.stopPropagation();openEditModal('${col.id}',${di},${h.num})">
               <div class="lesson-chip-subj">${subj?.abbr||'?'} ${lesson.groups&&lesson.groups.length?'('+lesson.groups.join('/')+')':''}</div>
-              <div class="lesson-chip-meta">${tch?tch.abbr:''} ${room?'· '+room.name:''}</div>
+              <div class="lesson-chip-meta">${tch?tch.abbr:''} ${room?'· '+room.name+(()=>{const b=(appState.buildings||[]).find(b=>b.id===room.buildingId);return b?' ('+b.name+')':''})():''}</div>
               <div class="lesson-chip-del" onclick="event.stopPropagation();deleteLesson('${col.id}',${di},${h.num})">×</div>
               ${hasConflict?'<div class="conflict-dot"></div>':''}
             </div>
@@ -2094,8 +2211,15 @@ function renderSettings() {
   // Rooms
   html+=`<div class="settings-card"><div class="settings-card-title">Sale</div><ul class="settings-list">`;
   appState.rooms.forEach(r=>{
+    const bld=(appState.buildings||[]).find(b=>b.id===r.buildingId);
     html+=`<li class="settings-item">
-      <div><div class="settings-item-name">${r.name}</div></div>
+      <div>
+        <div class="settings-item-name">
+          ${bld?`<span class="cdot" style="background:${bld.color};margin-right:5px"></span>`:''}
+          ${r.name}
+        </div>
+        ${bld?`<div class="settings-item-meta">${bld.name}</div>`:''}
+      </div>
       <div class="settings-item-actions">
         <button class="si-btn danger" onclick="removeRoom('${r.id}')">Usuń</button>
       </div>
@@ -2107,6 +2231,21 @@ function renderSettings() {
       <button class="wbtn wbtn-primary" style="padding:7px 12px;font-size:.78rem" onclick="settingsAddRoom()">+</button>
     </div>
   </div>`;
+
+  // Budynki w ustawieniach
+  if((appState.buildings||[]).length){
+    html+=`<div class="settings-card"><div class="settings-card-title">Budynki / Lokalizacje</div><ul class="settings-list">`;
+    appState.buildings.forEach(b=>{
+      const roomCount=appState.rooms.filter(r=>r.buildingId===b.id).length;
+      html+=`<li class="settings-item">
+        <div>
+          <div class="settings-item-name"><span class="cdot" style="background:${b.color};margin-right:6px"></span>${b.name}</div>
+          <div class="settings-item-meta">${b.address||''}${b.note?' · '+b.note:''} · ${roomCount} sal</div>
+        </div>
+      </li>`;
+    });
+    html+=`</ul></div>`;
+  }
 
   // Hours
   html+=`<div class="settings-card"><div class="settings-card-title">Godziny lekcyjne</div><ul class="settings-list">`;
@@ -2700,9 +2839,13 @@ function buildDemoState() {
           {classId:'c3',subjectId:'s7',hours:2},{classId:'c4',subjectId:'s3',hours:3},
         ]},
     ],
+    buildings:[
+      {id:'bld1',name:'Budynek główny',address:'ul. Szkolna 1',color:'#38bdf8',note:''},
+      {id:'bld2',name:'Hala sportowa',address:'ul. Sportowa 3',color:'#34d399',note:'5 min pieszo'},
+    ],
     rooms:[
-      {id:'r1',name:'101'},{id:'r2',name:'102'},
-      {id:'r3',name:'Sala gym.'},{id:'r4',name:'Laboratorium'},
+      {id:'r1',name:'101',buildingId:'bld1'},{id:'r2',name:'102',buildingId:'bld1'},
+      {id:'r3',name:'Sala gym.',buildingId:'bld2'},{id:'r4',name:'Laboratorium',buildingId:'bld1'},
     ],
     hours:[
       {num:1,start:'08:00',end:'08:45'},{num:2,start:'08:55',end:'09:40'},
