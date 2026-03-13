@@ -1696,12 +1696,15 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
           const hasConflict = checkCellConflict(col.id, di, h.num, lesson);
           html += `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
             draggable="false"
-            ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(this)">
+            ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)">
             <div class="lesson-chip ${hasConflict?'conflict-chip':''}"
               style="background:${bg};border-left:3px solid ${color};color:${textCol}"
               draggable="true"
               ondragstart="doDragStart(event,'${col.id}',${di},${h.num})"
               ondragend="doDragEnd(event)"
+              ondragover="event.preventDefault();event.stopPropagation();this.closest('td').classList.add('droptarget-hover')"
+              ondragleave="event.stopPropagation()"
+              ondrop="event.stopPropagation();doDrop(event,'${col.id}',${di},${h.num})"
               onclick="event.stopPropagation();openEditModal('${col.id}',${di},${h.num})">
               <div class="lesson-chip-subj">${subj?.abbr||'?'} ${lesson.groups&&lesson.groups.length?'('+lesson.groups.join('/')+')':''}</div>
               <div class="lesson-chip-meta">${tch?tch.abbr:''} ${room?'· '+room.name+(()=>{const b=(appState.buildings||[]).find(b=>b.id===room.buildingId);return b?' ('+b.name+')':''})():''}</div>
@@ -1711,7 +1714,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
           </td>`;
         } else {
           html += `<td class="empty-cell" data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
-            ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(this)"
+            ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)"
             onclick="openAddModal('${col.id}',${di},${h.num},'${opts.fixTeacher||''}','${opts.fixRoom||''}')">
             <button class="add-cell-btn" tabindex="-1">＋</button>
           </td>`;
@@ -1815,12 +1818,15 @@ function renderMatrixView() {
       const line2 = extraData.line2||'';
       return `<td data-clsid="${clsId}" data-day="${di}" data-hour="${hnum}"
           style="${hasC?'background:var(--red-g)':''}"
-          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${hnum})" ondragleave="doDragLeave(this)">
+          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${hnum})" ondragleave="doDragLeave(event)">
           <div class="m-chip ${hasC?'conflict-chip':''}"
             style="background:${bg};border-left:3px solid ${color};color:${textC}"
             draggable="true"
             ondragstart="doDragStart(event,'${clsId}',${di},${hnum})"
             ondragend="doDragEnd(event)"
+            ondragover="event.preventDefault();event.stopPropagation();this.closest('td').classList.add('droptarget-hover')"
+            ondragleave="event.stopPropagation()"
+            ondrop="event.stopPropagation();doDrop(event,'${clsId}',${di},${hnum})"
             onclick="event.stopPropagation();openEditModal('${clsId}',${di},${hnum})">
             <div class="m-chip-subj">${subj?.abbr||'?'}${lesson.groups&&lesson.groups.length?' ('+lesson.groups.join('/')+')':''}</div>
             <div class="m-chip-meta">${line2}</div>
@@ -1830,7 +1836,7 @@ function renderMatrixView() {
         </td>`;
     } else {
       return `<td class="m-empty" data-clsid="${clsId}" data-day="${di}" data-hour="${hnum}"
-          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${hnum})" ondragleave="doDragLeave(this)"
+          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${hnum})" ondragleave="doDragLeave(event)"
           onclick="openAddModal('${clsId}',${di},${hnum},'${extraData.prefTeacher||''}','')">
           <button class="m-add-btn" tabindex="-1">＋</button>
         </td>`;
@@ -1885,7 +1891,7 @@ function renderMatrixView() {
           // Pusta komórka: kliknięcie otwiera modal z pre-wybranym nauczycielem
           // Klasa musi być wybrana w modalu — prefTeacher pre-wypełnia pole
           html+=`<td class="m-empty" data-day="${dayIdx}" data-hour="${h.num}" data-teacher="${t.id}"
-            ondragover="doDragOver(event,this)" ondrop="doDropTeacherCell(event,'${t.id}',${dayIdx},${h.num})" ondragleave="doDragLeave(this)"
+            ondragover="doDragOver(event,this)" ondrop="doDropTeacherCell(event,'${t.id}',${dayIdx},${h.num})" ondragleave="doDragLeave(event)"
             onclick="openAddModalForTeacher('${t.id}',${dayIdx},${h.num})">
             <button class="m-add-btn" tabindex="-1">＋</button>
           </td>`;
@@ -2582,7 +2588,10 @@ document.getElementById('lessonModal').addEventListener('click',function(e){
 function doDragStart(e, clsId, dayIdx, hourIdx) {
   _dragData={clsId,dayIdx,hourIdx};
   e.dataTransfer.effectAllowed='move';
-  setTimeout(()=>{const chip=e.target;if(chip)chip.classList.add('dragging');},0);
+  // Zapisz też w dataTransfer jako fallback (wymagane przez niektóre przeglądarki)
+  try { e.dataTransfer.setData('text/plain', clsId+'|'+dayIdx+'|'+hourIdx); } catch(_){}
+  const chip = e.currentTarget;
+  setTimeout(()=>{ if(chip) chip.classList.add('dragging'); }, 0);
 }
 function doDragEnd(e){
   document.querySelectorAll('.dragging').forEach(el=>el.classList.remove('dragging'));
@@ -2590,20 +2599,28 @@ function doDragEnd(e){
 }
 function doDragOver(e,td){
   e.preventDefault();
+  e.stopPropagation();
   e.dataTransfer.dropEffect='move';
   td.classList.add('droptarget-hover');
 }
-function doDragLeave(td){td.classList.remove('droptarget-hover');}
+function doDragLeave(e){
+  // Ignoruj leave jeśli mysz weszła w child element (np. chip wewnątrz td)
+  const td = e.currentTarget;
+  if(td.contains(e.relatedTarget)) return;
+  td.classList.remove('droptarget-hover');
+}
 function doDrop(e,toClsId,toDayIdx,toHourIdx){
   e.preventDefault();
+  e.stopPropagation();
   document.querySelectorAll('.droptarget-hover').forEach(el=>el.classList.remove('droptarget-hover'));
   if(!_dragData)return;
   const {clsId,dayIdx,hourIdx}=_dragData;
-  if(clsId===toClsId&&dayIdx===toDayIdx&&hourIdx===toHourIdx)return;
+  if(clsId===toClsId&&dayIdx===toDayIdx&&hourIdx===toHourIdx){_dragData=null;return;}
   const src=getLesson(clsId,dayIdx,hourIdx);
   const dst=getLesson(toClsId,toDayIdx,toHourIdx);
   setLesson(toClsId,toDayIdx,toHourIdx,src);
   setLesson(clsId,dayIdx,hourIdx,dst||null);
+  _dragData=null;
   renderCurrentView();
   detectAndShowConflicts();
   notify('Lekcja przeniesiona');
