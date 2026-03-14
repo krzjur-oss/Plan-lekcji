@@ -673,6 +673,39 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── SUBJECT GRID ── */
+.subj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:10px}
+.subj-tile{
+  border-radius:10px;padding:12px 14px;cursor:pointer;position:relative;
+  border:2px solid transparent;transition:transform .12s,box-shadow .12s;
+  display:flex;flex-direction:column;gap:4px;
+}
+.subj-tile:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.13)}
+.subj-tile-abbr{font-family:var(--mono);font-weight:800;font-size:1.1rem;line-height:1}
+.subj-tile-name{font-size:.75rem;font-weight:600;opacity:.85;line-height:1.3}
+.subj-tile-edit{
+  position:absolute;top:6px;right:6px;width:20px;height:20px;
+  border-radius:5px;background:rgba(0,0,0,.2);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;opacity:0;transition:opacity .12s;cursor:pointer;
+}
+.subj-tile:hover .subj-tile-edit{opacity:1}
+
+/* ── SUBJECT MODAL ── */
+.color-palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.cp-swatch{
+  width:28px;height:28px;border-radius:6px;cursor:pointer;
+  border:3px solid transparent;transition:transform .1s,border-color .1s;flex-shrink:0;
+}
+.cp-swatch:hover{transform:scale(1.15)}
+.cp-swatch.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+.subj-preview{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-radius:8px;margin-top:6px;font-weight:700;
+}
+.subj-preview-abbr{font-family:var(--mono);font-size:1.1rem}
+.subj-preview-name{font-size:.85rem}
+
 /* ── ROOM MODAL ── */
 .room-type-btns{display:flex;gap:6px;margin-top:6px}
 .room-type-btn{
@@ -977,6 +1010,45 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SUBJECT EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="subjectModal">
+  <div class="modal-box" style="width:420px;max-width:95vw">
+    <div class="modal-title" id="subjectModalTitle">Przedmiot</div>
+
+    <div class="mrow">
+      <div class="mfield" style="flex:2">
+        <label>Nazwa przedmiotu</label>
+        <input class="minput" id="smName" placeholder="np. Matematyka, Język Polski"
+          oninput="smAutoAbbr()" onkeydown="if(event.key==='Enter') document.getElementById('smAbbr').focus()">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Skrót</label>
+        <input class="minput" id="smAbbr" placeholder="np. Mat" maxlength="6"
+          style="font-family:var(--mono);font-weight:700;text-transform:uppercase"
+          oninput="smUpdatePreview()">
+      </div>
+    </div>
+
+    <div class="mfield">
+      <label>Kolor</label>
+      <div class="color-palette" id="smColorPalette"></div>
+    </div>
+
+    <div class="subj-preview" id="smPreview">
+      <span class="subj-preview-abbr" id="smPreviewAbbr">Mat</span>
+      <span class="subj-preview-name" id="smPreviewName">Matematyka</span>
+    </div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="smDeleteBtn" onclick="smDelete()" style="display:none;margin-right:auto">Usuń przedmiot</button>
+      <button class="mbtn mbtn-ghost" onclick="closeSubjectModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveSubjectModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -2336,18 +2408,25 @@ function renderSettings() {
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
   html += `</div>`;
 
-  // Subjects
-  html+=`<div class="settings-card"><div class="settings-card-title">Przedmioty</div><ul class="settings-list">`;
+  // Subjects — pełna szerokość, siatka kafelków
+  html+=`<div class="settings-card" style="grid-column:1/-1">
+    <div class="settings-card-title">Przedmioty</div>
+    <div class="subj-grid">`;
   appState.subjects.forEach(s=>{
-    html+=`<li class="settings-item">
-      <div><div class="settings-item-name"><span class="cdot" style="background:${s.color};margin-right:6px"></span>${s.name}</div>
-      <div class="settings-item-meta" style="font-family:var(--mono)">${s.abbr}</div></div>
-      <div class="settings-item-actions">
-        <button class="si-btn danger" onclick="removeSubject('${s.id}')">Usuń</button>
-      </div>
-    </li>`;
+    const isDark = isDarkColor(s.color);
+    const textC  = isDark ? '#fff' : '#111';
+    const bg     = hexToRgba(s.color, .18);
+    html+=`<div class="subj-tile" style="background:${bg};border-color:${hexToRgba(s.color,.4)}"
+        onclick="openEditSubjectModal('${s.id}')">
+      <div class="subj-tile-abbr" style="color:${s.color}">${s.abbr}</div>
+      <div class="subj-tile-name" style="color:var(--text)">${s.name}</div>
+      <div class="subj-tile-edit" onclick="event.stopPropagation();openEditSubjectModal('${s.id}')">✎</div>
+    </div>`;
   });
-  html+=`</ul></div>`;
+  html+=`</div>
+    <button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed"
+      onclick="openAddSubjectModal()">+ Dodaj nowy przedmiot</button>
+  </div>`;
 
   // Teachers — rozbudowane karty
   html+=`<div class="settings-card" style="grid-column:1/-1">
@@ -2477,10 +2556,7 @@ function removeClass(id) {
   // Teraz obsługiwane przez cmDeleteClass() w modalu
   openEditClassModal(id);
 }
-function removeSubject(id) {
-  appState.subjects=appState.subjects.filter(s=>s.id!==id);
-  persistAll();renderSettings();
-}
+function removeSubject(id) { openEditSubjectModal(id); }
 function toggleTchCard(id) {
   const card = document.getElementById('tcard_' + id);
   if (card) card.classList.toggle('open');
@@ -3256,6 +3332,121 @@ document.getElementById('teacherModal').addEventListener('click', function(e) {
 
 
 
+
+
+// ================================================================
+//  SUBJECT MODAL
+// ================================================================
+let _smId    = null;
+let _smColor = SUBJ_COLORS[0];
+
+function openAddSubjectModal() {
+  if(!appState) return;
+  _smId    = null;
+  _smColor = SUBJ_COLORS[appState.subjects.length % SUBJ_COLORS.length];
+  document.getElementById('subjectModalTitle').textContent = 'Dodaj przedmiot';
+  document.getElementById('smName').value  = '';
+  document.getElementById('smAbbr').value  = '';
+  document.getElementById('smDeleteBtn').style.display = 'none';
+  smBuildPalette();
+  smUpdatePreview();
+  document.getElementById('subjectModal').classList.add('show');
+  setTimeout(()=>document.getElementById('smName').focus(), 80);
+}
+
+function openEditSubjectModal(id) {
+  if(!appState) return;
+  const s = appState.subjects.find(s=>s.id===id);
+  if(!s) return;
+  _smId    = id;
+  _smColor = s.color || SUBJ_COLORS[0];
+  document.getElementById('subjectModalTitle').innerHTML = `Edytuj <span>${s.name}</span>`;
+  document.getElementById('smName').value  = s.name || '';
+  document.getElementById('smAbbr').value  = s.abbr || '';
+  document.getElementById('smDeleteBtn').style.display = '';
+  smBuildPalette();
+  smUpdatePreview();
+  document.getElementById('subjectModal').classList.add('show');
+}
+
+function smBuildPalette() {
+  const pal = document.getElementById('smColorPalette');
+  pal.innerHTML = SUBJ_COLORS.map(c =>
+    `<div class="cp-swatch ${c===_smColor?'sel':''}" style="background:${c}"
+      onclick="smPickColor('${c}')"></div>`
+  ).join('');
+}
+
+function smPickColor(c) {
+  _smColor = c;
+  smBuildPalette();
+  smUpdatePreview();
+}
+
+function smAutoAbbr() {
+  const name = document.getElementById('smName').value.trim();
+  const abbr = document.getElementById('smAbbr');
+  // Auto tylko jeśli pole skrótu jest puste lub nadal pasuje do auto-generowanego
+  if(!abbr._userEdited) {
+    const words = name.split(/\s+/).filter(Boolean);
+    let auto = '';
+    if(words.length >= 2) auto = words.map(w=>w[0]).join('').toUpperCase().slice(0,4);
+    else auto = name.slice(0,3).toUpperCase();
+    abbr.value = auto;
+  }
+  smUpdatePreview();
+}
+
+function smUpdatePreview() {
+  const name  = document.getElementById('smName').value.trim() || 'Przedmiot';
+  const abbr  = document.getElementById('smAbbr').value.trim() || '?';
+  const prev  = document.getElementById('smPreview');
+  const isDark = isDarkColor(_smColor);
+  prev.style.background = hexToRgba(_smColor, .18);
+  prev.style.borderLeft = `4px solid ${_smColor}`;
+  prev.style.color      = _smColor;
+  document.getElementById('smPreviewAbbr').textContent = abbr;
+  document.getElementById('smPreviewName').textContent = name;
+}
+
+// Oznacz że użytkownik ręcznie edytował skrót
+document.getElementById('smAbbr').addEventListener('input', function() {
+  this._userEdited = !!this.value;
+  smUpdatePreview();
+});
+
+function saveSubjectModal() {
+  const name = document.getElementById('smName').value.trim();
+  const abbr = document.getElementById('smAbbr').value.trim().toUpperCase();
+  if(!name){ notify('Podaj nazwę przedmiotu'); return; }
+  if(!abbr){ notify('Podaj skrót'); return; }
+  if(_smId) {
+    const s = appState.subjects.find(s=>s.id===_smId);
+    if(s){ s.name=name; s.abbr=abbr; s.color=_smColor; }
+  } else {
+    appState.subjects.push({ id:'subj'+Date.now(), name, abbr, color:_smColor });
+  }
+  persistAll(); populateSelects(); renderSettings(); closeSubjectModal();
+  notify(_smId ? 'Zaktualizowano: '+name : 'Dodano: '+name);
+}
+
+function smDelete() {
+  if(!_smId) return;
+  const s = appState.subjects.find(s=>s.id===_smId);
+  if(!confirm(`Usunąć przedmiot "${s?s.name:''}"?`)) return;
+  appState.subjects = appState.subjects.filter(s=>s.id!==_smId);
+  persistAll(); populateSelects(); renderSettings(); closeSubjectModal();
+  notify('Przedmiot usunięty');
+}
+
+function closeSubjectModal() {
+  document.getElementById('subjectModal').classList.remove('show');
+  _smId = null;
+}
+
+document.getElementById('subjectModal').addEventListener('click', function(e){
+  if(e.target===this) closeSubjectModal();
+});
 
 // ================================================================
 //  ROOM MODAL
