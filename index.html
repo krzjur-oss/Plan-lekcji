@@ -673,6 +673,25 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── ROOM MODAL ── */
+.room-type-btns{display:flex;gap:6px;margin-top:6px}
+.room-type-btn{
+  flex:1;padding:10px 8px;border-radius:8px;border:2px solid var(--border);
+  background:var(--s2);cursor:pointer;text-align:center;transition:all .15s;
+  font-size:.78rem;font-weight:700;color:var(--text-m);
+}
+.room-type-btn.sel{border-color:var(--accent);background:var(--accent-g);color:var(--accent)}
+.room-type-btn .rtb-icon{font-size:1.4rem;display:block;margin-bottom:4px}
+.room-cap-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+.room-cap-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:6px;font-size:.72rem;font-weight:700;
+  background:var(--s2);border:1px solid var(--border);
+}
+.room-cap-badge.full {background:var(--green-g);border-color:var(--green);color:var(--green)}
+.room-cap-badge.group{background:var(--accent-g);border-color:var(--accent);color:var(--accent)}
+.room-cap-badge.indiv{background:#fef3c7;border-color:#f59e0b;color:#b45309}
+
 /* ── CLASS MODAL ── */
 .cls-modal-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:6px}
 .room-check{
@@ -958,6 +977,64 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     ROOM EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="roomModal">
+  <div class="modal-box" style="width:480px;max-width:95vw">
+    <div class="modal-title" id="roomModalTitle">Sala</div>
+
+    <div class="mrow">
+      <div class="mfield" style="flex:2">
+        <label>Nazwa sali</label>
+        <input class="minput" id="rmName" placeholder="np. 101, Sala gym., Basen"
+          onkeydown="if(event.key==='Enter') document.getElementById('rmCapacity').focus()">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Budynek</label>
+        <select class="mselect" id="rmBuilding">
+          <option value="">— brak —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mfield">
+      <label>Typ sali</label>
+      <div class="room-type-btns" id="rmTypeBtns">
+        <div class="room-type-btn sel" data-type="full"    onclick="rmSetType('full')">
+          <span class="rtb-icon">🏫</span>Cała klasa
+        </div>
+        <div class="room-type-btn"     data-type="group"   onclick="rmSetType('group')">
+          <span class="rtb-icon">👥</span>Grupowa
+        </div>
+        <div class="room-type-btn"     data-type="indiv"   onclick="rmSetType('indiv')">
+          <span class="rtb-icon">👤</span>Indywidualna
+        </div>
+        <div class="room-type-btn"     data-type="special" onclick="rmSetType('special')">
+          <span class="rtb-icon">⚗️</span>Specjalistyczna
+        </div>
+      </div>
+    </div>
+
+    <div class="mrow">
+      <div class="mfield" style="flex:1">
+        <label>Pojemność (maks. osób)</label>
+        <input class="minput" id="rmCapacity" type="number" min="1" max="500" placeholder="np. 30">
+      </div>
+      <div class="mfield" style="flex:2">
+        <label>Uwagi</label>
+        <input class="minput" id="rmNote" placeholder="np. tablica interaktywna, rzutnik">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="rmDeleteBtn" onclick="rmDelete()" style="display:none;margin-right:auto">Usuń salę</button>
+      <button class="mbtn mbtn-ghost" onclick="closeRoomModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveRoomModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -1699,7 +1776,11 @@ function populateModalSelects() {
       mr.innerHTML=html;
     } else {
       mr.innerHTML='<option value="">— brak / bez sali —</option>' +
-        appState.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+        appState.rooms.map(r=>{
+          const rt=ROOM_TYPES[r.type]||ROOM_TYPES.full;
+          const cap=r.capacity?` (${r.capacity} os.)`:'';
+          return `<option value="${r.id}">${rt.icon} ${r.name}${cap}</option>`;
+        }).join('');
     }
   }
 
@@ -2326,24 +2407,26 @@ function renderSettings() {
   html+=`<div class="settings-card"><div class="settings-card-title">Sale</div><ul class="settings-list">`;
   appState.rooms.forEach(r=>{
     const bld=(appState.buildings||[]).find(b=>b.id===r.buildingId);
+    const rt=ROOM_TYPES[r.type]||ROOM_TYPES.full;
+    const capBadge = r.capacity
+      ? `<span class="room-cap-badge ${rt.cls}">${rt.icon} ${r.capacity} os.</span>`
+      : `<span class="room-cap-badge">${rt.icon} ${rt.label}</span>`;
     html+=`<li class="settings-item">
-      <div>
-        <div class="settings-item-name">
-          ${bld?`<span class="cdot" style="background:${bld.color};margin-right:5px"></span>`:''}
+      <div style="flex:1;min-width:0">
+        <div class="settings-item-name" style="display:flex;align-items:center;gap:7px">
+          ${bld?`<span class="cdot" style="background:${bld.color}"></span>`:''}
           ${r.name}
+          ${capBadge}
         </div>
-        ${bld?`<div class="settings-item-meta">${bld.name}</div>`:''}
+        <div class="settings-item-meta">${[bld?.name, r.note].filter(Boolean).join(' · ')||''}</div>
       </div>
       <div class="settings-item-actions">
-        <button class="si-btn danger" onclick="removeRoom('${r.id}')">Usuń</button>
+        <button class="si-btn" onclick="openEditRoomModal('${r.id}')">Edytuj</button>
       </div>
     </li>`;
   });
   html+=`</ul>
-    <div style="margin-top:10px;display:flex;gap:6px">
-      <input class="winput" id="sAddRoomName" placeholder="Nowa sala" style="flex:1">
-      <button class="wbtn wbtn-primary" style="padding:7px 12px;font-size:.78rem" onclick="settingsAddRoom()">+</button>
-    </div>
+    <button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddRoomModal()">+ Dodaj nową salę</button>
   </div>`;
 
   // Budynki w ustawieniach
@@ -2389,12 +2472,7 @@ function settingsAddClass() {
   // Zachowane dla kompatybilności — używaj openAddClassModal()
   openAddClassModal();
 }
-function settingsAddRoom() {
-  const n=document.getElementById('sAddRoomName')?.value.trim();
-  if(!n)return;
-  appState.rooms.push({id:'room'+Date.now(),name:n});
-  persistAll();populateSelects();renderSettings();notify('Dodano salę: '+n);
-}
+function settingsAddRoom() { openAddRoomModal(); }
 function removeClass(id) {
   // Teraz obsługiwane przez cmDeleteClass() w modalu
   openEditClassModal(id);
@@ -2417,10 +2495,7 @@ function removeTeacher(id) {
   appState.teachers=appState.teachers.filter(t=>t.id!==id);
   persistAll();populateSelects();renderSettings();
 }
-function removeRoom(id) {
-  appState.rooms=appState.rooms.filter(r=>r.id!==id);
-  persistAll();populateSelects();renderSettings();
-}
+function removeRoom(id) { openEditRoomModal(id); }
 function removeHour(num) {
   appState.hours=appState.hours.filter(h=>h.num!==num);
   persistAll();renderSettings();
@@ -3180,6 +3255,101 @@ document.getElementById('teacherModal').addEventListener('click', function(e) {
 });
 
 
+
+
+// ================================================================
+//  ROOM MODAL
+// ================================================================
+const ROOM_TYPES = {
+  full:    { label:'Cała klasa',       icon:'🏫', cls:'full'  },
+  group:   { label:'Grupowa',          icon:'👥', cls:'group' },
+  indiv:   { label:'Indywidualna',     icon:'👤', cls:'indiv' },
+  special: { label:'Specjalistyczna',  icon:'⚗️', cls:'group' },
+};
+let _rmId = null;
+let _rmType = 'full';
+
+function openAddRoomModal() {
+  if(!appState) return;
+  _rmId   = null;
+  _rmType = 'full';
+  document.getElementById('roomModalTitle').textContent = 'Dodaj salę';
+  document.getElementById('rmName').value     = '';
+  document.getElementById('rmCapacity').value = '';
+  document.getElementById('rmNote').value     = '';
+  document.getElementById('rmDeleteBtn').style.display = 'none';
+  rmFillBuilding(null);
+  rmSetType('full');
+  document.getElementById('roomModal').classList.add('show');
+  setTimeout(()=>document.getElementById('rmName').focus(), 80);
+}
+
+function openEditRoomModal(id) {
+  if(!appState) return;
+  const r = appState.rooms.find(r=>r.id===id);
+  if(!r) return;
+  _rmId   = id;
+  _rmType = r.type || 'full';
+  document.getElementById('roomModalTitle').innerHTML = `Edytuj salę <span>${r.name}</span>`;
+  document.getElementById('rmName').value     = r.name     || '';
+  document.getElementById('rmCapacity').value = r.capacity || '';
+  document.getElementById('rmNote').value     = r.note     || '';
+  document.getElementById('rmDeleteBtn').style.display = '';
+  rmFillBuilding(r.buildingId || null);
+  rmSetType(_rmType);
+  document.getElementById('roomModal').classList.add('show');
+}
+
+function rmFillBuilding(selectedId) {
+  const sel = document.getElementById('rmBuilding');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— brak / budynek główny —</option>' +
+    (appState.buildings||[]).map(b=>
+      `<option value="${b.id}" ${b.id===selectedId?'selected':''}>${b.name}</option>`
+    ).join('');
+}
+
+function rmSetType(type) {
+  _rmType = type;
+  document.querySelectorAll('#rmTypeBtns .room-type-btn').forEach(btn=>{
+    btn.classList.toggle('sel', btn.dataset.type === type);
+  });
+}
+
+function saveRoomModal() {
+  const name = document.getElementById('rmName').value.trim();
+  if(!name){ notify('Podaj nazwę sali'); return; }
+  const capacity  = parseInt(document.getElementById('rmCapacity').value)||null;
+  const note      = document.getElementById('rmNote').value.trim();
+  const buildingId= document.getElementById('rmBuilding').value || null;
+
+  if(_rmId) {
+    const r = appState.rooms.find(r=>r.id===_rmId);
+    if(r){ r.name=name; r.type=_rmType; r.capacity=capacity; r.note=note; r.buildingId=buildingId; }
+  } else {
+    appState.rooms.push({ id:'room'+Date.now(), name, type:_rmType, capacity, note, buildingId });
+  }
+  persistAll(); populateSelects(); renderSettings(); closeRoomModal();
+  notify(_rmId ? 'Zaktualizowano salę '+name : 'Dodano salę '+name);
+}
+
+function rmDelete() {
+  if(!_rmId) return;
+  const r = appState.rooms.find(r=>r.id===_rmId);
+  if(!confirm(`Usunąć salę ${r?r.name:''}?`)) return;
+  appState.rooms = appState.rooms.filter(r=>r.id!==_rmId);
+  persistAll(); populateSelects(); renderSettings(); closeRoomModal();
+  notify('Sala usunięta');
+}
+
+function closeRoomModal() {
+  document.getElementById('roomModal').classList.remove('show');
+  _rmId = null;
+}
+
+document.getElementById('roomModal').addEventListener('click', function(e){
+  if(e.target===this) closeRoomModal();
+});
 
 // ================================================================
 //  CLASS MODAL
