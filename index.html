@@ -1055,6 +1055,33 @@ let _mCtx = null; // {mode:'add'|'edit', classKey, dayIdx, hourIdx}
 function loadAll() {
   try { appState = JSON.parse(localStorage.getItem(LS.STATE)||'null'); } catch(e){appState=null;}
   try { schedData = JSON.parse(localStorage.getItem(LS.SCHED)||'{}'); } catch(e){schedData={};}
+  if(appState) migrateAppState();
+}
+
+function migrateAppState() {
+  // Zapewnij że wszystkie pola tablicowe istnieją
+  if(!appState.buildings)   appState.buildings = [];
+  if(!appState.teachers)    appState.teachers  = [];
+  if(!appState.subjects)    appState.subjects  = [];
+  if(!appState.classes)     appState.classes   = [];
+  if(!appState.hours)       appState.hours     = [];
+  // Migracja rooms: stary format to string, nowy to {id, name, buildingId}
+  if(appState.rooms && appState.rooms.length && typeof appState.rooms[0] === 'string') {
+    appState.rooms = appState.rooms.map((r,i) => ({id:'room'+i, name:r, buildingId:null}));
+  }
+  if(!appState.rooms) appState.rooms = [];
+  // Zapewnij że każda sala ma id
+  appState.rooms.forEach((r,i) => { if(!r.id) r.id = 'room'+Date.now()+i; });
+  // Zapewnij że każda klasa ma tablice groups i homeRooms
+  appState.classes.forEach(c => {
+    if(!c.groups)    c.groups    = [];
+    if(!c.homeRooms) c.homeRooms = [];
+  });
+  // Zapewnij że każdy nauczyciel ma subjects i assignments
+  appState.teachers.forEach(t => {
+    if(!t.subjects)    t.subjects    = [];
+    if(!t.assignments) t.assignments = [];
+  });
 }
 function persistAll() {
   if(_demoMode) return;
@@ -2174,7 +2201,6 @@ function renderSettings() {
   html+=`<div class="settings-card" style="grid-column:1/-1">
     <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>Klasy</span>
-      <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem" onclick="openAddClassModal()">+ Dodaj klasę</button>
     </div>`;
 
   if (!appState.classes.length) {
@@ -2226,6 +2252,7 @@ function renderSettings() {
       </div>
     </div>`;
   });
+  html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
   html += `</div>`;
 
   // Subjects
@@ -3163,17 +3190,20 @@ let _cmId = null;
 let _cmGroups = [];
 
 function openAddClassModal() {
+  if(!appState) return;
   _cmId = null;
   _cmGroups = [];
-  document.getElementById('classModalTitle').innerHTML = 'Dodaj <span>klasę</span>';
-  document.getElementById('cmName').value = '';
-  document.getElementById('cmDeleteBtn').style.display = 'none';
-  cmRenderGroups();
-  cmFillHomeroom(null);
-  cmRenderRooms([]);
-  cmRenderTeachers(null);
+  try {
+    document.getElementById('classModalTitle').innerHTML = 'Dodaj <span>klasę</span>';
+    document.getElementById('cmName').value = '';
+    document.getElementById('cmDeleteBtn').style.display = 'none';
+    cmRenderGroups();
+    cmFillHomeroom(null);
+    cmRenderRooms([]);
+    cmRenderTeachers(null);
+  } catch(e) { console.error('classModal init error:', e); }
   document.getElementById('classModal').classList.add('show');
-  setTimeout(()=>document.getElementById('cmName').focus(), 80);
+  setTimeout(()=>{ try{document.getElementById('cmName').focus();}catch(_){} }, 80);
 }
 
 function openEditClassModal(id) {
@@ -3193,8 +3223,9 @@ function openEditClassModal(id) {
 
 function cmFillHomeroom(selectedId) {
   const sel = document.getElementById('cmHomeroom');
+  if(!sel) return;
   sel.innerHTML = '<option value="">— brak —</option>' +
-    appState.teachers.map(t =>
+    (appState.teachers||[]).map(t =>
       `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${t.first} ${t.last} (${t.abbr})</option>`
     ).join('');
 }
@@ -3222,7 +3253,8 @@ function cmAddGroup() {
 
 function cmRenderRooms(selectedIds) {
   const container = document.getElementById('cmRoomList');
-  if (!appState.rooms.length) {
+  if(!container) return;
+  if (!(appState.rooms||[]).length) {
     container.innerHTML = '<span style="font-size:.75rem;color:var(--text-m)">Brak sal w systemie</span>';
     return;
   }
