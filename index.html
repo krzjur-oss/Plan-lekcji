@@ -2270,10 +2270,7 @@ function renderSettings() {
 
   // Teachers — rozbudowane karty
   html+=`<div class="settings-card" style="grid-column:1/-1">
-    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>Nauczyciele</span>
-      <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem" onclick="openAddTeacherModal()">+ Dodaj nauczyciela</button>
-    </div>`;
+    <div class="settings-card-title">Nauczyciele</div>`;
 
   if (!appState.teachers.length) {
     html += `<div style="color:var(--text-m);font-size:.82rem;padding:8px 0">Brak nauczycieli — dodaj pierwszego.</div>`;
@@ -2322,6 +2319,7 @@ function renderSettings() {
     </div>`;
   });
 
+  html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddTeacherModal()">+ Dodaj nowego nauczyciela</button>`;
   html += `</div>`;
 
   // Rooms
