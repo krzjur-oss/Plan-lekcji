@@ -3509,7 +3509,7 @@ function saveHourModal() {
   const num   = parseInt(document.getElementById('hmNum').value);
   const start = document.getElementById('hmStart').value;
   const end   = document.getElementById('hmEnd').value;
-  if(!num||!start||!end){ notify('Uzupełnij wszystkie pola'); return; }
+  if(num===null||num===undefined||isNaN(num)||!start||!end){ notify('Uzupełnij wszystkie pola'); return; }
   if(timeToMins(end) <= timeToMins(start)){ notify('Koniec musi być późniejszy niż początek'); return; }
 
   if(_hmNum !== null) {
