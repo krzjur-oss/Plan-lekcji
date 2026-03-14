@@ -673,6 +673,51 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── HOUR MODAL ── */
+.hour-timeline{display:flex;flex-direction:column;gap:0;margin-top:8px}
+.hour-row{
+  display:flex;align-items:stretch;gap:0;position:relative;
+}
+.hour-row-num{
+  width:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:800;font-size:.8rem;color:var(--text-m);
+}
+.hour-row-time{
+  flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--s2);cursor:pointer;transition:all .12s;
+  display:flex;align-items:center;gap:10px;
+}
+.hour-row-time:hover{background:var(--s3);border-color:var(--accent)}
+.hour-row-time.editing{border-color:var(--accent);background:var(--accent-g)}
+.hour-row-range{font-family:var(--mono);font-size:.82rem;font-weight:700;color:var(--text)}
+.hour-row-dur{font-size:.72rem;color:var(--text-m)}
+.hour-break-bar{
+  margin-left:36px;height:20px;display:flex;align-items:center;
+  font-size:.68rem;color:var(--text-d);padding-left:12px;
+  border-left:2px dashed var(--border);
+}
+/* Dyżury */
+.duty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:10px}
+.duty-card{
+  border-radius:10px;border:1px solid var(--border);background:var(--s2);
+  padding:12px 14px;display:flex;flex-direction:column;gap:6px;
+}
+.duty-card-time{font-family:var(--mono);font-weight:700;font-size:.85rem;color:var(--text)}
+.duty-card-label{font-size:.72rem;color:var(--text-m)}
+.duty-place-input{
+  border:1px solid var(--border);border-radius:6px;padding:5px 8px;
+  background:var(--s1);color:var(--text);font-size:.78rem;width:100%;
+  outline:none;transition:border-color .12s;
+}
+.duty-place-input:focus{border-color:var(--accent)}
+.duty-day-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.duty-day-tab{
+  padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;
+  border:1px solid var(--border);background:var(--s2);cursor:pointer;
+  transition:all .12s;color:var(--text-m);
+}
+.duty-day-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
 /* ── SUBJECT GRID ── */
 .subj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:10px}
 .subj-tile{
@@ -834,6 +879,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="ttab" data-view="teacher" onclick="switchView('teacher',this)">👩‍🏫 Nauczyciele</button>
       <button class="ttab" data-view="room" onclick="switchView('room',this)">🏫 Sale</button>
       <button class="ttab" data-view="matrix" onclick="switchView('matrix',this)">🔲 Macierz</button>
+      <button class="ttab" data-view="duty" onclick="switchView('duty',this)">🚨 Dyżury</button>
       <button class="ttab" data-view="stats" onclick="switchView('stats',this)">📊 Statystyki</button>
     </div>
     <div class="topbar-actions">
@@ -914,6 +960,11 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         </select>
       </div>
       <div id="matrixGridWrap"></div>
+    </div>
+
+    <!-- VIEW: DYŻURY -->
+    <div class="view-panel" id="view-duty">
+      <div id="dutyContent"></div>
     </div>
 
     <!-- VIEW: STATYSTYKI -->
@@ -1010,6 +1061,43 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     HOUR EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="hourModal">
+  <div class="modal-box" style="width:380px;max-width:95vw">
+    <div class="modal-title" id="hourModalTitle">Godzina lekcyjna</div>
+
+    <div class="mrow">
+      <div class="mfield" style="flex:0 0 90px">
+        <label>Nr lekcji</label>
+        <input class="minput" id="hmNum" type="number" min="0" max="20" placeholder="1"
+          style="font-family:var(--mono);font-weight:700;text-align:center">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Początek</label>
+        <input class="minput" id="hmStart" type="time" oninput="hmAutoEnd()">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Koniec</label>
+        <input class="minput" id="hmEnd" type="time">
+      </div>
+    </div>
+
+    <div class="mfield">
+      <label>Czas trwania lekcji (min) — wypełnij zamiast końca</label>
+      <input class="minput" id="hmDuration" type="number" min="15" max="180" placeholder="45"
+        oninput="hmCalcEnd()" style="max-width:120px">
+    </div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="hmDeleteBtn" onclick="hmDelete()" style="display:none;margin-right:auto">Usuń</button>
+      <button class="mbtn mbtn-ghost" onclick="closeHourModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveHourModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -1221,6 +1309,7 @@ function migrateAppState() {
   if(!appState.rooms) appState.rooms = [];
   // Zapewnij że każda sala ma id
   appState.rooms.forEach((r,i) => { if(!r.id) r.id = 'room'+Date.now()+i; });
+  if(!appState.duties) appState.duties = [];
   // Zapewnij że każda klasa ma tablice groups i homeRooms
   appState.classes.forEach(c => {
     if(!c.groups)    c.groups    = [];
@@ -1880,6 +1969,7 @@ function renderCurrentView() {
     case 'teacher': renderTeacherView(); break;
     case 'room':    renderRoomView();    break;
     case 'matrix':  renderMatrixView();  break;
+    case 'duty':    renderDuties();      break;
     case 'stats':   renderStats();       break;
     case 'settings':renderSettings();    break;
   }
@@ -2524,16 +2614,36 @@ function renderSettings() {
   }
 
   // Hours
-  html+=`<div class="settings-card"><div class="settings-card-title">Godziny lekcyjne</div><ul class="settings-list">`;
-  appState.hours.forEach(h=>{
-    html+=`<li class="settings-item">
-      <div class="settings-item-name">${h.num}. ${h.start} – ${h.end}</div>
-      <div class="settings-item-actions">
-        <button class="si-btn danger" onclick="removeHour(${h.num})">Usuń</button>
-      </div>
-    </li>`;
-  });
-  html+=`</ul></div>`;
+  // Godziny lekcyjne — timeline z przerwami
+  {
+    const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
+    html+=`<div class="settings-card" style="grid-column:1/-1">
+      <div class="settings-card-title">Godziny lekcyjne</div>
+      <div class="hour-timeline">`;
+    sortedH.forEach((h,i) => {
+      const dur = timeToMins(h.end) - timeToMins(h.start);
+      html+=`<div class="hour-row">
+        <div class="hour-row-num">${h.num}</div>
+        <div class="hour-row-time" onclick="openEditHourModal(${h.num})">
+          <span class="hour-row-range">${h.start} – ${h.end}</span>
+          <span class="hour-row-dur">${dur} min</span>
+          <span style="margin-left:auto;font-size:.72rem;color:var(--accent)">✎ edytuj</span>
+        </div>
+      </div>`;
+      // Przerwa między lekcjami
+      if(i < sortedH.length-1) {
+        const next = sortedH[i+1];
+        const brk = timeToMins(next.start) - timeToMins(h.end);
+        if(brk > 0) {
+          html+=`<div class="hour-break-bar">przerwa ${brk} min</div>`;
+        }
+      }
+    });
+    html+=`</div>
+      <button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed"
+        onclick="openAddHourModal()">+ Dodaj godzinę lekcyjną</button>
+    </div>`;
+  }
 
   // Danger zone
   html+=`<div class="settings-card">
@@ -2572,10 +2682,7 @@ function removeTeacher(id) {
   persistAll();populateSelects();renderSettings();
 }
 function removeRoom(id) { openEditRoomModal(id); }
-function removeHour(num) {
-  appState.hours=appState.hours.filter(h=>h.num!==num);
-  persistAll();renderSettings();
-}
+function removeHour(num) { openEditHourModal(num); }
 function clearSchedule() {
   if(!confirm('Wyczyścić cały plan? Wszystkie lekcje zostaną usunięte.'))return;
   schedData={};persistAll();renderCurrentView();detectAndShowConflicts();notify('Plan wyczyszczony');
@@ -3333,6 +3440,229 @@ document.getElementById('teacherModal').addEventListener('click', function(e) {
 
 
 
+
+
+// ================================================================
+//  HOUR MODAL
+// ================================================================
+let _hmNum = null; // null = nowa, liczba = edycja
+
+function openAddHourModal() {
+  if(!appState) return;
+  _hmNum = null;
+  const last = appState.hours.length
+    ? appState.hours[appState.hours.length - 1] : null;
+  document.getElementById('hourModalTitle').textContent = 'Dodaj godzinę lekcyjną';
+  // Zaproponuj następny nr i czas
+  const nextNum = last ? last.num + 1 : 1;
+  document.getElementById('hmNum').value   = nextNum;
+  document.getElementById('hmDuration').value = '45';
+  document.getElementById('hmDeleteBtn').style.display = 'none';
+  if(last) {
+    // start = koniec poprzedniej + 10 min przerwy
+    const [eh,em] = last.end.split(':').map(Number);
+    const sm = eh*60 + em + 10;
+    const startStr = minsToTime(sm);
+    document.getElementById('hmStart').value = startStr;
+    document.getElementById('hmEnd').value   = minsToTime(sm + 45);
+  } else {
+    document.getElementById('hmStart').value = '08:00';
+    document.getElementById('hmEnd').value   = '08:45';
+  }
+  document.getElementById('hourModal').classList.add('show');
+  setTimeout(()=>document.getElementById('hmStart').focus(), 80);
+}
+
+function openEditHourModal(num) {
+  if(!appState) return;
+  const h = appState.hours.find(h=>h.num===num);
+  if(!h) return;
+  _hmNum = num;
+  document.getElementById('hourModalTitle').innerHTML = `Edytuj <span>godz. ${num}</span>`;
+  document.getElementById('hmNum').value      = h.num;
+  document.getElementById('hmStart').value    = h.start;
+  document.getElementById('hmEnd').value      = h.end;
+  const [sh,sm2] = h.start.split(':').map(Number);
+  const [eh,em]  = h.end.split(':').map(Number);
+  document.getElementById('hmDuration').value = eh*60+em - (sh*60+sm2);
+  document.getElementById('hmDeleteBtn').style.display = '';
+  document.getElementById('hourModal').classList.add('show');
+}
+
+function minsToTime(m) {
+  m = ((m % 1440) + 1440) % 1440;
+  return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+}
+function timeToMins(t) {
+  const [h,m] = (t||'0:0').split(':').map(Number); return h*60+m;
+}
+function hmAutoEnd() {
+  const dur = parseInt(document.getElementById('hmDuration').value)||45;
+  const start = document.getElementById('hmStart').value;
+  if(start) document.getElementById('hmEnd').value = minsToTime(timeToMins(start) + dur);
+}
+function hmCalcEnd() {
+  hmAutoEnd();
+}
+
+function saveHourModal() {
+  const num   = parseInt(document.getElementById('hmNum').value);
+  const start = document.getElementById('hmStart').value;
+  const end   = document.getElementById('hmEnd').value;
+  if(!num||!start||!end){ notify('Uzupełnij wszystkie pola'); return; }
+  if(timeToMins(end) <= timeToMins(start)){ notify('Koniec musi być późniejszy niż początek'); return; }
+
+  if(_hmNum !== null) {
+    // Edycja — usuń stary rekord, dodaj nowy (mógł zmienić numer)
+    appState.hours = appState.hours.filter(h=>h.num!==_hmNum);
+  }
+  // Nadpisz jeśli nr już istnieje
+  appState.hours = appState.hours.filter(h=>h.num!==num);
+  appState.hours.push({num, start, end});
+  appState.hours.sort((a,b)=>a.num-b.num);
+  // Odśwież dyżury (generuj automatycznie z nowych przerw)
+  regenerateDuties();
+  persistAll(); populateSelects(); renderSettings();
+  closeHourModal();
+  notify(_hmNum !== null ? 'Zaktualizowano godz. '+num : 'Dodano godz. '+num);
+}
+
+function hmDelete() {
+  if(_hmNum === null) return;
+  if(!confirm(`Usunąć godzinę lekcyjną nr ${_hmNum}?`)) return;
+  appState.hours = appState.hours.filter(h=>h.num!==_hmNum);
+  regenerateDuties();
+  persistAll(); populateSelects(); renderCurrentView(); renderSettings();
+  closeHourModal();
+  notify('Godzina usunięta');
+}
+
+function closeHourModal() {
+  document.getElementById('hourModal').classList.remove('show');
+  _hmNum = null;
+}
+document.getElementById('hourModal').addEventListener('click', function(e){
+  if(e.target===this) closeHourModal();
+});
+
+// ================================================================
+//  DUTIES (DYŻURY)
+// ================================================================
+// Dyżury są generowane automatycznie z przerw między godzinami lekcyjnymi.
+// Struktura: appState.duties = [{id, breakAfterHour, start, end, places:{mon:[],tue:[],...}}]
+// places[dayKey] = string z nazwą miejsca (lub '')
+
+const DUTY_DAYS = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
+const DUTY_DAY_KEYS = ['mon','tue','wed','thu','fri'];
+
+function regenerateDuties() {
+  if(!appState) return;
+  const hours = [...appState.hours].sort((a,b)=>a.num-b.num);
+  if(!appState.duties) appState.duties = [];
+
+  // Zachowaj istniejące miejsca
+  const existingPlaces = {};
+  appState.duties.forEach(d => { existingPlaces[d.breakAfterHour] = d.places||{}; });
+
+  appState.duties = [];
+  for(let i=0; i<hours.length-1; i++) {
+    const cur  = hours[i];
+    const next = hours[i+1];
+    const breakStart = cur.end;
+    const breakEnd   = next.start;
+    const durMins    = timeToMins(breakEnd) - timeToMins(breakStart);
+    if(durMins <= 0) continue; // brak przerwy
+    appState.duties.push({
+      id: 'duty_' + cur.num,
+      breakAfterHour: cur.num,
+      start: breakStart,
+      end:   breakEnd,
+      durMins,
+      places: existingPlaces[cur.num] || {}
+    });
+  }
+}
+
+function renderDuties() {
+  const wrap = document.getElementById('dutyContent');
+  if(!wrap) return;
+  if(!appState) { wrap.innerHTML=''; return; }
+
+  // Upewnij się że dyżury są wygenerowane
+  if(!appState.duties || appState.duties.length === 0) regenerateDuties();
+
+  if(!appState.duties.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">☕</div>
+      <div class="empty-state-title">Brak przerw między lekcjami</div>
+      <div class="empty-state-sub">Dodaj co najmniej dwie godziny lekcyjne, aby wygenerować dyżury.</div>
+    </div>`;
+    return;
+  }
+
+  // Aktywny dzień
+  const activeDay = parseInt(wrap.dataset.activeDay||0);
+
+  let html = `<div class="view-toolbar" style="margin-bottom:12px">
+    <div class="duty-day-tabs">`;
+  DUTY_DAYS.forEach((d,i) => {
+    html += `<div class="duty-day-tab ${i===activeDay?'active':''}"
+      onclick="dutySetDay(${i})">${d}</div>`;
+  });
+  html += `</div></div>`;
+
+  html += `<div class="duty-grid">`;
+  appState.duties.forEach(d => {
+    const dayKey = DUTY_DAY_KEYS[activeDay];
+    const place  = (d.places[dayKey]||'');
+    html += `<div class="duty-card">
+      <div class="duty-card-time">${d.start} – ${d.end}
+        <span style="font-size:.68rem;color:var(--text-d);margin-left:6px">${d.durMins} min</span>
+      </div>
+      <div class="duty-card-label">Po lekcji ${d.breakAfterHour} · Przerwa nr ${appState.duties.indexOf(d)+1}</div>
+      <input class="duty-place-input" type="text"
+        placeholder="Miejsce dyżuru (np. Korytarz A, Stołówka)"
+        value="${place}"
+        oninput="dutySetPlace('${d.id}',${activeDay},this.value)">
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Podgląd — podsumowanie miejsc dla tego dnia
+  const dayKey = DUTY_DAY_KEYS[activeDay];
+  const filled = appState.duties.filter(d=>d.places[dayKey]);
+  if(filled.length) {
+    html += `<div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:var(--s2);border:1px solid var(--border)">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
+        Podsumowanie — ${DUTY_DAYS[activeDay]}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">`;
+    appState.duties.forEach(d => {
+      const place = d.places[dayKey]||'';
+      html += `<div style="display:flex;align-items:center;gap:10px;font-size:.8rem">
+        <span style="font-family:var(--mono);min-width:110px;color:var(--text-m)">${d.start}–${d.end}</span>
+        <span style="${place?'color:var(--text)':'color:var(--text-d);font-style:italic'}">${place||'— nie przypisano —'}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+function dutySetDay(idx) {
+  const wrap = document.getElementById('dutyContent');
+  if(wrap) { wrap.dataset.activeDay = idx; renderDuties(); }
+}
+
+function dutySetPlace(dutyId, dayIdx, value) {
+  if(!appState.duties) return;
+  const d = appState.duties.find(d=>d.id===dutyId);
+  if(!d) return;
+  if(!d.places) d.places={};
+  d.places[DUTY_DAY_KEYS[dayIdx]] = value;
+  persistAll();
+}
 
 // ================================================================
 //  SUBJECT MODAL
