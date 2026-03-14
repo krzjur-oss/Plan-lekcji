@@ -673,6 +673,33 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── CLASS MODAL ── */
+.cls-modal-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:6px}
+.room-check{
+  display:flex;align-items:center;gap:7px;
+  padding:6px 10px;border-radius:7px;border:1px solid var(--border);
+  cursor:pointer;font-size:.8rem;font-weight:600;
+  transition:all .15s;background:var(--s2);
+}
+.room-check.checked{background:var(--green-g);border-color:var(--green);color:var(--green)}
+.room-check input{display:none}
+.room-check-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--border)}
+.room-check.checked .room-check-dot{background:var(--green)}
+/* Nauczyciele w modalu klasy — tylko podgląd */
+.cls-tch-grid{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.cls-tch-row{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 10px;border-radius:7px;
+  background:var(--s2);border:1px solid var(--border);
+  font-size:.78rem;cursor:pointer;transition:background .12s;
+}
+.cls-tch-row:hover{background:var(--s3)}
+.cls-tch-abbr{font-family:var(--mono);font-weight:700;min-width:40px;color:var(--accent)}
+.cls-tch-name{flex:1}
+.cls-tch-subj{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.cls-tch-hrs{font-family:var(--mono);font-size:.72rem;color:var(--text-m);white-space:nowrap}
+.cls-tch-empty{font-size:.78rem;color:var(--text-m);padding:8px 0;text-align:center}
+
 /* ── EMPTY STATE ── */
 .empty-state{
   text-align:center;padding:60px 20px;color:var(--text-m);
@@ -931,6 +958,60 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     CLASS EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="classModal">
+  <div class="modal-box" style="width:560px;max-width:95vw">
+    <div class="modal-title" id="classModalTitle">Klasa</div>
+
+    <!-- Nazwa i skrót -->
+    <div class="mrow">
+      <div class="mfield" style="flex:2">
+        <label>Nazwa klasy</label>
+        <input class="minput" id="cmName" type="text" placeholder="np. 1a, 2b, 3c">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Wychowawca</label>
+        <select class="mselect" id="cmHomeroom">
+          <option value="">— brak —</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Grupy -->
+    <div class="mfield">
+      <label>Grupy (podgrupy klasy)</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input class="minput" id="cmGroupInput" placeholder="np. gr1, gr2, ang-a" style="flex:1"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();cmAddGroup()}">
+        <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap" onclick="cmAddGroup()">+ Dodaj</button>
+      </div>
+      <div class="tag-list" id="cmGroupList"></div>
+      <p style="font-size:.72rem;color:var(--text-m);margin-top:4px">Grupom można potem przypisać nauczyciela przy dodawaniu lekcji.</p>
+    </div>
+
+    <!-- Sale — gospodarz -->
+    <div class="mfield">
+      <label>Sale, których klasa jest gospodarzem (sala przypisana)</label>
+      <div class="cls-modal-rooms" id="cmRoomList"></div>
+      <p style="font-size:.72rem;color:var(--text-m);margin-top:5px">Zaznaczone sale będą podpowiadane jako pierwsze przy dodawaniu lekcji tej klasy.</p>
+    </div>
+
+    <!-- Nauczyciele — tylko podgląd -->
+    <div class="mfield">
+      <label>Przypisani nauczyciele (z przydziałów)</label>
+      <div class="cls-tch-grid" id="cmTeacherList"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="cmDeleteBtn" onclick="cmDeleteClass()" style="display:none;margin-right:auto">Usuń klasę</button>
+      <button class="mbtn mbtn-ghost" onclick="closeClassModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveClassModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -2093,10 +2174,7 @@ function renderSettings() {
   html+=`<div class="settings-card" style="grid-column:1/-1">
     <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>Klasy</span>
-      <div style="display:flex;gap:6px">
-        <input class="winput" id="sAddClassName" placeholder="Nowa klasa" style="width:130px;padding:5px 10px">
-        <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem" onclick="settingsAddClass()">+ Dodaj klasę</button>
-      </div>
+      <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem" onclick="openAddClassModal()">+ Dodaj klasę</button>
     </div>`;
 
   if (!appState.classes.length) {
@@ -2128,14 +2206,19 @@ function renderSettings() {
     const totalHoursInClass = assignedTeachers.reduce((sum,t)=>
       sum + (t.assignments||[]).filter(a=>a.classId===c.id).reduce((s,a)=>s+(a.hours||0),0), 0);
 
+    const homeroom = c.homeroomTeacherId ? appState.teachers.find(t=>t.id===c.homeroomTeacherId) : null;
+    const homeRoomNames = (c.homeRooms||[]).map(rid=>{
+      const r=appState.rooms.find(r=>r.id===rid); return r?r.name:'';
+    }).filter(Boolean);
+
     html += `<div class="tch-card" id="ccard_${c.id}">
       <div class="tch-card-header" onclick="toggleClsCard('${c.id}')">
         <div class="tch-card-name">${c.name}</div>
-        <span style="font-size:.72rem;color:var(--text-m);margin-right:6px">
-          ${c.groups&&c.groups.length ? 'gr: '+c.groups.join(', ') : ''}
-        </span>
-        <span style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-right:6px">${assignedTeachers.length} nauczycieli · ${totalHoursInClass} godz.</span>
-        <button class="si-btn danger" onclick="event.stopPropagation();removeClass('${c.id}')" style="margin-right:6px">Usuń</button>
+        ${homeroom ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Wychowawca">👤 ${homeroom.abbr}</span>` : ''}
+        ${c.groups&&c.groups.length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">gr: ${c.groups.join(', ')}</span>` : ''}
+        ${homeRoomNames.length ? `<span style="font-size:.72rem;color:var(--teal);margin-right:6px" title="Sale gospodarz">🏫 ${homeRoomNames.join(', ')}</span>` : ''}
+        <span style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-right:6px">${assignedTeachers.length} naucz. · ${totalHoursInClass} godz.</span>
+        <button class="si-btn" onclick="event.stopPropagation();openEditClassModal('${c.id}')" style="margin-right:4px">Edytuj</button>
         <span class="tch-card-arr">▼</span>
       </div>
       <div class="tch-card-body">
@@ -2278,10 +2361,8 @@ function renderSettings() {
 }
 
 function settingsAddClass() {
-  const n=document.getElementById('sAddClassName')?.value.trim();
-  if(!n)return;
-  appState.classes.push({id:'cls'+Date.now(),name:n,groups:[]});
-  persistAll();populateSelects();renderSettings();notify('Dodano klasę: '+n);
+  // Zachowane dla kompatybilności — używaj openAddClassModal()
+  openAddClassModal();
 }
 function settingsAddRoom() {
   const n=document.getElementById('sAddRoomName')?.value.trim();
@@ -2290,11 +2371,8 @@ function settingsAddRoom() {
   persistAll();populateSelects();renderSettings();notify('Dodano salę: '+n);
 }
 function removeClass(id) {
-  if(!confirm('Usunąć klasę? Lekcje tej klasy zostaną usunięte.'))return;
-  appState.classes=appState.classes.filter(c=>c.id!==id);
-  // Remove lessons
-  Object.keys(schedData).filter(k=>k.startsWith(id+'_')).forEach(k=>delete schedData[k]);
-  persistAll();populateSelects();renderCurrentView();renderSettings();
+  // Teraz obsługiwane przez cmDeleteClass() w modalu
+  openEditClassModal(id);
 }
 function removeSubject(id) {
   appState.subjects=appState.subjects.filter(s=>s.id!==id);
@@ -2358,7 +2436,14 @@ function openAddModal(clsId, dayIdx, hourIdx, prefTeacherId='', prefRoomId='') {
   // Zbuduj listę nauczycieli z podziałem (bez filtra przedmiotu)
   rebuildTeacherOptions();
   if(prefTeacherId) document.getElementById('mTeacher').value=prefTeacherId;
-  document.getElementById('mRoom').value=prefRoomId||'';
+  // Podpowiedz salę-gospodarz klasy jeśli nie podano innej
+  if(!prefRoomId){
+    const cls=appState.classes.find(c=>c.id===clsId);
+    const firstHomeRoom=(cls&&cls.homeRooms&&cls.homeRooms.length)?cls.homeRooms[0]:'';
+    document.getElementById('mRoom').value=firstHomeRoom;
+  } else {
+    document.getElementById('mRoom').value=prefRoomId;
+  }
 
   document.getElementById('lessonModal').classList.add('show');
 }
@@ -3069,6 +3154,203 @@ document.getElementById('teacherModal').addEventListener('click', function(e) {
   if (e.target === this) closeTeacherModal();
 });
 
+
+
+// ================================================================
+//  CLASS MODAL
+// ================================================================
+let _cmId = null;
+let _cmGroups = [];
+
+function openAddClassModal() {
+  _cmId = null;
+  _cmGroups = [];
+  document.getElementById('classModalTitle').innerHTML = 'Dodaj <span>klasę</span>';
+  document.getElementById('cmName').value = '';
+  document.getElementById('cmDeleteBtn').style.display = 'none';
+  cmRenderGroups();
+  cmFillHomeroom(null);
+  cmRenderRooms([]);
+  cmRenderTeachers(null);
+  document.getElementById('classModal').classList.add('show');
+  setTimeout(()=>document.getElementById('cmName').focus(), 80);
+}
+
+function openEditClassModal(id) {
+  const c = appState.classes.find(c => c.id === id);
+  if (!c) return;
+  _cmId = id;
+  _cmGroups = [...(c.groups || [])];
+  document.getElementById('classModalTitle').innerHTML = `Edytuj klasę <span>${c.name}</span>`;
+  document.getElementById('cmName').value = c.name || '';
+  document.getElementById('cmDeleteBtn').style.display = '';
+  cmRenderGroups();
+  cmFillHomeroom(c.homeroomTeacherId || null);
+  cmRenderRooms(c.homeRooms || []);
+  cmRenderTeachers(id);
+  document.getElementById('classModal').classList.add('show');
+}
+
+function cmFillHomeroom(selectedId) {
+  const sel = document.getElementById('cmHomeroom');
+  sel.innerHTML = '<option value="">— brak —</option>' +
+    appState.teachers.map(t =>
+      `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${t.first} ${t.last} (${t.abbr})</option>`
+    ).join('');
+}
+
+function cmRenderGroups() {
+  const el = document.getElementById('cmGroupList');
+  el.innerHTML = _cmGroups.map((g, i) => `
+    <div class="tag">
+      <span>${g}</span>
+      <span class="tag-del" onclick="_cmGroups.splice(${i},1);cmRenderGroups()">×</span>
+    </div>`).join('') || '<span style="font-size:.75rem;color:var(--text-d)">Brak grup</span>';
+}
+
+function cmAddGroup() {
+  const inp = document.getElementById('cmGroupInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  // Obsłuż wielokrotne grupy oddzielone przecinkiem
+  val.split(',').map(v => v.trim()).filter(Boolean).forEach(g => {
+    if (!_cmGroups.includes(g)) _cmGroups.push(g);
+  });
+  inp.value = '';
+  cmRenderGroups();
+}
+
+function cmRenderRooms(selectedIds) {
+  const container = document.getElementById('cmRoomList');
+  if (!appState.rooms.length) {
+    container.innerHTML = '<span style="font-size:.75rem;color:var(--text-m)">Brak sal w systemie</span>';
+    return;
+  }
+  // Grupuj wg budynku
+  const hasBld = (appState.buildings || []).length > 0;
+  let html = '';
+  if (hasBld) {
+    const groups = [];
+    appState.buildings.forEach(b => {
+      const bRooms = appState.rooms.filter(r => r.buildingId === b.id);
+      if (bRooms.length) groups.push({ label: b.name, color: b.color, rooms: bRooms });
+    });
+    const noB = appState.rooms.filter(r => !r.buildingId);
+    if (noB.length) groups.push({ label: 'Budynek główny', color: '#888', rooms: noB });
+    groups.forEach(g => {
+      html += `<div style="grid-column:1/-1;font-size:.68rem;font-weight:700;color:var(--text-m);
+        letter-spacing:.05em;text-transform:uppercase;margin-top:4px;display:flex;align-items:center;gap:5px">
+        <span class="cdot" style="background:${g.color}"></span>${g.label}</div>`;
+      g.rooms.forEach(r => {
+        const chk = selectedIds.includes(r.id);
+        html += `<label class="room-check ${chk ? 'checked' : ''}">
+          <input type="checkbox" value="${r.id}" ${chk ? 'checked' : ''}
+            onchange="this.parentElement.classList.toggle('checked',this.checked)">
+          <span class="room-check-dot"></span>
+          ${r.name}
+        </label>`;
+      });
+    });
+  } else {
+    appState.rooms.forEach(r => {
+      const chk = selectedIds.includes(r.id);
+      html += `<label class="room-check ${chk ? 'checked' : ''}">
+        <input type="checkbox" value="${r.id}" ${chk ? 'checked' : ''}
+          onchange="this.parentElement.classList.toggle('checked',this.checked)">
+        <span class="room-check-dot"></span>
+        ${r.name}
+      </label>`;
+    });
+  }
+  container.innerHTML = html;
+}
+
+function cmRenderTeachers(clsId) {
+  const container = document.getElementById('cmTeacherList');
+  if (!clsId) {
+    container.innerHTML = '<div class="cls-tch-empty">Zapisz klasę, a następnie przypisz nauczycieli w ich kartach.</div>';
+    return;
+  }
+  const teachers = appState.teachers.filter(t =>
+    (t.assignments || []).some(a => a.classId === clsId)
+  );
+  if (!teachers.length) {
+    container.innerHTML = '<div class="cls-tch-empty">Brak przypisanych nauczycieli — dodaj przydziały w kartach nauczycieli.</div>';
+    return;
+  }
+  container.innerHTML = teachers.map(t => {
+    const asgn = (t.assignments || []).filter(a => a.classId === clsId);
+    const totalH = asgn.reduce((s, a) => s + (a.hours || 0), 0);
+    const subjDots = asgn.map(a => {
+      const s = appState.subjects.find(s => s.id === a.subjectId);
+      return s ? `<span class="cdot" style="background:${s.color}" title="${s.name}"></span>` : '';
+    }).join('');
+    const subjNames = asgn.map(a => {
+      const s = appState.subjects.find(s => s.id === a.subjectId);
+      return s ? `<span style="color:${s.color};font-size:.72rem">${s.abbr} (${a.hours}h)</span>` : '';
+    }).join('');
+    return `<div class="cls-tch-row" onclick="closeClassModal();setTimeout(()=>openEditTeacherModal('${t.id}'),120)" title="Kliknij aby edytować nauczyciela">
+      <div class="cls-tch-abbr">${t.abbr}</div>
+      <div class="cls-tch-name">${t.first} ${t.last}</div>
+      <div class="cls-tch-subj">${subjDots} ${subjNames}</div>
+      <div class="cls-tch-hrs">${totalH} godz.</div>
+    </div>`;
+  }).join('');
+}
+
+function saveClassModal() {
+  const name = document.getElementById('cmName').value.trim();
+  if (!name) { notify('Podaj nazwę klasy'); return; }
+  const homeroomTeacherId = document.getElementById('cmHomeroom').value || null;
+  const homeRooms = [...document.querySelectorAll('#cmRoomList input:checked')].map(i => i.value);
+
+  if (_cmId) {
+    const c = appState.classes.find(c => c.id === _cmId);
+    if (c) {
+      c.name = name;
+      c.groups = _cmGroups;
+      c.homeroomTeacherId = homeroomTeacherId;
+      c.homeRooms = homeRooms;
+    }
+  } else {
+    appState.classes.push({
+      id: 'cls' + Date.now(),
+      name,
+      groups: _cmGroups,
+      homeroomTeacherId,
+      homeRooms
+    });
+  }
+  persistAll();
+  populateSelects();
+  renderSettings();
+  closeClassModal();
+  notify(_cmId ? 'Zaktualizowano klasę ' + name : 'Dodano klasę ' + name);
+}
+
+function cmDeleteClass() {
+  if (!_cmId) return;
+  const c = appState.classes.find(c => c.id === _cmId);
+  if (!confirm(`Usunąć klasę ${c ? c.name : ''}? Lekcje tej klasy zostaną usunięte.`)) return;
+  appState.classes = appState.classes.filter(c => c.id !== _cmId);
+  Object.keys(schedData).filter(k => k.startsWith(_cmId + '_')).forEach(k => delete schedData[k]);
+  persistAll();
+  populateSelects();
+  renderCurrentView();
+  renderSettings();
+  closeClassModal();
+  notify('Klasa usunięta');
+}
+
+function closeClassModal() {
+  document.getElementById('classModal').classList.remove('show');
+  _cmId = null;
+  _cmGroups = [];
+}
+
+document.getElementById('classModal').addEventListener('click', function(e) {
+  if (e.target === this) closeClassModal();
+});
 
 // ================================================================
 //  BOOT
