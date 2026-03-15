@@ -2636,30 +2636,8 @@ function renderSettings() {
   });
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
   html += `</div>`; // koniec karty Klasy
-  html += `</div>`; // koniec wrappera Klasy
 
-  // Subjects — pełna szerokość, siatka kafelków
-  html+=`<div class="settings-card" style="grid-column:1/-1">
-    <div class="settings-card-title">Przedmioty</div>
-    <div class="subj-grid">`;
-  appState.subjects.forEach(s=>{
-    const isDark = isDarkColor(s.color);
-    const textC  = isDark ? '#fff' : '#111';
-    const bg     = hexToRgba(s.color, .18);
-    html+=`<div class="subj-tile" style="background:${bg};border-color:${hexToRgba(s.color,.4)}"
-        onclick="openEditSubjectModal('${s.id}')">
-      <div class="subj-tile-abbr" style="color:${s.color}">${s.abbr}</div>
-      <div class="subj-tile-name" style="color:var(--text)">${s.name}</div>
-      <div class="subj-tile-edit" onclick="event.stopPropagation();openEditSubjectModal('${s.id}')">✎</div>
-    </div>`;
-  });
-  html+=`</div>
-    <button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed"
-      onclick="openAddSubjectModal()">+ Dodaj nowy przedmiot</button>
-  </div>`;
-
-  // Teachers — w parze z kolejną sekcją
-  html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
+  // Teachers — obok Klas w tym samym wrapperze
   html+=`<div class="settings-card">
     <div class="settings-card-title">Nauczyciele</div>`;
 
@@ -2713,7 +2691,27 @@ function renderSettings() {
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddTeacherModal()">+ Dodaj nowego nauczyciela</button>`;
   html += `</div>`;
   html += `</div>`; // koniec karty Nauczyciele
-  html += `</div>`; // koniec wrappera Nauczyciele
+  html += `</div>`; // koniec wrappera Klasy+Nauczyciele
+
+  // Subjects — pełna szerokość, siatka kafelków
+  html+=`<div class="settings-card" style="grid-column:1/-1">
+    <div class="settings-card-title">Przedmioty</div>
+    <div class="subj-grid">`;
+  appState.subjects.forEach(s=>{
+    const isDark = isDarkColor(s.color);
+    const textC  = isDark ? '#fff' : '#111';
+    const bg     = hexToRgba(s.color, .18);
+    html+=`<div class="subj-tile" style="background:${bg};border-color:${hexToRgba(s.color,.4)}"
+        onclick="openEditSubjectModal('${s.id}')">
+      <div class="subj-tile-abbr" style="color:${s.color}">${s.abbr}</div>
+      <div class="subj-tile-name" style="color:var(--text)">${s.name}</div>
+      <div class="subj-tile-edit" onclick="event.stopPropagation();openEditSubjectModal('${s.id}')">✎</div>
+    </div>`;
+  });
+  html+=`</div>
+    <button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed"
+      onclick="openAddSubjectModal()">+ Dodaj nowy przedmiot</button>
+  </div>`;
 
   // Rooms + Buildings — obok siebie w jednym wierszu
   html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
