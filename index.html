@@ -2638,7 +2638,8 @@ function renderSettings() {
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddTeacherModal()">+ Dodaj nowego nauczyciela</button>`;
   html += `</div>`;
 
-  // Rooms
+  // Rooms + Buildings — obok siebie w jednym wierszu
+  html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
   html+=`<div class="settings-card"><div class="settings-card-title">Sale</div><ul class="settings-list">`;
   appState.rooms.forEach(r=>{
     const bld=(appState.buildings||[]).find(b=>b.id===r.buildingId);
@@ -2666,7 +2667,7 @@ function renderSettings() {
 
   // Budynki w ustawieniach — zawsze widoczna sekcja
   {
-    html+=`<div class="settings-card" style="grid-column:1/-1">
+    html+=`<div class="settings-card">
       <div class="settings-card-title">Budynki / Lokalizacje</div>`;
     if((appState.buildings||[]).length){
       html+=`<ul class="settings-list">`;
@@ -2700,6 +2701,8 @@ function renderSettings() {
       onclick="openAddBuildingModal()">+ Dodaj budynek / lokalizację</button>
     </div>`;
   }
+
+  html+=`</div>`; // koniec wrappera Sale+Budynki
 
   // Hours
   // Godziny lekcyjne — timeline z przerwami
