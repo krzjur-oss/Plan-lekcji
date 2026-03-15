@@ -673,6 +673,27 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── BUILDING MODAL ── */
+.bld-rooms-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:260px;overflow-y:auto}
+.bld-room-check{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;
+  border-radius:8px;border:1px solid var(--border);background:var(--s2);
+  cursor:pointer;transition:all .12s;font-size:.82rem;font-weight:600;
+}
+.bld-room-check:hover{background:var(--s3)}
+.bld-room-check.checked{background:var(--accent-g);border-color:var(--accent)}
+.bld-room-check input{display:none}
+.bld-room-icon{font-size:.9rem}
+.bld-room-name{flex:1}
+.bld-room-type{font-size:.68rem;color:var(--text-m);font-family:var(--mono)}
+.bld-color-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.bld-color-sw{
+  width:30px;height:30px;border-radius:7px;cursor:pointer;
+  border:3px solid transparent;transition:transform .1s,border-color .1s;
+}
+.bld-color-sw:hover{transform:scale(1.12)}
+.bld-color-sw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+
 /* ── HOUR MODAL ── */
 .hour-timeline{display:flex;flex-direction:column;gap:0;margin-top:8px}
 .hour-row{
@@ -1061,6 +1082,51 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     BUILDING EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="buildingModal">
+  <div class="modal-box" style="width:500px;max-width:95vw">
+    <div class="modal-title" id="buildingModalTitle">Budynek</div>
+
+    <div class="mrow">
+      <div class="mfield" style="flex:2">
+        <label>Nazwa budynku / lokalizacji</label>
+        <input class="minput" id="bmName" placeholder="np. Budynek A, Hala sportowa, Basen">
+      </div>
+    </div>
+
+    <div class="mfield">
+      <label>Adres</label>
+      <input class="minput" id="bmAddress" placeholder="np. ul. Sportowa 5">
+    </div>
+
+    <div class="mfield">
+      <label>Uwagi</label>
+      <input class="minput" id="bmNote" placeholder="np. dojazd autobusem, 15 min od szkoły">
+    </div>
+
+    <div class="mfield">
+      <label>Kolor identyfikacyjny</label>
+      <div class="bld-color-row" id="bmColorRow"></div>
+    </div>
+
+    <div class="mfield">
+      <label>Sale należące do tego budynku</label>
+      <div class="bld-rooms-list" id="bmRoomsList"></div>
+      <p style="font-size:.72rem;color:var(--text-m);margin-top:6px">
+        Zaznaczenie sali zmienia jej przypisanie na ten budynek. Odznaczenie ustawia „brak budynku".
+      </p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="bmDeleteBtn" onclick="bmDelete()" style="display:none;margin-right:auto">Usuń budynek</button>
+      <button class="mbtn mbtn-ghost" onclick="closeBuildingModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveBuildingModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -2598,19 +2664,41 @@ function renderSettings() {
     <button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddRoomModal()">+ Dodaj nową salę</button>
   </div>`;
 
-  // Budynki w ustawieniach
-  if((appState.buildings||[]).length){
-    html+=`<div class="settings-card"><div class="settings-card-title">Budynki / Lokalizacje</div><ul class="settings-list">`;
-    appState.buildings.forEach(b=>{
-      const roomCount=appState.rooms.filter(r=>r.buildingId===b.id).length;
-      html+=`<li class="settings-item">
-        <div>
-          <div class="settings-item-name"><span class="cdot" style="background:${b.color};margin-right:6px"></span>${b.name}</div>
-          <div class="settings-item-meta">${b.address||''}${b.note?' · '+b.note:''} · ${roomCount} sal</div>
-        </div>
-      </li>`;
-    });
-    html+=`</ul></div>`;
+  // Budynki w ustawieniach — zawsze widoczna sekcja
+  {
+    html+=`<div class="settings-card" style="grid-column:1/-1">
+      <div class="settings-card-title">Budynki / Lokalizacje</div>`;
+    if((appState.buildings||[]).length){
+      html+=`<ul class="settings-list">`;
+      appState.buildings.forEach(b=>{
+        const rooms = appState.rooms.filter(r=>r.buildingId===b.id);
+        const roomNames = rooms.slice(0,4).map(r=>{
+          const rt = ROOM_TYPES[r.type]||ROOM_TYPES.full;
+          return `<span style="font-size:.7rem;background:var(--s3);border-radius:4px;padding:1px 6px">${rt.icon} ${r.name}</span>`;
+        }).join(' ');
+        const more = rooms.length > 4 ? `<span style="font-size:.7rem;color:var(--text-d)">+${rooms.length-4} więcej</span>` : '';
+        html+=`<li class="settings-item" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="cdot" style="background:${b.color};width:14px;height:14px;flex-shrink:0"></span>
+            <div style="flex:1">
+              <div class="settings-item-name">${b.name}</div>
+              <div class="settings-item-meta">${[b.address,b.note].filter(Boolean).join(' · ')}</div>
+            </div>
+            <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">${rooms.length} sal</span>
+            <button class="si-btn" onclick="openEditBuildingModal('${b.id}')">Edytuj</button>
+          </div>
+          ${rooms.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:22px">${roomNames}${more}</div>` : ''}
+        </li>`;
+      });
+      html+=`</ul>`;
+    } else {
+      html+=`<div style="font-size:.82rem;color:var(--text-m);padding:8px 0">
+        Brak budynków — jeśli szkoła realizuje zajęcia w kilku lokalizacjach, dodaj je tutaj.
+      </div>`;
+    }
+    html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed"
+      onclick="openAddBuildingModal()">+ Dodaj budynek / lokalizację</button>
+    </div>`;
   }
 
   // Hours
@@ -3441,6 +3529,140 @@ document.getElementById('teacherModal').addEventListener('click', function(e) {
 
 
 
+
+
+// ================================================================
+//  BUILDING MODAL
+// ================================================================
+const BLD_COLORS = [
+  '#38bdf8','#34d399','#fbbf24','#f87171',
+  '#a78bfa','#2dd4bf','#fb923c','#f472b6',
+  '#818cf8','#4ade80','#e879f9','#67e8f9'
+];
+let _bmId    = null;
+let _bmColor = BLD_COLORS[0];
+
+function openAddBuildingModal() {
+  if(!appState) return;
+  _bmId    = null;
+  _bmColor = BLD_COLORS[(appState.buildings||[]).length % BLD_COLORS.length];
+  document.getElementById('buildingModalTitle').textContent = 'Dodaj budynek / lokalizację';
+  document.getElementById('bmName').value    = '';
+  document.getElementById('bmAddress').value = '';
+  document.getElementById('bmNote').value    = '';
+  document.getElementById('bmDeleteBtn').style.display = 'none';
+  bmBuildColors();
+  bmBuildRooms(null);
+  document.getElementById('buildingModal').classList.add('show');
+  setTimeout(()=>document.getElementById('bmName').focus(), 80);
+}
+
+function openEditBuildingModal(id) {
+  if(!appState) return;
+  const b = (appState.buildings||[]).find(b=>b.id===id);
+  if(!b) return;
+  _bmId    = id;
+  _bmColor = b.color || BLD_COLORS[0];
+  document.getElementById('buildingModalTitle').innerHTML = `Edytuj <span>${b.name}</span>`;
+  document.getElementById('bmName').value    = b.name    || '';
+  document.getElementById('bmAddress').value = b.address || '';
+  document.getElementById('bmNote').value    = b.note    || '';
+  document.getElementById('bmDeleteBtn').style.display = '';
+  bmBuildColors();
+  bmBuildRooms(id);
+  document.getElementById('buildingModal').classList.add('show');
+}
+
+function bmBuildColors() {
+  document.getElementById('bmColorRow').innerHTML = BLD_COLORS.map(c =>
+    `<div class="bld-color-sw ${c===_bmColor?'sel':''}" style="background:${c}"
+      onclick="bmPickColor('${c}')"></div>`
+  ).join('');
+}
+
+function bmPickColor(c) {
+  _bmColor = c;
+  bmBuildColors();
+}
+
+function bmBuildRooms(bldId) {
+  const container = document.getElementById('bmRoomsList');
+  if(!(appState.rooms||[]).length) {
+    container.innerHTML = '<span style="font-size:.78rem;color:var(--text-m)">Brak sal w systemie — dodaj sale w ustawieniach.</span>';
+    return;
+  }
+  container.innerHTML = appState.rooms.map(r => {
+    const rt      = ROOM_TYPES[r.type] || ROOM_TYPES.full;
+    const checked = r.buildingId === bldId && bldId !== null;
+    const otherBld = (!checked && r.buildingId)
+      ? (appState.buildings||[]).find(b=>b.id===r.buildingId) : null;
+    return `<label class="bld-room-check ${checked?'checked':''}">
+      <input type="checkbox" value="${r.id}" ${checked?'checked':''}
+        onchange="this.closest('label').classList.toggle('checked',this.checked)">
+      <span class="bld-room-icon">${rt.icon}</span>
+      <span class="bld-room-name">${r.name}</span>
+      <span class="bld-room-type">${rt.label}${r.capacity?' · '+r.capacity+' os.':''}</span>
+      ${otherBld
+        ? `<span style="font-size:.68rem;color:var(--text-d)">(${otherBld.name})</span>`
+        : ''}
+    </label>`;
+  }).join('');
+}
+
+function saveBuildingModal() {
+  const name    = document.getElementById('bmName').value.trim();
+  if(!name){ notify('Podaj nazwę budynku'); return; }
+  const address = document.getElementById('bmAddress').value.trim();
+  const note    = document.getElementById('bmNote').value.trim();
+
+  // Zbierz zaznaczone sale
+  const checkedRoomIds = [...document.querySelectorAll('#bmRoomsList input:checked')]
+    .map(i=>i.value);
+  // Odznaczone sale które należały do tego budynku → wyczyść buildingId
+  const uncheckedRoomIds = [...document.querySelectorAll('#bmRoomsList input:not(:checked)')]
+    .map(i=>i.value);
+
+  let bldId;
+  if(_bmId) {
+    // Edycja
+    const b = appState.buildings.find(b=>b.id===_bmId);
+    if(b){ b.name=name; b.address=address; b.note=note; b.color=_bmColor; }
+    bldId = _bmId;
+  } else {
+    // Nowy
+    bldId = 'bld' + Date.now();
+    if(!appState.buildings) appState.buildings = [];
+    appState.buildings.push({ id:bldId, name, address, note, color:_bmColor });
+  }
+
+  // Zaktualizuj buildingId sal
+  appState.rooms.forEach(r => {
+    if(checkedRoomIds.includes(r.id))   r.buildingId = bldId;
+    if(uncheckedRoomIds.includes(r.id) && r.buildingId === bldId) r.buildingId = null;
+  });
+
+  persistAll(); populateSelects(); renderSettings(); closeBuildingModal();
+  notify(_bmId ? 'Zaktualizowano: '+name : 'Dodano: '+name);
+}
+
+function bmDelete() {
+  if(!_bmId) return;
+  const b = (appState.buildings||[]).find(b=>b.id===_bmId);
+  if(!confirm(`Usunąć budynek "${b?b.name:''}"? Sale pozostaną, ale stracą przypisanie do budynku.`)) return;
+  appState.buildings = appState.buildings.filter(b=>b.id!==_bmId);
+  // Usuń buildingId z sal
+  appState.rooms.forEach(r=>{ if(r.buildingId===_bmId) r.buildingId=null; });
+  persistAll(); populateSelects(); renderSettings(); closeBuildingModal();
+  notify('Budynek usunięty');
+}
+
+function closeBuildingModal() {
+  document.getElementById('buildingModal').classList.remove('show');
+  _bmId = null;
+}
+document.getElementById('buildingModal').addEventListener('click', function(e){
+  if(e.target===this) closeBuildingModal();
+});
 
 // ================================================================
 //  HOUR MODAL
