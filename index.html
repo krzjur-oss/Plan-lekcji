@@ -1497,12 +1497,12 @@ function migrateAppState() {
   appState.rooms.forEach((r,i) => { if(!r.id) r.id = 'room'+Date.now()+i; });
   if(!appState.duties) appState.duties = [];
   // Zapewnij że każda klasa ma tablice groups i homeRooms
-  appState.classes.forEach(c => {
+  sortByName(appState.classes).forEach(c => {
     if(!c.groups)    c.groups    = [];
     if(!c.homeRooms) c.homeRooms = [];
   });
   // Zapewnij że każdy nauczyciel ma subjects i assignments
-  appState.teachers.forEach(t => {
+  sortTeachers(appState.teachers).forEach(t => {
     if(!t.subjects)    t.subjects    = [];
     if(!t.assignments) t.assignments = [];
   });
@@ -2066,7 +2066,7 @@ function populateSelects() {
   const cs=document.getElementById('classSelect');
   if(cs){
     cs.innerHTML='<option value="">— wybierz klasę —</option>' +
-      appState.classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+      sortByName(appState.classes).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
     if(appState.classes.length) cs.value=appState.classes[0].id;
   }
 
@@ -2074,7 +2074,7 @@ function populateSelects() {
   const ts=document.getElementById('teacherSelect');
   if(ts){
     ts.innerHTML='<option value="">— wybierz nauczyciela —</option>' +
-      appState.teachers.map(t=>`<option value="${t.id}">${t.first} ${t.last}</option>`).join('');
+      sortTeachers(appState.teachers).map(t=>`<option value="${t.id}">${t.first} ${t.last}</option>`).join('');
     if(appState.teachers.length) ts.value=appState.teachers[0].id;
   }
 
@@ -2082,7 +2082,7 @@ function populateSelects() {
   const rs=document.getElementById('roomSelect');
   if(rs){
     rs.innerHTML='<option value="">— wybierz salę —</option>' +
-      appState.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+      sortByName(appState.rooms).map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
     if(appState.rooms.length) rs.value=appState.rooms[0].id;
   }
 
@@ -2093,11 +2093,11 @@ function populateSelects() {
 function populateModalSelects() {
   const ms=document.getElementById('mSubject');
   if(ms) ms.innerHTML='<option value="">— wybierz przedmiot —</option>' +
-    appState.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    sortSubjects(appState.subjects).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 
   const mt=document.getElementById('mTeacher');
   if(mt) mt.innerHTML='<option value="">— wybierz nauczyciela —</option>' +
-    appState.teachers.map(t=>`<option value="${t.id}">${t.first} ${t.last} (${t.abbr})</option>`).join('');
+    sortTeachers(appState.teachers).map(t=>`<option value="${t.id}">${t.first} ${t.last} (${t.abbr})</option>`).join('');
 
   const mr=document.getElementById('mRoom');
   if(mr) {
@@ -2106,7 +2106,7 @@ function populateModalSelects() {
     if(hasBld){
       let roomOpts='<option value="">— brak / bez sali —</option>';
       // Sale bez budynku
-      const noBld=appState.rooms.filter(r=>!r.buildingId);
+      const noBld=sortByName(appState.rooms.filter(r=>!r.buildingId));
       if(noBld.length){
         const og=document.createElement('optgroup'); og.label='Budynek główny';
         noBld.forEach(r=>{ const o=document.createElement('option');o.value=r.id;o.textContent=r.name; og.appendChild(o); });
@@ -2115,10 +2115,10 @@ function populateModalSelects() {
       // Buduj przez innerHTML z optgroup
       let html='<option value="">— brak / bez sali —</option>';
       (appState.buildings||[]).forEach(b=>{
-        const bRooms=appState.rooms.filter(r=>r.buildingId===b.id);
+        const bRooms=sortByName(appState.rooms.filter(r=>r.buildingId===b.id));
         if(bRooms.length) html+=`<optgroup label="${b.name}">`+bRooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')+'</optgroup>';
       });
-      const noBldRooms=appState.rooms.filter(r=>!r.buildingId);
+      const noBldRooms=sortByName(appState.rooms.filter(r=>!r.buildingId));
       if(noBldRooms.length) html+='<optgroup label="Budynek główny">'+noBldRooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')+'</optgroup>';
       mr.innerHTML=html;
     } else {
@@ -2133,7 +2133,7 @@ function populateModalSelects() {
 
   const mc=document.getElementById('mClass');
   if(mc) mc.innerHTML='<option value="">— wybierz klasę —</option>' +
-    appState.classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    sortByName(appState.classes).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
 }
 
 // ================================================================
@@ -2619,6 +2619,11 @@ function renderStats() {
   document.getElementById('statsContent').innerHTML = html;
 }
 
+// Pomocnicze sortowania alfabetyczne
+const sortByName    = arr => [...arr].sort((a,b)=>a.name.localeCompare(b.name,'pl'));
+const sortTeachers  = arr => [...arr].sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first,'pl'));
+const sortSubjects  = arr => [...arr].sort((a,b)=>a.name.localeCompare(b.name,'pl'));
+
 // ================================================================
 //  SETTINGS VIEW
 // ================================================================
@@ -2747,7 +2752,7 @@ function renderSettings() {
   html+=`<div class="settings-card" style="grid-column:1/-1">
     <div class="settings-card-title">Przedmioty</div>
     <div class="subj-grid">`;
-  appState.subjects.forEach(s=>{
+  sortSubjects(appState.subjects).forEach(s=>{
     const isDark = isDarkColor(s.color);
     const textC  = isDark ? '#fff' : '#111';
     const bg     = hexToRgba(s.color, .18);
@@ -2770,7 +2775,7 @@ function renderSettings() {
   html+=`<div class="settings-card">`;
   html+=`<div class="settings-card-title">Sale</div>`;
   html+=`<ul class="settings-list">`;
-  appState.rooms.forEach(r=>{
+  sortByName(appState.rooms).forEach(r=>{
     const bld=(appState.buildings||[]).find(b=>b.id===r.buildingId);
     const rt=ROOM_TYPES[r.type]||ROOM_TYPES.full;
     const capBadge = r.capacity
@@ -3576,7 +3581,7 @@ function tmAutoAbbr() {
 function tmRenderSubjects(selected) {
   const container = document.getElementById('tmSubjectList');
   if (!appState) { container.innerHTML = ''; return; }
-  container.innerHTML = appState.subjects.map(s => `
+  container.innerHTML = sortSubjects(appState.subjects).map(s => `
     <label class="schk ${selected.includes(s.id) ? 'checked' : ''}">
       <input type="checkbox" value="${s.id}" ${selected.includes(s.id) ? 'checked' : ''}
         onchange="this.parentElement.classList.toggle('checked',this.checked)">
@@ -3589,10 +3594,10 @@ function tmFillSelects() {
   if (!appState) return;
   const cls = document.getElementById('tmAddClass');
   cls.innerHTML = '<option value="">— klasa —</option>' +
-    appState.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    sortByName(appState.classes).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   const subj = document.getElementById('tmAddSubject');
   subj.innerHTML = '<option value="">— przedmiot —</option>' +
-    appState.subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    sortSubjects(appState.subjects).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 }
 
 function tmRenderAssignments() {
@@ -3645,7 +3650,7 @@ function tmFillIndivSubject() {
   const sel = document.getElementById('tmIndivSubject');
   if(!sel||!appState) return;
   sel.innerHTML = '<option value="">— dowolny —</option>' +
-    appState.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    sortSubjects(appState.subjects).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 }
 
 function tmAddIndiv() {
@@ -3966,7 +3971,7 @@ function bmBuildRooms(bldId) {
     container.innerHTML = '<span style="font-size:.78rem;color:var(--text-m)">Brak sal w systemie — dodaj sale w ustawieniach.</span>';
     return;
   }
-  container.innerHTML = appState.rooms.map(r => {
+  container.innerHTML = sortByName(appState.rooms).map(r => {
     const rt      = ROOM_TYPES[r.type] || ROOM_TYPES.full;
     const checked = r.buildingId === bldId && bldId !== null;
     const otherBld = (!checked && r.buildingId)
