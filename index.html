@@ -2635,7 +2635,8 @@ function renderSettings() {
     </div>`;
   });
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
-  html += `</div>`;
+  html += `</div>`; // koniec karty Klasy
+  html += `</div>`; // koniec wrappera Klasy
 
   // Subjects — pełna szerokość, siatka kafelków
   html+=`<div class="settings-card" style="grid-column:1/-1">
@@ -2657,7 +2658,8 @@ function renderSettings() {
       onclick="openAddSubjectModal()">+ Dodaj nowy przedmiot</button>
   </div>`;
 
-  // Teachers — rozbudowane karty
+  // Teachers — w parze z kolejną sekcją
+  html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
   html+=`<div class="settings-card">
     <div class="settings-card-title">Nauczyciele</div>`;
 
@@ -2710,7 +2712,8 @@ function renderSettings() {
 
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddTeacherModal()">+ Dodaj nowego nauczyciela</button>`;
   html += `</div>`;
-  html += `</div>`; // koniec wrappera Klasy+Nauczyciele
+  html += `</div>`; // koniec karty Nauczyciele
+  html += `</div>`; // koniec wrappera Nauczyciele
 
   // Rooms + Buildings — obok siebie w jednym wierszu
   html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
