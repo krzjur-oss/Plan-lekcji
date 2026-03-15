@@ -673,6 +673,39 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── DUTY SETTINGS ── */
+.duty-settings-list{display:flex;flex-direction:column;gap:0}
+.duty-settings-row{
+  display:flex;align-items:stretch;gap:0;position:relative;
+}
+.duty-settings-row .hour-row-num{
+  background:var(--orange,#fb923c);color:#fff;border-radius:6px;
+  width:32px;font-size:.7rem;
+}
+.duty-settings-row.break-duty .hour-row-num{background:var(--accent)}
+.duty-settings-row.extra-duty .hour-row-num{background:var(--text-m)}
+.duty-slot{
+  flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--s2);cursor:pointer;transition:all .12s;
+  display:flex;align-items:center;gap:10px;margin-bottom:3px;
+}
+.duty-slot:hover{background:var(--s3);border-color:var(--accent)}
+.duty-slot-time{font-family:var(--mono);font-size:.8rem;font-weight:700;color:var(--text)}
+.duty-slot-label{font-size:.72rem;color:var(--text-m);flex:1}
+.duty-slot-places{font-size:.68rem;color:var(--accent);white-space:nowrap}
+.duty-break-bar-small{
+  margin-left:32px;height:16px;display:flex;align-items:center;
+  font-size:.65rem;color:var(--text-d);padding-left:12px;
+  border-left:2px dashed var(--border);
+}
+
+/* ── DUTY MODAL ── */
+.duty-day-place-grid{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.duty-day-place-row{display:flex;align-items:center;gap:10px}
+.duty-day-place-label{
+  min-width:100px;font-size:.78rem;font-weight:700;color:var(--text-m);
+}
+
 /* ── BUILDING MODAL ── */
 .bld-rooms-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:260px;overflow-y:auto}
 .bld-room-check{
@@ -1082,6 +1115,45 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveTeacherModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     DUTY EDIT MODAL
+══════════════════════════════════ -->
+<div class="modal-overlay" id="dutyModal">
+  <div class="modal-box" style="width:500px;max-width:95vw">
+    <div class="modal-title" id="dutyModalTitle">Dyżur</div>
+
+    <!-- Godziny dyżuru -->
+    <div class="mrow">
+      <div class="mfield" style="flex:1">
+        <label>Początek dyżuru</label>
+        <input class="minput" id="dmStart" type="time" oninput="dmUpdateLabel()">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Koniec dyżuru</label>
+        <input class="minput" id="dmEnd" type="time" oninput="dmUpdateLabel()">
+      </div>
+      <div class="mfield" style="flex:1.5">
+        <label>Opis / typ dyżuru</label>
+        <input class="minput" id="dmLabel" placeholder="np. Przerwa po 3., Przed lekcjami">
+      </div>
+    </div>
+
+    <div id="dmTimeInfo" style="font-size:.75rem;color:var(--text-m);margin-bottom:12px;padding:6px 10px;background:var(--s2);border-radius:6px;display:none"></div>
+
+    <!-- Miejsca per dzień -->
+    <div class="mfield">
+      <label>Miejsca dyżuru dla każdego dnia tygodnia</label>
+      <div class="duty-day-place-grid" id="dmPlacesGrid"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="dmDeleteBtn" onclick="dmDelete()" style="display:none;margin-right:auto">Usuń dyżur</button>
+      <button class="mbtn mbtn-ghost" onclick="closeDutyModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="saveDutyModal()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -2507,7 +2579,8 @@ function renderSettings() {
   let html = `<div class="settings-grid">`;
 
   // Classes — rozbudowane karty z przypisanymi nauczycielami
-  html+=`<div class="settings-card" style="grid-column:1/-1">
+  html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
+  html+=`<div class="settings-card">
     <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>Klasy</span>
     </div>`;
@@ -2585,7 +2658,7 @@ function renderSettings() {
   </div>`;
 
   // Teachers — rozbudowane karty
-  html+=`<div class="settings-card" style="grid-column:1/-1">
+  html+=`<div class="settings-card">
     <div class="settings-card-title">Nauczyciele</div>`;
 
   if (!appState.teachers.length) {
@@ -2637,6 +2710,7 @@ function renderSettings() {
 
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddTeacherModal()">+ Dodaj nowego nauczyciela</button>`;
   html += `</div>`;
+  html += `</div>`; // koniec wrappera Klasy+Nauczyciele
 
   // Rooms + Buildings — obok siebie w jednym wierszu
   html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
@@ -2704,11 +2778,12 @@ function renderSettings() {
 
   html+=`</div>`; // koniec wrappera Sale+Budynki
 
-  // Hours
-  // Godziny lekcyjne — timeline z przerwami
+  // Hours + Duties — obok siebie
+  html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
   {
+    // ── Lewa: Godziny lekcyjne ──
     const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
-    html+=`<div class="settings-card" style="grid-column:1/-1">
+    html+=`<div class="settings-card">
       <div class="settings-card-title">Godziny lekcyjne</div>
       <div class="hour-timeline">`;
     sortedH.forEach((h,i) => {
@@ -2718,23 +2793,89 @@ function renderSettings() {
         <div class="hour-row-time" onclick="openEditHourModal(${h.num})">
           <span class="hour-row-range">${h.start} – ${h.end}</span>
           <span class="hour-row-dur">${dur} min</span>
-          <span style="margin-left:auto;font-size:.72rem;color:var(--accent)">✎ edytuj</span>
+          <span style="margin-left:auto;font-size:.72rem;color:var(--accent)">✎</span>
         </div>
       </div>`;
-      // Przerwa między lekcjami
       if(i < sortedH.length-1) {
         const next = sortedH[i+1];
         const brk = timeToMins(next.start) - timeToMins(h.end);
-        if(brk > 0) {
-          html+=`<div class="hour-break-bar">przerwa ${brk} min</div>`;
-        }
+        if(brk > 0) html+=`<div class="hour-break-bar">przerwa ${brk} min</div>`;
       }
     });
     html+=`</div>
       <button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed"
-        onclick="openAddHourModal()">+ Dodaj godzinę lekcyjną</button>
+        onclick="openAddHourModal()">+ Dodaj godzinę</button>
     </div>`;
   }
+  {
+    // ── Prawa: Dyżury ──
+    if(!appState.duties || appState.duties.length===0) regenerateDuties();
+    const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
+    const firstHour = sortedH[0];
+    const lastHour  = sortedH[sortedH.length-1];
+    const allDuties = [...(appState.duties||[])].sort((a,b)=>timeToMins(a.start)-timeToMins(b.start));
+
+    html+=`<div class="settings-card">
+      <div class="settings-card-title">Dyżury</div>
+      <div class="duty-settings-list">`;
+
+    // Przycisk: dodaj dyżur PRZED lekcjami
+    if(firstHour) {
+      const beforeEnd = firstHour.start;
+      const beforeStart = minsToTime(timeToMins(beforeEnd) - 15);
+      html+=`<div style="margin-bottom:6px">
+        <button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed"
+          onclick="openAddDutyModal('${beforeStart}','${beforeEnd}','Przed lekcjami')">
+          + Dyżur przed lekcjami
+        </button>
+      </div>`;
+    }
+
+    // Lista dyżurów
+    allDuties.forEach(d => {
+      const filledDays = DUTY_DAY_KEYS.filter(k=>d.places&&d.places[k]).length;
+      const isAuto = d.type==='break' || (!d.type && d.breakAfterHour!==undefined);
+      html+=`<div class="duty-settings-row ${isAuto?'break-duty':'extra-duty'}">
+        <div class="hour-row-num" style="display:flex;align-items:center;justify-content:center;
+          border-radius:6px;width:32px;font-size:.65rem;margin-right:6px;
+          background:${isAuto?'var(--accent)':'var(--text-m)'};color:#fff;flex-shrink:0">
+          ${isAuto?'🔔':'📌'}
+        </div>
+        <div class="duty-slot" onclick="openEditDutyModal('${d.id}')">
+          <span class="duty-slot-time">${d.start} – ${d.end}</span>
+          <span class="duty-slot-label">${d.label||(isAuto?'Po lekcji '+(d.breakAfterHour||''):'Dyżur')}
+            <span style="font-size:.65rem;color:var(--text-d)">${d.durMins} min</span>
+          </span>
+          <span class="duty-slot-places">${filledDays?filledDays+'/5 dni':''}</span>
+          <span style="font-size:.7rem;color:var(--accent)">✎</span>
+        </div>
+      </div>`;
+    });
+
+    if(!allDuties.length) {
+      html+=`<div style="font-size:.8rem;color:var(--text-m);padding:8px 0;text-align:center">
+        Brak dyżurów. Przerwy generują się automatycznie po dodaniu godzin lekcyjnych.
+      </div>`;
+    }
+
+    // Przycisk: dodaj dyżur PO lekcjach
+    if(lastHour) {
+      const afterStart = lastHour.end;
+      const afterEnd   = minsToTime(timeToMins(afterStart) + 15);
+      html+=`<div style="margin-top:6px">
+        <button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed"
+          onclick="openAddDutyModal('${afterStart}','${afterEnd}','Po lekcjach')">
+          + Dyżur po lekcjach
+        </button>
+      </div>`;
+    }
+
+    html+=`</div>
+      <button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:7px;font-size:.75rem;border-style:dashed"
+        onclick="openAddDutyModal('','','')">+ Dodaj inny dyżur</button>
+    </div>`;
+  }
+  html+=`</div>`; // koniec wrappera Godziny+Dyżury
 
   // Danger zone
   html+=`<div class="settings-card">
@@ -3534,6 +3675,141 @@ document.getElementById('teacherModal').addEventListener('click', function(e) {
 
 
 
+
+// ================================================================
+//  DUTY MODAL (edycja dyżurów w ustawieniach)
+// ================================================================
+// Dyżury dzielą się na:
+//   type:'break'  — przerwa między lekcjami (auto z godzin, edytowalna)
+//   type:'before' — dyżur przed lekcjami (ręcznie dodawany)
+//   type:'after'  — dyżur po lekcjach (ręcznie dodawany)
+//   type:'custom' — dowolny inny czas
+
+let _dmId = null;
+
+function openAddDutyModal(prefStart, prefEnd, prefLabel) {
+  if(!appState) return;
+  _dmId = null;
+  document.getElementById('dutyModalTitle').textContent = 'Dodaj dyżur';
+  document.getElementById('dmStart').value = prefStart || '';
+  document.getElementById('dmEnd').value   = prefEnd   || '';
+  document.getElementById('dmLabel').value = prefLabel || '';
+  document.getElementById('dmDeleteBtn').style.display = 'none';
+  dmBuildPlaces({});
+  dmUpdateLabel();
+  document.getElementById('dutyModal').classList.add('show');
+  setTimeout(()=>document.getElementById('dmStart').focus(), 80);
+}
+
+function openEditDutyModal(dutyId) {
+  if(!appState) return;
+  if(!appState.duties) appState.duties = [];
+  const d = appState.duties.find(d=>d.id===dutyId);
+  if(!d) return;
+  _dmId = dutyId;
+  document.getElementById('dutyModalTitle').innerHTML = `Edytuj dyżur <span>${d.label||d.start+'-'+d.end}</span>`;
+  document.getElementById('dmStart').value = d.start || '';
+  document.getElementById('dmEnd').value   = d.end   || '';
+  document.getElementById('dmLabel').value = d.label || '';
+  document.getElementById('dmDeleteBtn').style.display = d.type==='break' ? 'none' : '';
+  dmBuildPlaces(d.places||{});
+  dmUpdateLabel();
+  document.getElementById('dutyModal').classList.add('show');
+}
+
+function dmBuildPlaces(places) {
+  const grid = document.getElementById('dmPlacesGrid');
+  grid.innerHTML = DUTY_DAYS.map((day, i) => {
+    const key = DUTY_DAY_KEYS[i];
+    const val = places[key] || '';
+    return `<div class="duty-day-place-row">
+      <div class="duty-day-place-label">${day}</div>
+      <input class="duty-place-input" style="flex:1" type="text"
+        data-daykey="${key}"
+        value="${val}"
+        placeholder="Miejsce dyżuru (np. Korytarz A, Stołówka)">
+    </div>`;
+  }).join('');
+}
+
+function dmUpdateLabel() {
+  const s = document.getElementById('dmStart').value;
+  const e = document.getElementById('dmEnd').value;
+  const info = document.getElementById('dmTimeInfo');
+  if(s && e) {
+    const dur = timeToMins(e) - timeToMins(s);
+    if(dur > 0) {
+      info.style.display = '';
+      info.textContent = `Czas trwania: ${dur} min`;
+    } else {
+      info.style.display = '';
+      info.textContent = '⚠ Koniec musi być późniejszy niż początek';
+      info.style.color = 'var(--red)';
+    }
+  } else {
+    info.style.display = 'none';
+  }
+}
+
+function saveDutyModal() {
+  const start = document.getElementById('dmStart').value;
+  const end   = document.getElementById('dmEnd').value;
+  const label = document.getElementById('dmLabel').value.trim();
+  if(!start||!end){ notify('Podaj godziny dyżuru'); return; }
+  if(timeToMins(end) <= timeToMins(start)){ notify('Koniec musi być późniejszy niż początek'); return; }
+
+  // Zbierz miejsca
+  const places = {};
+  document.querySelectorAll('#dmPlacesGrid input[data-daykey]').forEach(inp => {
+    places[inp.dataset.daykey] = inp.value.trim();
+  });
+
+  if(!appState.duties) appState.duties = [];
+
+  if(_dmId) {
+    const d = appState.duties.find(d=>d.id===_dmId);
+    if(d) { d.start=start; d.end=end; d.label=label; d.places=places;
+            d.durMins=timeToMins(end)-timeToMins(start); }
+  } else {
+    appState.duties.push({
+      id: 'duty_custom_' + Date.now(),
+      type: 'custom',
+      start, end, label,
+      durMins: timeToMins(end) - timeToMins(start),
+      places
+    });
+  }
+
+  // Sortuj dyżury po czasie
+  appState.duties.sort((a,b) => timeToMins(a.start) - timeToMins(b.start));
+  persistAll();
+  renderSettings();
+  if(document.getElementById('view-duty')?.classList.contains('active')) renderDuties();
+  closeDutyModal();
+  notify(_dmId ? 'Zaktualizowano dyżur' : 'Dodano dyżur');
+}
+
+function dmDelete() {
+  if(!_dmId) return;
+  const d = appState.duties.find(d=>d.id===_dmId);
+  // Nie pozwól usunąć auto-generowanych przerw między lekcjami
+  if(d?.type==='break'){notify('Przerwy między lekcjami są generowane automatycznie');return;}
+  if(!confirm('Usunąć ten dyżur?')) return;
+  appState.duties = appState.duties.filter(d=>d.id!==_dmId);
+  persistAll(); renderSettings();
+  if(document.getElementById('view-duty')?.classList.contains('active')) renderDuties();
+  closeDutyModal();
+  notify('Dyżur usunięty');
+}
+
+function closeDutyModal() {
+  document.getElementById('dutyModal').classList.remove('show');
+  _dmId = null;
+}
+document.getElementById('dutyModal').addEventListener('click', function(e){
+  if(e.target===this) closeDutyModal();
+});
+
 // ================================================================
 //  BUILDING MODAL
 // ================================================================
@@ -3789,6 +4065,8 @@ function regenerateDuties() {
   const existingPlaces = {};
   appState.duties.forEach(d => { existingPlaces[d.breakAfterHour] = d.places||{}; });
 
+  // Zachowaj dyżury niestandardowe (before/after/custom)
+  const customDuties = appState.duties.filter(d => d.type && d.type !== 'break');
   appState.duties = [];
   for(let i=0; i<hours.length-1; i++) {
     const cur  = hours[i];
@@ -3799,13 +4077,18 @@ function regenerateDuties() {
     if(durMins <= 0) continue; // brak przerwy
     appState.duties.push({
       id: 'duty_' + cur.num,
+      type: 'break',
       breakAfterHour: cur.num,
+      label: 'Przerwa po lekcji ' + cur.num,
       start: breakStart,
       end:   breakEnd,
       durMins,
       places: existingPlaces[cur.num] || {}
     });
   }
+  // Przywróć dyżury niestandardowe i posortuj
+  appState.duties = [...appState.duties, ...customDuties]
+    .sort((a,b) => timeToMins(a.start) - timeToMins(b.start));
 }
 
 function renderDuties() {
