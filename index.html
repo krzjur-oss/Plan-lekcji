@@ -673,6 +673,22 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .ap-bar{height:100%;border-radius:3px;transition:width .3s}
 .ap-label{font-family:var(--mono);font-size:.72rem;min-width:60px;text-align:right}
 
+/* ── INDIVIDUAL TEACHING ── */
+.indiv-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:.78rem}
+.indiv-table th{background:var(--s2);padding:6px 8px;text-align:left;font-size:.68rem;
+  font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border)}
+.indiv-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.indiv-table tr:last-child td{border-bottom:none}
+.indiv-add-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.indiv-num{width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;
+  background:var(--s1);color:var(--text);font-size:.8rem;text-align:center}
+.indiv-summary{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;
+  background:var(--accent-g);border:1px solid var(--accent);margin-top:10px;
+  font-size:.78rem;
+}
+.indiv-summary-num{font-family:var(--mono);font-weight:800;font-size:1rem;color:var(--accent)}
+
 /* ── DUTY SETTINGS ── */
 .duty-settings-list{display:flex;flex-direction:column;gap:0}
 .duty-settings-row{
@@ -1111,6 +1127,38 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap" onclick="tmAddAssignment()">+ Dodaj</button>
       </div>
     </div>
+    <!-- Nauczanie indywidualne -->
+    <div class="mfield" style="margin-top:4px">
+      <label>Nauczanie indywidualne
+        <span style="font-size:.7rem;font-weight:400;color:var(--text-m);margin-left:6px">
+          — godziny poza planem lekcji, przypisane do konkretnych uczniów
+        </span>
+      </label>
+      <table class="indiv-table">
+        <thead><tr>
+          <th>Uczeń / opis</th><th>Przedmiot</th><th>Forma</th>
+          <th style="width:70px">Godz./tydz.</th><th style="width:36px"></th>
+        </tr></thead>
+        <tbody id="tmIndivBody"></tbody>
+      </table>
+      <div class="indiv-add-row">
+        <input class="minput" id="tmIndivName" placeholder="Imię Nazwisko lub opis" style="flex:2;min-width:120px">
+        <select class="mselect" id="tmIndivSubject" style="flex:1;min-width:100px">
+          <option value="">— przedmiot —</option>
+        </select>
+        <select class="mselect" id="tmIndivForm" style="flex:1;min-width:100px">
+          <option value="indywidualne">Indywidualne</option>
+          <option value="rewalidacja">Rewalidacja</option>
+          <option value="zajęcia wyrównawcze">Wyrównawcze</option>
+          <option value="zajęcia rozwijające">Rozwijające</option>
+          <option value="inne">Inne</option>
+        </select>
+        <input class="indiv-num" id="tmIndivHours" type="number" min="1" max="20" value="1" placeholder="h">
+        <button class="mbtn mbtn-primary" style="padding:8px 12px;white-space:nowrap" onclick="tmAddIndiv()">+ Dodaj</button>
+      </div>
+      <div id="tmIndivSummary"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
@@ -2656,6 +2704,8 @@ function renderSettings() {
     const etats = fullTarget
       ? `${totalAssigned}/${fullTarget} godz.${t.hoursExtra ? ' ('+t.hoursTotal+'+'+t.hoursExtra+')' : ''}`
       : `${totalAssigned} godz. przydzielonych`;
+    const indivHours = (t.individualTeaching||[]).reduce((s,i)=>s+(i.hours||0),0);
+    const indivCount = (t.individualTeaching||[]).length;
     const hoursColor = fullTarget
       ? (totalAssigned > fullTarget ? 'var(--red)' : totalAssigned === fullTarget ? 'var(--green)' : 'var(--yellow)')
       : 'var(--text-m)';
@@ -2679,6 +2729,7 @@ function renderSettings() {
         <div class="tch-card-abbr">${t.abbr}</div>
         <div class="tch-card-badges">${subjects}</div>
         <span style="font-size:.72rem;color:${hoursColor};font-family:var(--mono);margin-right:4px">${etats}</span>
+        ${indivHours ? `<span style="font-size:.68rem;background:var(--accent-g);color:var(--accent);border-radius:4px;padding:2px 6px;margin-right:4px" title="${indivCount} uczniów NI">NI: ${indivHours}h</span>` : ''}
         <button class="si-btn" onclick="event.stopPropagation();openEditTeacherModal('${t.id}')" style="margin-right:4px">Edytuj</button>
         <span class="tch-card-arr">▼</span>
       </div>
@@ -3514,6 +3565,9 @@ function openAddTeacherModal() {
   document.getElementById('tmAbbr').value = '';
   document.getElementById('tmHoursTotal').value = '';
   document.getElementById('tmHoursExtra').value = '';
+  _tmIndiv = [];
+  tmRenderIndiv();
+  tmFillIndivSubject();
   document.getElementById('tmDeleteBtn').style.display = 'none';
   tmRenderSubjects([]);
   tmRenderAssignments();
@@ -3533,9 +3587,12 @@ function openEditTeacherModal(id) {
   document.getElementById('tmHoursTotal').value = t.hoursTotal || '';
   document.getElementById('tmHoursExtra').value = t.hoursExtra || '';
   document.getElementById('tmDeleteBtn').style.display = '';
+  _tmIndiv = JSON.parse(JSON.stringify(t.individualTeaching || []));
   tmRenderSubjects(t.subjects || []);
   tmRenderAssignments();
+  tmRenderIndiv();
   tmFillSelects();
+  tmFillIndivSubject();
   document.getElementById('teacherModal').classList.add('show');
 }
 
@@ -3611,6 +3668,71 @@ function tmAddAssignment() {
   tmRenderAssignments();
 }
 
+
+// ── Nauczanie indywidualne ──
+function tmFillIndivSubject() {
+  const sel = document.getElementById('tmIndivSubject');
+  if(!sel||!appState) return;
+  sel.innerHTML = '<option value="">— dowolny —</option>' +
+    appState.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function tmAddIndiv() {
+  const name  = document.getElementById('tmIndivName').value.trim();
+  const subjId= document.getElementById('tmIndivSubject').value;
+  const form  = document.getElementById('tmIndivForm').value;
+  const hours = parseInt(document.getElementById('tmIndivHours').value)||1;
+  if(!name){ notify('Podaj imię ucznia lub opis'); return; }
+  _tmIndiv.push({ name, subjectId:subjId||null, form, hours });
+  document.getElementById('tmIndivName').value = '';
+  tmRenderIndiv();
+}
+
+function tmRenderIndiv() {
+  const tbody = document.getElementById('tmIndivBody');
+  const summary = document.getElementById('tmIndivSummary');
+  if(!tbody) return;
+
+  if(!_tmIndiv.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-m);
+      font-size:.75rem;padding:10px">Brak uczniów z nauczaniem indywidualnym</td></tr>`;
+    if(summary) summary.innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = _tmIndiv.map((item, i) => {
+    const subj = item.subjectId ? appState.subjects.find(s=>s.id===item.subjectId) : null;
+    return `<tr>
+      <td style="font-weight:600">${item.name}</td>
+      <td>${subj
+        ? `<span class="cdot" style="background:${subj.color};margin-right:5px"></span>${subj.name}`
+        : '<span style="color:var(--text-m)">—</span>'}</td>
+      <td><span style="font-size:.72rem;background:var(--s3);padding:2px 7px;border-radius:4px">${item.form}</span></td>
+      <td>
+        <input class="indiv-num" type="number" min="1" max="20" value="${item.hours}"
+          onchange="_tmIndiv[${i}].hours=parseInt(this.value)||1;tmRenderIndivSummary()">
+      </td>
+      <td><span class="tag-del" style="font-size:1rem;cursor:pointer;padding:2px 6px"
+        onclick="_tmIndiv.splice(${i},1);tmRenderIndiv()">×</span></td>
+    </tr>`;
+  }).join('');
+
+  tmRenderIndivSummary();
+}
+
+function tmRenderIndivSummary() {
+  const summary = document.getElementById('tmIndivSummary');
+  if(!summary||!_tmIndiv.length) return;
+  const total = _tmIndiv.reduce((s,i)=>s+(i.hours||0), 0);
+  const count = _tmIndiv.length;
+  summary.innerHTML = `<div class="indiv-summary">
+    <span class="indiv-summary-num">${total}</span>
+    <span>godz./tydz. nauczania indywidualnego
+      <span style="color:var(--text-m)">(${count} ${count===1?'uczeń':count<5?'uczniów':'uczniów'})</span>
+    </span>
+  </div>`;
+}
+
 function saveTeacherModal() {
   const first = document.getElementById('tmFirst').value.trim();
   const last = document.getElementById('tmLast').value.trim();
@@ -3629,6 +3751,7 @@ function saveTeacherModal() {
       t.hoursExtra = hoursExtra;
       t.subjects = subjects;
       t.assignments = _tmAssignments;
+      t.individualTeaching = _tmIndiv;
     }
   } else {
     // New teacher
@@ -3638,7 +3761,8 @@ function saveTeacherModal() {
       hoursTotal,
       hoursExtra,
       subjects,
-      assignments: _tmAssignments
+      assignments: _tmAssignments,
+      individualTeaching: _tmIndiv
     });
   }
   persistAll();
