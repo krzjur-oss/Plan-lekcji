@@ -538,7 +538,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 /* ══════════════════════════════════════
    SETTINGS PANEL
 ══════════════════════════════════════ */
-.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.settings-grid{display:flex;flex-direction:column;gap:16px}
 .settings-card{
   background:var(--s1);border:1px solid var(--border);
   border-radius:var(--radius-lg);padding:20px;
@@ -2683,6 +2683,7 @@ function renderSettings() {
     </div>`;
   });
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
+  html += `</div>`; // koniec tch-card
   html += `</div>`; // koniec karty Klasy
 
   // Teachers — obok Klas w tym samym wrapperze
@@ -2740,7 +2741,7 @@ function renderSettings() {
   });
 
   html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddTeacherModal()">+ Dodaj nowego nauczyciela</button>`;
-  html += `</div>`;
+  html += `</div>`; // koniec tch-card
   html += `</div>`; // koniec karty Nauczyciele
   html += `</div>`; // koniec wrappera Klasy+Nauczyciele
 
@@ -2764,9 +2765,13 @@ function renderSettings() {
       onclick="openAddSubjectModal()">+ Dodaj nowy przedmiot</button>
   </div>`;
 
-  // Rooms + Buildings — obok siebie w jednym wierszu
+  // Rooms + Buildings — obok siebie
   html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
-  html+=`<div class="settings-card"><div class="settings-card-title">Sale</div><ul class="settings-list">`;
+
+  // ── Sale ──
+  html+=`<div class="settings-card">`;
+  html+=`<div class="settings-card-title">Sale</div>`;
+  html+=`<ul class="settings-list">`;
   appState.rooms.forEach(r=>{
     const bld=(appState.buildings||[]).find(b=>b.id===r.buildingId);
     const rt=ROOM_TYPES[r.type]||ROOM_TYPES.full;
@@ -2787,57 +2792,52 @@ function renderSettings() {
       </div>
     </li>`;
   });
-  html+=`</ul>
-    <button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddRoomModal()">+ Dodaj nową salę</button>
-  </div>`;
+  html+=`</ul>`;
+  html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddRoomModal()">+ Dodaj nową salę</button>`;
+  html+=`</div>`;
 
-  // Budynki w ustawieniach — zawsze widoczna sekcja
-  {
-    html+=`<div class="settings-card">
-      <div class="settings-card-title">Budynki / Lokalizacje</div>`;
-    if((appState.buildings||[]).length){
-      html+=`<ul class="settings-list">`;
-      appState.buildings.forEach(b=>{
-        const rooms = appState.rooms.filter(r=>r.buildingId===b.id);
-        const roomNames = rooms.slice(0,4).map(r=>{
-          const rt = ROOM_TYPES[r.type]||ROOM_TYPES.full;
-          return `<span style="font-size:.7rem;background:var(--s3);border-radius:4px;padding:1px 6px">${rt.icon} ${r.name}</span>`;
-        }).join(' ');
-        const more = rooms.length > 4 ? `<span style="font-size:.7rem;color:var(--text-d)">+${rooms.length-4} więcej</span>` : '';
-        html+=`<li class="settings-item" style="flex-direction:column;align-items:stretch;gap:8px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span class="cdot" style="background:${b.color};width:14px;height:14px;flex-shrink:0"></span>
-            <div style="flex:1">
-              <div class="settings-item-name">${b.name}</div>
-              <div class="settings-item-meta">${[b.address,b.note].filter(Boolean).join(' · ')}</div>
-            </div>
-            <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">${rooms.length} sal</span>
-            <button class="si-btn" onclick="openEditBuildingModal('${b.id}')">Edytuj</button>
+  // ── Budynki ──
+  html+=`<div class="settings-card">`;
+  html+=`<div class="settings-card-title">Budynki / Lokalizacje</div>`;
+  if((appState.buildings||[]).length){
+    html+=`<ul class="settings-list">`;
+    appState.buildings.forEach(b=>{
+      const rooms = appState.rooms.filter(r=>r.buildingId===b.id);
+      const roomNames = rooms.slice(0,4).map(r=>{
+        const rt = ROOM_TYPES[r.type]||ROOM_TYPES.full;
+        return `<span style="font-size:.7rem;background:var(--s3);border-radius:4px;padding:1px 6px">${rt.icon} ${r.name}</span>`;
+      }).join(' ');
+      const more = rooms.length > 4 ? `<span style="font-size:.7rem;color:var(--text-d)">+${rooms.length-4} więcej</span>` : '';
+      html+=`<li class="settings-item" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="cdot" style="background:${b.color};width:14px;height:14px;flex-shrink:0"></span>
+          <div style="flex:1">
+            <div class="settings-item-name">${b.name}</div>
+            <div class="settings-item-meta">${[b.address,b.note].filter(Boolean).join(' · ')}</div>
           </div>
-          ${rooms.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:22px">${roomNames}${more}</div>` : ''}
-        </li>`;
-      });
-      html+=`</ul>`;
-    } else {
-      html+=`<div style="font-size:.82rem;color:var(--text-m);padding:8px 0">
-        Brak budynków — jeśli szkoła realizuje zajęcia w kilku lokalizacjach, dodaj je tutaj.
-      </div>`;
-    }
-    html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed"
-      onclick="openAddBuildingModal()">+ Dodaj budynek / lokalizację</button>
-    </div>`;
+          <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">${rooms.length} sal</span>
+          <button class="si-btn" onclick="openEditBuildingModal('${b.id}')">Edytuj</button>
+        </div>
+        ${rooms.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:22px">${roomNames}${more}</div>` : ''}
+      </li>`;
+    });
+    html+=`</ul>`;
+  } else {
+    html+=`<div style="font-size:.82rem;color:var(--text-m);padding:8px 0">Brak budynków.</div>`;
   }
+  html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddBuildingModal()">+ Dodaj budynek / lokalizację</button>`;
+  html+=`</div>`;
 
   html+=`</div>`; // koniec wrappera Sale+Budynki
 
   // Hours + Duties — obok siebie
   html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
   {
-    // ── Lewa: Godziny lekcyjne ──
+    // ── Godziny lekcyjne ──
     const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
-    html+=`<div class="settings-card">
-      <div class="settings-card-title">Godziny lekcyjne</div>
-      <div class="hour-timeline">`;
+    html+=`<div class="settings-card">`;
+    html+=`<div class="settings-card-title">Godziny lekcyjne</div>`;
+    html+=`<div class="hour-timeline">`;
     sortedH.forEach((h,i) => {
       const dur = timeToMins(h.end) - timeToMins(h.start);
       html+=`<div class="hour-row">
@@ -2854,90 +2854,63 @@ function renderSettings() {
         if(brk > 0) html+=`<div class="hour-break-bar">przerwa ${brk} min</div>`;
       }
     });
-    html+=`</div>
-      <button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed"
-        onclick="openAddHourModal()">+ Dodaj godzinę</button>
-    </div>`;
+    html+=`</div>`;
+    html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddHourModal()">+ Dodaj godzinę</button>`;
+    html+=`</div>`;
   }
   {
-    // ── Prawa: Dyżury ──
+    // ── Dyżury ──
     if(!appState.duties || appState.duties.length===0) regenerateDuties();
     const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
     const firstHour = sortedH[0];
     const lastHour  = sortedH[sortedH.length-1];
     const allDuties = [...(appState.duties||[])].sort((a,b)=>timeToMins(a.start)-timeToMins(b.start));
-
-    html+=`<div class="settings-card">
-      <div class="settings-card-title">Dyżury</div>
-      <div class="duty-settings-list">`;
-
-    // Przycisk: dodaj dyżur PRZED lekcjami
+    html+=`<div class="settings-card">`;
+    html+=`<div class="settings-card-title">Dyżury</div>`;
+    html+=`<div class="duty-settings-list">`;
     if(firstHour) {
       const beforeEnd = firstHour.start;
       const beforeStart = minsToTime(timeToMins(beforeEnd) - 15);
-      html+=`<div style="margin-bottom:6px">
-        <button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed"
-          onclick="openAddDutyModal('${beforeStart}','${beforeEnd}','Przed lekcjami')">
-          + Dyżur przed lekcjami
-        </button>
-      </div>`;
+      html+=`<div style="margin-bottom:6px">`;
+      html+=`<button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('${beforeStart}','${beforeEnd}','Przed lekcjami')">+ Dyżur przed lekcjami</button>`;
+      html+=`</div>`;
     }
-
-    // Lista dyżurów
     allDuties.forEach(d => {
       const filledDays = DUTY_DAY_KEYS.filter(k=>d.places&&d.places[k]).length;
       const isAuto = d.type==='break' || (!d.type && d.breakAfterHour!==undefined);
-      html+=`<div class="duty-settings-row ${isAuto?'break-duty':'extra-duty'}">
-        <div class="hour-row-num" style="display:flex;align-items:center;justify-content:center;
-          border-radius:6px;width:32px;font-size:.65rem;margin-right:6px;
-          background:${isAuto?'var(--accent)':'var(--text-m)'};color:#fff;flex-shrink:0">
-          ${isAuto?'🔔':'📌'}
-        </div>
-        <div class="duty-slot" onclick="openEditDutyModal('${d.id}')">
-          <span class="duty-slot-time">${d.start} – ${d.end}</span>
-          <span class="duty-slot-label">${d.label||(isAuto?'Po lekcji '+(d.breakAfterHour||''):'Dyżur')}
-            <span style="font-size:.65rem;color:var(--text-d)">${d.durMins} min</span>
-          </span>
-          <span class="duty-slot-places">${filledDays?filledDays+'/5 dni':''}</span>
-          <span style="font-size:.7rem;color:var(--accent)">✎</span>
-        </div>
-      </div>`;
+      html+=`<div class="duty-settings-row ${isAuto?'break-duty':'extra-duty'}">`;
+      html+=`<div class="hour-row-num" style="display:flex;align-items:center;justify-content:center;border-radius:6px;width:32px;font-size:.65rem;margin-right:6px;background:${isAuto?'var(--accent)':'var(--text-m)'};color:#fff;flex-shrink:0">${isAuto?'🔔':'📌'}</div>`;
+      html+=`<div class="duty-slot" onclick="openEditDutyModal('${d.id}')">`;
+      html+=`<span class="duty-slot-time">${d.start} – ${d.end}</span>`;
+      html+=`<span class="duty-slot-label">${d.label||(isAuto?'Po lekcji '+(d.breakAfterHour||''):'Dyżur')} <span style="font-size:.65rem;color:var(--text-d)">${d.durMins} min</span></span>`;
+      html+=`<span class="duty-slot-places">${filledDays?filledDays+'/5 dni':''}</span>`;
+      html+=`<span style="font-size:.7rem;color:var(--accent)">✎</span>`;
+      html+=`</div>`;
+      html+=`</div>`;
     });
-
     if(!allDuties.length) {
-      html+=`<div style="font-size:.8rem;color:var(--text-m);padding:8px 0;text-align:center">
-        Brak dyżurów. Przerwy generują się automatycznie po dodaniu godzin lekcyjnych.
-      </div>`;
+      html+=`<div style="font-size:.8rem;color:var(--text-m);padding:8px 0;text-align:center">Brak dyżurów.</div>`;
     }
-
-    // Przycisk: dodaj dyżur PO lekcjach
     if(lastHour) {
       const afterStart = lastHour.end;
       const afterEnd   = minsToTime(timeToMins(afterStart) + 15);
-      html+=`<div style="margin-top:6px">
-        <button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed"
-          onclick="openAddDutyModal('${afterStart}','${afterEnd}','Po lekcjach')">
-          + Dyżur po lekcjach
-        </button>
-      </div>`;
+      html+=`<div style="margin-top:6px">`;
+      html+=`<button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('${afterStart}','${afterEnd}','Po lekcjach')">+ Dyżur po lekcjach</button>`;
+      html+=`</div>`;
     }
-
-    html+=`</div>
-      <button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:7px;font-size:.75rem;border-style:dashed"
-        onclick="openAddDutyModal('','','')">+ Dodaj inny dyżur</button>
-    </div>`;
+    html+=`</div>`;
+    html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('','','')">+ Dodaj inny dyżur</button>`;
+    html+=`</div>`;
   }
   html+=`</div>`; // koniec wrappera Godziny+Dyżury
-
   // Danger zone
-  html+=`<div class="settings-card">
-    <div class="settings-card-title" style="color:var(--red)">Strefa niebezpieczna</div>
-    <div style="font-size:.82rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">Operacje, których nie można cofnąć.</div>
-    <button class="wbtn wbtn-danger" onclick="clearSchedule()" style="width:100%;margin-bottom:8px">🗑 Wyczyść cały plan lekcji</button>
-    <button class="wbtn wbtn-danger" onclick="resetApp()" style="width:100%">⚠️ Resetuj całą aplikację</button>
-  </div>`;
-
-  html += `</div>`;
+  html+=`<div class="settings-card" style="grid-column:1/-1">`;
+  html+=`<div class="settings-card-title" style="color:var(--red)">Strefa niebezpieczna</div>`;
+  html+=`<div style="font-size:.82rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">Operacje, których nie można cofnąć.</div>`;
+  html+=`<button class="wbtn wbtn-danger" onclick="clearSchedule()" style="width:100%;margin-bottom:8px">🗑 Wyczyść cały plan lekcji</button>`;
+  html+=`<button class="wbtn wbtn-danger" onclick="resetApp()" style="width:100%">⚠️ Resetuj całą aplikację</button>`;
+  html+=`</div>`;
+  html+=`</div>`; // koniec settings-grid
   document.getElementById('settingsContent').innerHTML = html;
 }
 
