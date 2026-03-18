@@ -716,11 +716,11 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 }
 
 /* ── DUTY MODAL ── */
-.duty-day-place-grid{display:flex;flex-direction:column;gap:6px;margin-top:6px}
-.duty-day-place-row{display:flex;align-items:center;gap:10px}
-.duty-day-place-label{
-  min-width:100px;font-size:.78rem;font-weight:700;color:var(--text-m);
-}
+.duty-day-block{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.duty-day-block-title{font-size:.75rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.duty-slot-row{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border-radius:7px;border:1px solid var(--border)}
+.duty-slot-row:hover{background:var(--s3)}
+.duty-slot-num{font-size:.68rem;color:var(--text-d);min-width:16px;text-align:center;font-family:var(--mono)}
 
 /* ── BUILDING MODAL ── */
 .bld-rooms-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:260px;overflow-y:auto}
@@ -1192,10 +1192,13 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 
     <div id="dmTimeInfo" style="font-size:.75rem;color:var(--text-m);margin-bottom:12px;padding:6px 10px;background:var(--s2);border-radius:6px;display:none"></div>
 
-    <!-- Miejsca per dzień -->
+    <!-- Miejsca + nauczyciele per dzień -->
     <div class="mfield">
-      <label>Miejsca dyżuru dla każdego dnia tygodnia</label>
-      <div class="duty-day-place-grid" id="dmPlacesGrid"></div>
+      <label>Miejsca dyżuru i nauczyciele — per dzień tygodnia</label>
+      <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px">
+        Każdy wiersz to jedno miejsce dyżuru. Możesz dodać wiele miejsc na jeden dzień.
+      </p>
+      <div id="dmPlacesGrid"></div>
     </div>
 
     <div class="modal-actions">
@@ -2879,7 +2882,10 @@ function renderSettings() {
       html+=`</div>`;
     }
     allDuties.forEach(d => {
-      const filledDays = DUTY_DAY_KEYS.filter(k=>d.places&&d.places[k]).length;
+      const filledDays = DUTY_DAY_KEYS.filter(k=>{
+        const v=d.places&&d.places[k];
+        return Array.isArray(v)?v.some(r=>r.place||r.teacherId):!!v;
+      }).length;
       const isAuto = d.type==='break' || (!d.type && d.breakAfterHour!==undefined);
       html+=`<div class="duty-settings-row ${isAuto?'break-duty':'extra-duty'}">`;
       html+=`<div class="hour-row-num" style="display:flex;align-items:center;justify-content:center;border-radius:6px;width:32px;font-size:.65rem;margin-right:6px;background:${isAuto?'var(--accent)':'var(--text-m)'};color:#fff;flex-shrink:0">${isAuto?'🔔':'📌'}</div>`;
@@ -3818,19 +3824,96 @@ function openEditDutyModal(dutyId) {
   document.getElementById('dutyModal').classList.add('show');
 }
 
+// _dmPlaces = {mon:[{place,teacherId}], tue:[...], ...}
+let _dmPlaces = {};
+
+function dmNormalizePlaces(raw) {
+  // Migracja: stary format {mon:'string'} → nowy {mon:[{place,teacherId}]}
+  const out = {};
+  DUTY_DAY_KEYS.forEach(k => {
+    const v = raw[k];
+    if(!v) { out[k]=[]; }
+    else if(typeof v === 'string') { out[k] = v ? [{place:v,teacherId:''}] : []; }
+    else if(Array.isArray(v)) { out[k] = v; }
+    else { out[k]=[]; }
+  });
+  return out;
+}
+
 function dmBuildPlaces(places) {
+  _dmPlaces = dmNormalizePlaces(places||{});
+  dmRenderPlaces();
+}
+
+function dmRenderPlaces() {
   const grid = document.getElementById('dmPlacesGrid');
-  grid.innerHTML = DUTY_DAYS.map((day, i) => {
-    const key = DUTY_DAY_KEYS[i];
-    const val = places[key] || '';
-    return `<div class="duty-day-place-row">
-      <div class="duty-day-place-label">${day}</div>
-      <input class="duty-place-input" style="flex:1" type="text"
-        data-daykey="${key}"
-        value="${val}"
-        placeholder="Miejsce dyżuru (np. Korytarz A, Stołówka)">
+  if(!grid) return;
+  const teacherOpts = '<option value="">— brak —</option>' +
+    sortTeachers(appState.teachers).map(t=>`<option value="${t.id}">${t.last} ${t.first} (${t.abbr})</option>`).join('');
+
+  grid.innerHTML = DUTY_DAYS.map((day, di) => {
+    const key  = DUTY_DAY_KEYS[di];
+    const rows = _dmPlaces[key] || [];
+    const rowsHtml = rows.map((r,ri) => `
+      <div class="duty-slot-row">
+        <span class="duty-slot-num">${ri+1}</span>
+        <input class="minput" style="flex:2;padding:5px 8px;font-size:.78rem" type="text"
+          placeholder="Miejsce (np. Korytarz A)"
+          value="${r.place||''}"
+          oninput="dmPlaceSet('${key}',${ri},'place',this.value)">
+        <select class="mselect" style="flex:1.5;padding:5px 8px;font-size:.75rem"
+          onchange="dmPlaceSet('${key}',${ri},'teacherId',this.value)">
+          ${teacherOpts}
+        </select>
+        <button onclick="dmPlaceRemove('${key}',${ri})"
+          style="padding:4px 8px;border:none;background:none;color:var(--red);cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
+      </div>`).join('');
+
+    return `<div class="duty-day-block">
+      <div class="duty-day-block-title">${day}</div>
+      ${rowsHtml}
+      <button onclick="dmPlaceAdd('${key}')"
+        style="font-size:.72rem;color:var(--accent);background:none;border:1px dashed var(--accent);
+               border-radius:6px;padding:4px 10px;cursor:pointer;align-self:flex-start;margin-top:2px">
+        + dodaj miejsce
+      </button>
     </div>`;
   }).join('');
+
+  // Przywróć wartości selectów (po innerHTML muszą być ustawione JS-em)
+  DUTY_DAY_KEYS.forEach(key => {
+    const rows = _dmPlaces[key]||[];
+    rows.forEach((r,ri) => {
+      const selects = grid.querySelectorAll(`.duty-day-block`);
+      // Szukamy odpowiedniego selecta przez data lub kolejność
+    });
+  });
+  // Prostszy sposób — ustaw wartości selectów
+  const allRows = grid.querySelectorAll('.duty-slot-row');
+  let idx = 0;
+  DUTY_DAY_KEYS.forEach(key => {
+    (_dmPlaces[key]||[]).forEach((r) => {
+      const sel = allRows[idx]?.querySelector('select');
+      if(sel) sel.value = r.teacherId||'';
+      idx++;
+    });
+  });
+}
+
+function dmPlaceAdd(dayKey) {
+  if(!_dmPlaces[dayKey]) _dmPlaces[dayKey]=[];
+  _dmPlaces[dayKey].push({place:'',teacherId:''});
+  dmRenderPlaces();
+}
+
+function dmPlaceRemove(dayKey, ri) {
+  if(_dmPlaces[dayKey]) _dmPlaces[dayKey].splice(ri,1);
+  dmRenderPlaces();
+}
+
+function dmPlaceSet(dayKey, ri, field, val) {
+  if(!_dmPlaces[dayKey] || !_dmPlaces[dayKey][ri]) return;
+  _dmPlaces[dayKey][ri][field] = val;
 }
 
 function dmUpdateLabel() {
@@ -3859,10 +3942,10 @@ function saveDutyModal() {
   if(!start||!end){ notify('Podaj godziny dyżuru'); return; }
   if(timeToMins(end) <= timeToMins(start)){ notify('Koniec musi być późniejszy niż początek'); return; }
 
-  // Zbierz miejsca
+  // Zbierz miejsca z _dmPlaces (nowy format tablicowy)
   const places = {};
-  document.querySelectorAll('#dmPlacesGrid input[data-daykey]').forEach(inp => {
-    places[inp.dataset.daykey] = inp.value.trim();
+  DUTY_DAY_KEYS.forEach(k => {
+    places[k] = (_dmPlaces[k]||[]).filter(r=>r.place||r.teacherId);
   });
 
   if(!appState.duties) appState.duties = [];
@@ -4223,35 +4306,57 @@ function renderDuties() {
   html += `<div class="duty-grid">`;
   appState.duties.forEach(d => {
     const dayKey = DUTY_DAY_KEYS[activeDay];
-    const place  = (d.places[dayKey]||'');
+    const raw    = d.places[dayKey];
+    const slots  = Array.isArray(raw) ? raw : (raw ? [{place:raw,teacherId:''}] : []);
+    const slotsHtml = slots.length
+      ? slots.map(s => {
+          const tch = s.teacherId ? appState.teachers.find(t=>t.id===s.teacherId) : null;
+          return `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+            <span style="font-size:.75rem;background:var(--s3);border-radius:5px;padding:3px 8px;flex:1">${s.place||'—'}</span>
+            ${tch ? `<span style="font-size:.7rem;color:var(--accent);font-family:var(--mono);white-space:nowrap">${tch.abbr}</span>` : ''}
+          </div>`;
+        }).join('')
+      : `<div style="font-size:.75rem;color:var(--text-d);font-style:italic;margin-top:4px">— nie przypisano —</div>`;
     html += `<div class="duty-card">
       <div class="duty-card-time">${d.start} – ${d.end}
         <span style="font-size:.68rem;color:var(--text-d);margin-left:6px">${d.durMins} min</span>
       </div>
-      <div class="duty-card-label">Po lekcji ${d.breakAfterHour} · Przerwa nr ${appState.duties.indexOf(d)+1}</div>
-      <input class="duty-place-input" type="text"
-        placeholder="Miejsce dyżuru (np. Korytarz A, Stołówka)"
-        value="${place}"
-        oninput="dutySetPlace('${d.id}',${activeDay},this.value)">
+      <div class="duty-card-label">${d.label||('Przerwa nr '+(appState.duties.indexOf(d)+1))}</div>
+      ${slotsHtml}
+      <button onclick="openEditDutyModal('${d.id}')"
+        style="margin-top:6px;font-size:.7rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;text-align:left">
+        ✎ edytuj miejsca
+      </button>
     </div>`;
   });
   html += `</div>`;
 
-  // Podgląd — podsumowanie miejsc dla tego dnia
+  // Podsumowanie dnia
   const dayKey = DUTY_DAY_KEYS[activeDay];
-  const filled = appState.duties.filter(d=>d.places[dayKey]);
+  const filled = appState.duties.filter(d=>{
+    const v=d.places[dayKey];
+    return Array.isArray(v)?v.some(s=>s.place||s.teacherId):!!v;
+  });
   if(filled.length) {
     html += `<div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:var(--s2);border:1px solid var(--border)">
       <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
         Podsumowanie — ${DUTY_DAYS[activeDay]}
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px">`;
+      <div style="display:flex;flex-direction:column;gap:6px">`;
     appState.duties.forEach(d => {
-      const place = d.places[dayKey]||'';
-      html += `<div style="display:flex;align-items:center;gap:10px;font-size:.8rem">
-        <span style="font-family:var(--mono);min-width:110px;color:var(--text-m)">${d.start}–${d.end}</span>
-        <span style="${place?'color:var(--text)':'color:var(--text-d);font-style:italic'}">${place||'— nie przypisano —'}</span>
-      </div>`;
+      const raw   = d.places[dayKey];
+      const slots = Array.isArray(raw) ? raw : (raw ? [{place:raw,teacherId:''}] : []);
+      if(!slots.length) return;
+      html += `<div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">${d.start}–${d.end}</span>`;
+      slots.forEach(s => {
+        const tch = s.teacherId ? appState.teachers.find(t=>t.id===s.teacherId) : null;
+        html += `<div style="display:flex;align-items:center;gap:8px;font-size:.8rem;padding-left:8px">
+          <span style="${s.place?'color:var(--text)':'color:var(--text-d);font-style:italic'}">${s.place||'—'}</span>
+          ${tch ? `<span style="color:var(--accent);font-size:.72rem">${tch.first} ${tch.last}</span>` : ''}
+        </div>`;
+      });
+      html += `</div>`;
     });
     html += `</div></div>`;
   }
@@ -4265,11 +4370,15 @@ function dutySetDay(idx) {
 }
 
 function dutySetPlace(dutyId, dayIdx, value) {
+  // Legacy - zachowane dla kompatybilności
   if(!appState.duties) return;
   const d = appState.duties.find(d=>d.id===dutyId);
   if(!d) return;
   if(!d.places) d.places={};
-  d.places[DUTY_DAY_KEYS[dayIdx]] = value;
+  const key = DUTY_DAY_KEYS[dayIdx];
+  const cur = d.places[key];
+  if(Array.isArray(cur)) { if(cur[0]) cur[0].place=value; else cur.push({place:value,teacherId:''}); }
+  else d.places[key] = [{place:value,teacherId:''}];
   persistAll();
 }
 
