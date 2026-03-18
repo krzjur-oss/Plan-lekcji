@@ -2438,30 +2438,41 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   const DAY_SHORT    = ['Pon','Wt','Śr','Czw','Pt'];
 
   // ── Nagłówek ──
-  let html = '<div class="grid-wrap"><table class="sched-grid"><thead><tr>';
-  if(showDayLabel) html += '<th class="hour-header day-label-hdr">Dzień</th>';
-  html += '<th class="hour-header">Nr</th>';
+  let html = '<div class="grid-wrap"><table class="sched-grid"><thead>';
 
-  if(days.length > 1) {
-    days.forEach(di => {
-      html += `<th class="day-header" colspan="${columns.length}">${DAYS[di]}</th>`;
-    });
-  } else {
+  if(showDayLabel) {
+    // Tryb tygodniowy: etykiety dni są w kolumnie bocznej (rowspan) — bez nagłówka dni
+    // Nagłówek: Dzień | Nr | [nazwy klas]
+    html += '<tr>';
+    html += '<th class="hour-header day-label-hdr"></th>';
+    html += '<th class="hour-header">Nr</th>';
     columns.forEach(col => {
       html += `<th class="day-header">${col.label}</th>`;
     });
-  }
-  html += '</tr>';
-
-  // Subheader z nazwami klas (gdy wiele dni i wiele klas)
-  if(days.length > 1 && columns.length > 1) {
+    html += '</tr>';
+  } else if(days.length > 1) {
+    // Wiele dni, bez etykiety bocznej: nagłówek z nazwami dni (colspan) + subheader z klasami
     html += '<tr>';
-    if(showDayLabel) html += '<th></th>';
-    html += '<th></th>';
-    days.forEach(() => {
-      columns.forEach(col => {
-        html += `<th style="font-size:.65rem;padding:4px 8px">${col.label}</th>`;
+    html += '<th class="hour-header">Nr</th>';
+    days.forEach(di => {
+      html += `<th class="day-header" colspan="${columns.length}">${DAYS[di]}</th>`;
+    });
+    html += '</tr>';
+    if(columns.length > 1) {
+      html += '<tr><th></th>';
+      days.forEach(() => {
+        columns.forEach(col => {
+          html += `<th style="font-size:.65rem;padding:4px 8px">${col.label}</th>`;
+        });
       });
+      html += '</tr>';
+    }
+  } else {
+    // Jeden dzień: nagłówek z nazwami klas
+    html += '<tr>';
+    html += '<th class="hour-header">Nr</th>';
+    columns.forEach(col => {
+      html += `<th class="day-header">${col.label}</th>`;
     });
     html += '</tr>';
   }
