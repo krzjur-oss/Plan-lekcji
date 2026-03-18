@@ -1552,6 +1552,20 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       </div>
     </div>
 
+    <div class="mfield">
+      <label>Opiekunowie sali</label>
+      <div id="rmCustodiansWrap" style="display:flex;flex-direction:column;gap:5px;margin-bottom:4px"></div>
+      <button onclick="rmAddCustodian()" style="font-size:.72rem;color:var(--accent);background:none;
+        border:1px dashed var(--accent);border-radius:6px;padding:4px 10px;cursor:pointer;align-self:flex-start">
+        + dodaj opiekuna
+      </button>
+    </div>
+
+    <div class="mfield">
+      <label>Preferowane przedmioty</label>
+      <div id="rmSubjectsWrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;min-height:32px"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="mbtn mbtn-danger" id="rmDeleteBtn" onclick="rmDelete()" style="display:none;margin-right:auto">Usuń salę</button>
       <button class="mbtn mbtn-ghost" onclick="closeRoomModal()">Anuluj</button>
@@ -1693,6 +1707,8 @@ function migrateAppState() {
     if(!r.type)     r.type     = 'full';
     if(r.capacity === undefined) r.capacity = 0;
     if(!r.locationStr) r.locationStr = '';
+    if(!r.custodians) r.custodians = r.custodianId ? [r.custodianId] : [];
+    if(!r.preferredSubjects) r.preferredSubjects = [];
   });
   // Zapewnij że każde miejsce dyżuru ma nowy format tablicowy
   appState.duties.forEach(d => {
@@ -3259,7 +3275,16 @@ function renderSettings() {
           ${r.name}
           ${capBadge}
         </div>
-        <div class="settings-item-meta">${[bld?.name, r.note].filter(Boolean).join(' · ')||''}</div>
+        <div class="settings-item-meta">${(()=>{
+          const parts = [bld?.name, r.note].filter(Boolean);
+          const custs = (r.custodians||[]).map(id=>(appState.teachers||[]).find(t=>t.id===id)).filter(Boolean);
+          if(custs.length) parts.push('Opiekunowie: '+custs.map(t=>t.abbr).join(', '));
+          const prefSubjs = (r.preferredSubjects||[]).map(sid=>{
+            const s=(appState.subjects||[]).find(s=>s.id===sid);
+            return s?`<span style="font-size:.65rem;padding:1px 5px;border-radius:10px;background:${s.color}22;color:var(--text)">${s.abbr||s.name}</span>`:'';
+          }).filter(Boolean).join(' ');
+          return parts.join(' · ') + (prefSubjs ? '<br><span style="font-size:.68rem;color:var(--text-m)">Przedmioty: </span>'+prefSubjs : '');
+        })()}</div>
       </div>
       <div class="settings-item-actions">
         <button class="si-btn" onclick="openEditRoomModal('${r.id}')">Edytuj</button>
@@ -4279,13 +4304,18 @@ function openEditDutyModal(dutyId) {
 let _dmPlaces = {};
 
 function dmNormalizePlaces(raw) {
-  // Migracja: stary format {mon:'string'} → nowy {mon:[{place,teacherId}]}
+  // Migracja: stary string → [{place,teacherIds:[]}], stary teacherId → teacherIds
   const out = {};
   DUTY_DAY_KEYS.forEach(k => {
     const v = raw[k];
     if(!v) { out[k]=[]; }
-    else if(typeof v === 'string') { out[k] = v ? [{place:v,teacherId:''}] : []; }
-    else if(Array.isArray(v)) { out[k] = v; }
+    else if(typeof v === 'string') { out[k] = v ? [{place:v,teacherIds:[]}] : []; }
+    else if(Array.isArray(v)) {
+      out[k] = v.map(r => ({
+        place: r.place||'',
+        teacherIds: r.teacherIds || (r.teacherId ? [r.teacherId] : [])
+      }));
+    }
     else { out[k]=[]; }
   });
   return out;
@@ -4299,27 +4329,43 @@ function dmBuildPlaces(places) {
 function dmRenderPlaces() {
   const grid = document.getElementById('dmPlacesGrid');
   if(!grid) return;
-  const teacherOpts = '<option value="">— brak —</option>' +
+  const teacherOpts = () => '<option value="">— wybierz —</option>' +
     sortTeachers(appState.teachers).map(t=>`<option value="${t.id}">${t.last} ${t.first} (${t.abbr})</option>`).join('');
 
   grid.innerHTML = DUTY_DAYS.map((day, di) => {
     const key  = DUTY_DAY_KEYS[di];
     const rows = _dmPlaces[key] || [];
-    const rowsHtml = rows.map((r,ri) => `
-      <div class="duty-slot-row">
-        <span class="duty-slot-num">${ri+1}</span>
-        <input class="minput" style="flex:2;padding:5px 8px;font-size:.78rem" type="text"
-          placeholder="Miejsce (np. Korytarz A)"
-          value="${r.place||''}"
-          oninput="dmPlaceSet('${key}',${ri},'place',this.value)">
-        <select class="mselect" style="flex:1.5;padding:5px 8px;font-size:.75rem"
-          onchange="dmPlaceSet('${key}',${ri},'teacherId',this.value)">
-          ${teacherOpts}
-        </select>
-        <button onclick="dmPlaceRemove('${key}',${ri})"
-          style="padding:4px 8px;border:none;background:none;color:var(--red);cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
-      </div>`).join('');
-
+    const rowsHtml = rows.map((r,ri) => {
+      const tchList = (r.teacherIds||[]).map((tid,ti) => `
+        <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+          <select class="mselect" style="flex:1;padding:4px 6px;font-size:.73rem"
+            onchange="dmTeacherSet('${key}',${ri},${ti},this.value)">
+            ${teacherOpts()}
+          </select>
+          <button onclick="dmTeacherRemove('${key}',${ri},${ti})"
+            style="padding:2px 6px;border:none;background:none;color:var(--red);cursor:pointer;font-size:.9rem;flex-shrink:0">×</button>
+        </div>`).join('');
+      return `
+        <div class="duty-slot-row" style="flex-direction:column;align-items:stretch;gap:4px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="duty-slot-num">${ri+1}</span>
+            <input class="minput" style="flex:1;padding:5px 8px;font-size:.78rem" type="text"
+              placeholder="Miejsce (np. Korytarz A)"
+              value="${r.place||''}"
+              oninput="dmPlaceSet('${key}',${ri},'place',this.value)">
+            <button onclick="dmPlaceRemove('${key}',${ri})"
+              style="padding:4px 8px;border:none;background:none;color:var(--red);cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
+          </div>
+          <div style="padding-left:24px">
+            ${tchList}
+            <button onclick="dmTeacherAdd('${key}',${ri})"
+              style="font-size:.68rem;color:var(--accent);background:none;border:1px dashed var(--accent);
+                     border-radius:5px;padding:2px 7px;cursor:pointer;margin-top:3px">
+              + nauczyciel
+            </button>
+          </div>
+        </div>`;
+    }).join('');
     return `<div class="duty-day-block">
       <div class="duty-day-block-title">${day}</div>
       ${rowsHtml}
@@ -4331,22 +4377,17 @@ function dmRenderPlaces() {
     </div>`;
   }).join('');
 
-  // Przywróć wartości selectów (po innerHTML muszą być ustawione JS-em)
+  // Ustaw wartości selectów nauczycieli
+  const allSlotRows = grid.querySelectorAll('.duty-slot-row');
+  let slotIdx = 0;
   DUTY_DAY_KEYS.forEach(key => {
-    const rows = _dmPlaces[key]||[];
-    rows.forEach((r,ri) => {
-      const selects = grid.querySelectorAll(`.duty-day-block`);
-      // Szukamy odpowiedniego selecta przez data lub kolejność
-    });
-  });
-  // Prostszy sposób — ustaw wartości selectów
-  const allRows = grid.querySelectorAll('.duty-slot-row');
-  let idx = 0;
-  DUTY_DAY_KEYS.forEach(key => {
-    (_dmPlaces[key]||[]).forEach((r) => {
-      const sel = allRows[idx]?.querySelector('select');
-      if(sel) sel.value = r.teacherId||'';
-      idx++;
+    (_dmPlaces[key]||[]).forEach(r => {
+      const slotRow = allSlotRows[slotIdx];
+      if(slotRow) {
+        const sels = slotRow.querySelectorAll('select');
+        (r.teacherIds||[]).forEach((tid,ti) => { if(sels[ti]) sels[ti].value = tid; });
+      }
+      slotIdx++;
     });
   });
 }
@@ -4357,7 +4398,7 @@ function dmAddToAllDays() {
   if(place === null) return; // anulowano
   DUTY_DAY_KEYS.forEach(key => {
     if(!_dmPlaces[key]) _dmPlaces[key] = [];
-    _dmPlaces[key].push({place: place.trim(), teacherId: ''});
+    _dmPlaces[key].push({place: place.trim(), teacherIds: []});
   });
   dmRenderPlaces();
   notify('Dodano miejsce do wszystkich dni');
@@ -4368,7 +4409,7 @@ function dmCopyFromFirst() {
   if(!src.length) { notify('Brak miejsc w Poniedziałek — najpierw dodaj miejsca tam', 'warn'); return; }
   DUTY_DAY_KEYS.forEach((key, i) => {
     if(i === 0) return; // pomiń poniedziałek
-    _dmPlaces[key] = src.map(r => ({place: r.place, teacherId: r.teacherId}));
+    _dmPlaces[key] = src.map(r => ({place: r.place, teacherIds: [...(r.teacherIds||[])]}));
   });
   dmRenderPlaces();
   notify('Skopiowano miejsca z Poniedziałku do pozostałych dni');
@@ -4381,8 +4422,8 @@ function dmCopyToAllDuties() {
   // Zbierz miejsca z aktualnego stanu _dmPlaces (bieżący modal)
   const srcPlaces = {};
   DUTY_DAY_KEYS.forEach(k => {
-    srcPlaces[k] = (_dmPlaces[k]||[]).filter(r => r.place||r.teacherId)
-                                      .map(r => ({place: r.place, teacherId: r.teacherId}));
+    srcPlaces[k] = (_dmPlaces[k]||[]).filter(r => r.place||(r.teacherIds||[]).length)
+                                      .map(r => ({place: r.place, teacherIds: [...(r.teacherIds||[])]}));
   });
   const hasAny = DUTY_DAY_KEYS.some(k => srcPlaces[k].length > 0);
   if(!hasAny) { notify('Brak miejsc do skopiowania — najpierw dodaj miejsca', 'warn'); return; }
@@ -4401,7 +4442,7 @@ Anuluj = kopiuj tylko miejsca (bez nauczycieli)`
     DUTY_DAY_KEYS.forEach(k => {
       d.places[k] = srcPlaces[k].map(r => ({
         place: r.place,
-        teacherId: withTeacher ? r.teacherId : ''
+        teacherIds: withTeacher ? [...(r.teacherIds||[])] : []
       }));
     });
   });
@@ -4412,8 +4453,24 @@ Anuluj = kopiuj tylko miejsca (bez nauczycieli)`
 
 function dmPlaceAdd(dayKey) {
   if(!_dmPlaces[dayKey]) _dmPlaces[dayKey]=[];
-  _dmPlaces[dayKey].push({place:'',teacherId:''});
+  _dmPlaces[dayKey].push({place:'',teacherIds:[]});
   dmRenderPlaces();
+}
+
+function dmTeacherAdd(dayKey, ri) {
+  if(!_dmPlaces[dayKey]?.[ri]) return;
+  if(!_dmPlaces[dayKey][ri].teacherIds) _dmPlaces[dayKey][ri].teacherIds=[];
+  _dmPlaces[dayKey][ri].teacherIds.push('');
+  dmRenderPlaces();
+}
+
+function dmTeacherRemove(dayKey, ri, ti) {
+  _dmPlaces[dayKey]?.[ri]?.teacherIds?.splice(ti,1);
+  dmRenderPlaces();
+}
+
+function dmTeacherSet(dayKey, ri, ti, val) {
+  if(_dmPlaces[dayKey]?.[ri]?.teacherIds) _dmPlaces[dayKey][ri].teacherIds[ti]=val;
 }
 
 function dmPlaceRemove(dayKey, ri) {
@@ -4422,8 +4479,8 @@ function dmPlaceRemove(dayKey, ri) {
 }
 
 function dmPlaceSet(dayKey, ri, field, val) {
-  if(!_dmPlaces[dayKey] || !_dmPlaces[dayKey][ri]) return;
-  _dmPlaces[dayKey][ri][field] = val;
+  if(!_dmPlaces[dayKey]?.[ri]) return;
+  if(field === 'place') _dmPlaces[dayKey][ri].place = val;
 }
 
 function dmUpdateLabel() {
@@ -4455,7 +4512,9 @@ function saveDutyModal() {
   // Zbierz miejsca z _dmPlaces (nowy format tablicowy)
   const places = {};
   DUTY_DAY_KEYS.forEach(k => {
-    places[k] = (_dmPlaces[k]||[]).filter(r=>r.place||r.teacherId);
+    places[k] = (_dmPlaces[k]||[])
+      .filter(r => r.place || (r.teacherIds||[]).length)
+      .map(r => ({place:r.place, teacherIds:(r.teacherIds||[]).filter(Boolean)}));
   });
 
   if(!appState.duties) appState.duties = [];
@@ -5180,6 +5239,8 @@ function openAddRoomModal() {
   document.getElementById('rmNote').value     = '';
   document.getElementById('rmDeleteBtn').style.display = 'none';
   rmFillBuilding(null);
+  rmFillCustodian([]);
+  rmFillSubjects([]);
   rmSetType('full');
   document.getElementById('roomModal').classList.add('show');
   setTimeout(()=>document.getElementById('rmName').focus(), 80);
@@ -5197,6 +5258,10 @@ function openEditRoomModal(id) {
   document.getElementById('rmNote').value     = r.note     || '';
   document.getElementById('rmDeleteBtn').style.display = '';
   rmFillBuilding(r.buildingId || null);
+  // Obsługa wsteczna: custodianId (stary) lub custodians (nowy format)
+  const custodiansList = r.custodians || (r.custodianId ? [r.custodianId] : []);
+  rmFillCustodian(custodiansList);
+  rmFillSubjects(r.preferredSubjects || []);
   rmSetType(_rmType);
   document.getElementById('roomModal').classList.add('show');
 }
@@ -5210,6 +5275,64 @@ function rmFillBuilding(selectedId) {
     ).join('');
 }
 
+// _rmCustodians: [{teacherId}]
+let _rmCustodians = [];
+
+function rmFillCustodian(custodians) {
+  _rmCustodians = (custodians||[]).map(id=>({teacherId:id}));
+  rmRenderCustodians();
+}
+
+function rmRenderCustodians() {
+  const wrap = document.getElementById('rmCustodiansWrap');
+  if(!wrap) return;
+  const opts = '<option value="">— wybierz —</option>' +
+    sortTeachers(appState.teachers||[]).map(t=>
+      `<option value="${t.id}">${t.last} ${t.first} (${t.abbr})</option>`
+    ).join('');
+  wrap.innerHTML = _rmCustodians.map((c,i) => `
+    <div style="display:flex;align-items:center;gap:6px">
+      <select class="mselect" style="flex:1;padding:5px 8px;font-size:.78rem"
+        onchange="_rmCustodians[${i}].teacherId=this.value">
+        ${opts}
+      </select>
+      <button onclick="rmRemoveCustodian(${i})"
+        style="padding:4px 8px;border:none;background:none;color:var(--red);cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
+    </div>`).join('');
+  // Ustaw wartości selectów
+  wrap.querySelectorAll('select').forEach((sel,i) => {
+    sel.value = _rmCustodians[i]?.teacherId || '';
+  });
+}
+
+function rmAddCustodian() {
+  _rmCustodians.push({teacherId:''});
+  rmRenderCustodians();
+}
+
+function rmRemoveCustodian(i) {
+  _rmCustodians.splice(i,1);
+  rmRenderCustodians();
+}
+
+function rmFillSubjects(selected) {
+  const wrap = document.getElementById('rmSubjectsWrap');
+  if(!wrap) return;
+  const subjects = sortSubjects(appState.subjects||[]);
+  if(!subjects.length) { wrap.innerHTML='<span style="font-size:.72rem;color:var(--text-d)">Brak zdefiniowanych przedmiotów</span>'; return; }
+  wrap.innerHTML = subjects.map(s => {
+    const checked = (selected||[]).includes(s.id) ? 'checked' : '';
+    const color = s.color||'#38bdf8';
+    return `<label style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;
+                          border:1px solid ${color};background:${checked?color+'22':'transparent'};
+                          cursor:pointer;font-size:.72rem;user-select:none;transition:background .15s"
+                   onclick="this.style.background=this.querySelector('input').checked?'transparent':'${color}22'">
+      <input type="checkbox" value="${s.id}" ${checked} style="accent-color:${color};width:13px;height:13px">
+      <span style="color:var(--text)">${s.name}</span>
+    </label>`;
+  }).join('');
+}
+
 function rmSetType(type) {
   _rmType = type;
   document.querySelectorAll('#rmTypeBtns .room-type-btn').forEach(btn=>{
@@ -5220,15 +5343,21 @@ function rmSetType(type) {
 function saveRoomModal() {
   const name = document.getElementById('rmName').value.trim();
   if(!name){ notify('Podaj nazwę sali'); return; }
-  const capacity  = parseInt(document.getElementById('rmCapacity').value)||null;
-  const note      = document.getElementById('rmNote').value.trim();
-  const buildingId= document.getElementById('rmBuilding').value || null;
+  const capacity   = parseInt(document.getElementById('rmCapacity').value)||null;
+  const note       = document.getElementById('rmNote').value.trim();
+  const buildingId = document.getElementById('rmBuilding').value || null;
+  const custodians = _rmCustodians.map(c=>c.teacherId).filter(Boolean);
+  const preferredSubjects = Array.from(
+    document.querySelectorAll('#rmSubjectsWrap input[type=checkbox]:checked')
+  ).map(cb => cb.value);
 
   if(_rmId) {
     const r = appState.rooms.find(r=>r.id===_rmId);
-    if(r){ r.name=name; r.type=_rmType; r.capacity=capacity; r.note=note; r.buildingId=buildingId; }
+    if(r){ r.name=name; r.type=_rmType; r.capacity=capacity; r.note=note;
+           r.buildingId=buildingId; r.custodians=custodians; r.preferredSubjects=preferredSubjects; }
   } else {
-    appState.rooms.push({ id:'room'+Date.now(), name, type:_rmType, capacity, note, buildingId });
+    appState.rooms.push({ id:'room'+Date.now(), name, type:_rmType, capacity, note,
+                          buildingId, custodians, preferredSubjects });
   }
   persistAll(); populateSelects(); renderSettings(); closeRoomModal();
   notify(_rmId ? 'Zaktualizowano salę '+name : 'Dodano salę '+name);
