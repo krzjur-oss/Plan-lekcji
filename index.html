@@ -723,6 +723,39 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .duty-slot-num{font-size:.68rem;color:var(--text-d);min-width:16px;text-align:center;font-family:var(--mono)}
 
 /* ── BUILDING MODAL ── */
+.bm-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px}
+.bm-tab{
+  padding:8px 16px;font-size:.78rem;font-weight:700;cursor:pointer;
+  border:none;background:none;color:var(--text-m);border-bottom:2px solid transparent;
+  margin-bottom:-2px;transition:all .15s;
+}
+.bm-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.bm-tab-panel{display:none}
+.bm-tab-panel.active{display:block}
+
+.bld-struct-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.bld-floor{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.bld-floor-header{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  background:var(--s2);cursor:pointer;
+}
+.bld-floor-label{font-weight:700;font-size:.82rem;flex:1}
+.bld-floor-body{padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+.bld-seg-row{display:flex;align-items:center;gap:6px}
+.bld-seg-chip{
+  display:flex;align-items:center;gap:5px;padding:4px 10px;
+  background:var(--s3);border-radius:6px;font-size:.75rem;font-weight:600;
+}
+.bld-seg-chip button{background:none;border:none;cursor:pointer;color:var(--red);font-size:.9rem;padding:0 2px}
+.bld-add-seg{
+  font-size:.72rem;color:var(--accent);background:none;
+  border:1px dashed var(--accent);border-radius:5px;padding:3px 8px;cursor:pointer;
+}
+.bld-room-check.with-loc .bld-room-loc{
+  font-size:.65rem;color:var(--accent);font-family:var(--mono);margin-left:auto;
+}
+
+/* ── BUILDING MODAL ── (end) */
 .bld-rooms-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:260px;overflow-y:auto}
 .bld-room-check{
   display:flex;align-items:center;gap:10px;padding:8px 12px;
@@ -1213,37 +1246,56 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
      BUILDING EDIT MODAL
 ══════════════════════════════════ -->
 <div class="modal-overlay" id="buildingModal">
-  <div class="modal-box" style="width:500px;max-width:95vw">
+  <div class="modal-box" style="width:580px;max-width:96vw">
     <div class="modal-title" id="buildingModalTitle">Budynek</div>
 
-    <div class="mrow">
-      <div class="mfield" style="flex:2">
-        <label>Nazwa budynku / lokalizacji</label>
-        <input class="minput" id="bmName" placeholder="np. Budynek A, Hala sportowa, Basen">
+    <!-- Zakładki -->
+    <div class="bm-tabs">
+      <button class="bm-tab active" onclick="bmTab('basic',this)">Podstawowe</button>
+      <button class="bm-tab" onclick="bmTab('struct',this)">Struktura</button>
+      <button class="bm-tab" onclick="bmTab('rooms',this)">Sale</button>
+    </div>
+
+    <!-- Zakładka: Podstawowe -->
+    <div class="bm-tab-panel active" id="bmPanel-basic">
+      <div class="mrow">
+        <div class="mfield" style="flex:2">
+          <label>Nazwa budynku / lokalizacji</label>
+          <input class="minput" id="bmName" placeholder="np. Budynek A, Hala sportowa, Basen">
+        </div>
+      </div>
+      <div class="mfield">
+        <label>Adres</label>
+        <input class="minput" id="bmAddress" placeholder="np. ul. Sportowa 5">
+      </div>
+      <div class="mfield">
+        <label>Uwagi</label>
+        <input class="minput" id="bmNote" placeholder="np. dojazd autobusem, 15 min od szkoły">
+      </div>
+      <div class="mfield">
+        <label>Kolor identyfikacyjny</label>
+        <div class="bld-color-row" id="bmColorRow"></div>
       </div>
     </div>
 
-    <div class="mfield">
-      <label>Adres</label>
-      <input class="minput" id="bmAddress" placeholder="np. ul. Sportowa 5">
-    </div>
-
-    <div class="mfield">
-      <label>Uwagi</label>
-      <input class="minput" id="bmNote" placeholder="np. dojazd autobusem, 15 min od szkoły">
-    </div>
-
-    <div class="mfield">
-      <label>Kolor identyfikacyjny</label>
-      <div class="bld-color-row" id="bmColorRow"></div>
-    </div>
-
-    <div class="mfield">
-      <label>Sale należące do tego budynku</label>
-      <div class="bld-rooms-list" id="bmRoomsList"></div>
-      <p style="font-size:.72rem;color:var(--text-m);margin-top:6px">
-        Zaznaczenie sali zmienia jej przypisanie na ten budynek. Odznaczenie ustawia „brak budynku".
+    <!-- Zakładka: Struktura -->
+    <div class="bm-tab-panel" id="bmPanel-struct">
+      <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px">
+        Zdefiniuj piętra i segmenty budynku. Sale i miejsca dyżurów będą przypisywane do konkretnej lokalizacji.
       </p>
+      <div class="bld-struct-list" id="bmStructList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input class="minput" id="bmNewFloorLabel" placeholder="Nazwa piętra (np. Parter, I piętro, Piwnica)" style="flex:1">
+        <button class="mbtn mbtn-primary" style="white-space:nowrap" onclick="bmAddFloor()">+ Piętro</button>
+      </div>
+    </div>
+
+    <!-- Zakładka: Sale -->
+    <div class="bm-tab-panel" id="bmPanel-rooms">
+      <p style="font-size:.72rem;color:var(--text-m);margin-bottom:8px">
+        Zaznacz sale należące do tego budynku i przypisz je do piętra / segmentu.
+      </p>
+      <div class="bld-rooms-list" id="bmRoomsList"></div>
     </div>
 
     <div class="modal-actions">
@@ -2808,23 +2860,22 @@ function renderSettings() {
   if((appState.buildings||[]).length){
     html+=`<ul class="settings-list">`;
     appState.buildings.forEach(b=>{
-      const rooms = appState.rooms.filter(r=>r.buildingId===b.id);
-      const roomNames = rooms.slice(0,4).map(r=>{
-        const rt = ROOM_TYPES[r.type]||ROOM_TYPES.full;
-        return `<span style="font-size:.7rem;background:var(--s3);border-radius:4px;padding:1px 6px">${rt.icon} ${r.name}</span>`;
-      }).join(' ');
-      const more = rooms.length > 4 ? `<span style="font-size:.7rem;color:var(--text-d)">+${rooms.length-4} więcej</span>` : '';
+      const rooms  = appState.rooms.filter(r=>r.buildingId===b.id);
+      const floors = b.floors||[];
+      const preview = floors.length
+        ? floors.map(fl=>`<span style="font-size:.68rem;background:var(--s3);border-radius:4px;padding:2px 7px;white-space:nowrap">🏢 ${fl.label}${fl.segments.length?' · '+fl.segments.map(s=>s.label).join(', '):''}</span>`).join(' ')
+        : rooms.slice(0,4).map(r=>{ const rt=ROOM_TYPES[r.type]||ROOM_TYPES.full; return `<span style="font-size:.7rem;background:var(--s3);border-radius:4px;padding:1px 6px">${rt.icon} ${r.name}</span>`; }).join(' ')+(rooms.length>4?`<span style="font-size:.7rem;color:var(--text-d)">+${rooms.length-4}</span>`:'');
       html+=`<li class="settings-item" style="flex-direction:column;align-items:stretch;gap:8px">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="cdot" style="background:${b.color};width:14px;height:14px;flex-shrink:0"></span>
           <div style="flex:1">
             <div class="settings-item-name">${b.name}</div>
-            <div class="settings-item-meta">${[b.address,b.note].filter(Boolean).join(' · ')}</div>
+            <div class="settings-item-meta">${[b.address,b.note].filter(Boolean).join(' · ')||''}${floors.length?' · '+floors.length+' pięt(r)':''}</div>
           </div>
           <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">${rooms.length} sal</span>
           <button class="si-btn" onclick="openEditBuildingModal('${b.id}')">Edytuj</button>
         </div>
-        ${rooms.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:22px">${roomNames}${more}</div>` : ''}
+        ${preview ? `<div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:22px">${preview}</div>` : ''}
       </li>`;
     });
     html+=`</ul>`;
@@ -4002,19 +4053,32 @@ const BLD_COLORS = [
   '#a78bfa','#2dd4bf','#fb923c','#f472b6',
   '#818cf8','#4ade80','#e879f9','#67e8f9'
 ];
-let _bmId    = null;
-let _bmColor = BLD_COLORS[0];
+let _bmId     = null;
+let _bmColor  = BLD_COLORS[0];
+let _bmFloors = []; // [{id, label, segments:[{id,label}]}]
 
+// ── Zakładki ──
+function bmTab(name, btn) {
+  document.querySelectorAll('.bm-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.bm-tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('bmPanel-'+name).classList.add('active');
+}
+
+// ── Otwieranie ──
 function openAddBuildingModal() {
   if(!appState) return;
   _bmId    = null;
   _bmColor = BLD_COLORS[(appState.buildings||[]).length % BLD_COLORS.length];
+  _bmFloors = [];
   document.getElementById('buildingModalTitle').textContent = 'Dodaj budynek / lokalizację';
   document.getElementById('bmName').value    = '';
   document.getElementById('bmAddress').value = '';
   document.getElementById('bmNote').value    = '';
   document.getElementById('bmDeleteBtn').style.display = 'none';
+  bmTab('basic', document.querySelector('.bm-tab'));
   bmBuildColors();
+  bmRenderStruct();
   bmBuildRooms(null);
   document.getElementById('buildingModal').classList.add('show');
   setTimeout(()=>document.getElementById('bmName').focus(), 80);
@@ -4026,102 +4090,254 @@ function openEditBuildingModal(id) {
   if(!b) return;
   _bmId    = id;
   _bmColor = b.color || BLD_COLORS[0];
+  _bmFloors = JSON.parse(JSON.stringify(b.floors||[]));
   document.getElementById('buildingModalTitle').innerHTML = `Edytuj <span>${b.name}</span>`;
   document.getElementById('bmName').value    = b.name    || '';
   document.getElementById('bmAddress').value = b.address || '';
   document.getElementById('bmNote').value    = b.note    || '';
   document.getElementById('bmDeleteBtn').style.display = '';
+  bmTab('basic', document.querySelector('.bm-tab'));
   bmBuildColors();
+  bmRenderStruct();
   bmBuildRooms(id);
   document.getElementById('buildingModal').classList.add('show');
 }
 
+// ── Kolory ──
 function bmBuildColors() {
   document.getElementById('bmColorRow').innerHTML = BLD_COLORS.map(c =>
     `<div class="bld-color-sw ${c===_bmColor?'sel':''}" style="background:${c}"
       onclick="bmPickColor('${c}')"></div>`
   ).join('');
 }
+function bmPickColor(c) { _bmColor=c; bmBuildColors(); }
 
-function bmPickColor(c) {
-  _bmColor = c;
-  bmBuildColors();
+// ── Struktura: piętra i segmenty ──
+function bmAddFloor() {
+  const inp = document.getElementById('bmNewFloorLabel');
+  const label = inp.value.trim();
+  if(!label){ notify('Podaj nazwę piętra'); return; }
+  _bmFloors.push({ id:'fl_'+Date.now(), label, segments:[] });
+  inp.value = '';
+  bmRenderStruct();
+}
+
+function bmRemoveFloor(fid) {
+  _bmFloors = _bmFloors.filter(f=>f.id!==fid);
+  bmRenderStruct();
+  bmBuildRooms(_bmId); // odśwież selecty lokalizacji w salach
+}
+
+function bmAddSegment(fid) {
+  const inp = document.getElementById('bmSegInp_'+fid);
+  const label = inp?.value.trim();
+  if(!label){ notify('Podaj nazwę segmentu'); return; }
+  const fl = _bmFloors.find(f=>f.id===fid);
+  if(fl){ fl.segments.push({id:'seg_'+Date.now(), label}); inp.value=''; }
+  bmRenderStruct();
+  bmBuildRooms(_bmId);
+}
+
+function bmRemoveSegment(fid, sid) {
+  const fl = _bmFloors.find(f=>f.id===fid);
+  if(fl) fl.segments = fl.segments.filter(s=>s.id!==sid);
+  bmRenderStruct();
+  bmBuildRooms(_bmId);
+}
+
+function bmRenderStruct() {
+  const list = document.getElementById('bmStructList');
+  if(!list) return;
+  if(!_bmFloors.length) {
+    list.innerHTML = `<div style="font-size:.8rem;color:var(--text-m);padding:8px 0;text-align:center">
+      Brak pięter — dodaj pierwsze piętro poniżej.<br>
+      <span style="font-size:.72rem">Przykłady: Parter, I piętro, II piętro, Piwnica, Skrzydło A</span>
+    </div>`;
+    return;
+  }
+  list.innerHTML = _bmFloors.map(fl => `
+    <div class="bld-floor">
+      <div class="bld-floor-header">
+        <span class="bld-floor-label">🏢 ${fl.label}</span>
+        <span style="font-size:.7rem;color:var(--text-d)">${fl.segments.length} segmentów</span>
+        <button onclick="bmRemoveFloor('${fl.id}')"
+          style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.85rem;padding:2px 6px">✕</button>
+      </div>
+      <div class="bld-floor-body">
+        <div style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px">
+          ${fl.segments.map(s=>`
+            <div class="bld-seg-chip">
+              <span>${s.label}</span>
+              <button onclick="bmRemoveSegment('${fl.id}','${s.id}')">×</button>
+            </div>`).join('')}
+          ${!fl.segments.length ? `<span style="font-size:.72rem;color:var(--text-d);font-style:italic">brak segmentów</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <input class="minput" id="bmSegInp_${fl.id}"
+            placeholder="Nazwa segmentu (np. Skrzydło A, Sala nr, Pracownie)"
+            style="flex:1;padding:5px 8px;font-size:.75rem"
+            onkeydown="if(event.key==='Enter')bmAddSegment('${fl.id}')">
+          <button class="bld-add-seg" onclick="bmAddSegment('${fl.id}')">+ Segment</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Sale z przypisaniem do piętra/segmentu ──
+function bmLocOptions(roomId) {
+  // Opcje lokalizacji: piętro + opcjonalnie segment
+  if(!_bmFloors.length) return '';
+  let opts = '<option value="">— brak lokalizacji —</option>';
+  _bmFloors.forEach(fl => {
+    opts += `<option value="floor:${fl.id}">📍 ${fl.label}</option>`;
+    fl.segments.forEach(s => {
+      opts += `<option value="seg:${fl.id}:${s.id}">↳ ${fl.label} › ${s.label}</option>`;
+    });
+  });
+  return opts;
+}
+
+function bmLocLabel(locStr) {
+  if(!locStr) return '';
+  const parts = locStr.split(':');
+  if(parts[0]==='floor') {
+    const fl = _bmFloors.find(f=>f.id===parts[1]);
+    return fl ? fl.label : '';
+  }
+  if(parts[0]==='seg') {
+    const fl = _bmFloors.find(f=>f.id===parts[1]);
+    const seg = fl?.segments.find(s=>s.id===parts[2]);
+    return (fl&&seg) ? `${fl.label} › ${seg.label}` : '';
+  }
+  return '';
 }
 
 function bmBuildRooms(bldId) {
   const container = document.getElementById('bmRoomsList');
+  if(!container) return;
   if(!(appState.rooms||[]).length) {
     container.innerHTML = '<span style="font-size:.78rem;color:var(--text-m)">Brak sal w systemie — dodaj sale w ustawieniach.</span>';
     return;
   }
+  const hasStruct = _bmFloors.length > 0;
   container.innerHTML = sortByName(appState.rooms).map(r => {
-    const rt      = ROOM_TYPES[r.type] || ROOM_TYPES.full;
-    const checked = r.buildingId === bldId && bldId !== null;
+    const rt       = ROOM_TYPES[r.type] || ROOM_TYPES.full;
+    const checked  = r.buildingId === bldId && bldId !== null;
     const otherBld = (!checked && r.buildingId)
       ? (appState.buildings||[]).find(b=>b.id===r.buildingId) : null;
-    return `<label class="bld-room-check ${checked?'checked':''}">
-      <input type="checkbox" value="${r.id}" ${checked?'checked':''}
-        onchange="this.closest('label').classList.toggle('checked',this.checked)">
-      <span class="bld-room-icon">${rt.icon}</span>
-      <span class="bld-room-name">${r.name}</span>
-      <span class="bld-room-type">${rt.label}${r.capacity?' · '+r.capacity+' os.':''}</span>
-      ${otherBld
-        ? `<span style="font-size:.68rem;color:var(--text-d)">(${otherBld.name})</span>`
-        : ''}
-    </label>`;
+    const locStr   = checked ? (r.locationStr||'') : '';
+    const locLbl   = locStr ? bmLocLabel(locStr) : '';
+
+    return `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px">
+      <label class="bld-room-check ${checked?'checked':''} ${locLbl?'with-loc':''}">
+        <input type="checkbox" value="${r.id}" ${checked?'checked':''}
+          onchange="this.closest('.bld-room-check').classList.toggle('checked',this.checked);bmRefreshLocSelect('${r.id}',this.checked)">
+        <span class="bld-room-icon">${rt.icon}</span>
+        <span class="bld-room-name">${r.name}</span>
+        <span class="bld-room-type">${rt.label}${r.capacity?' · '+r.capacity+' os.':''}</span>
+        ${otherBld ? `<span style="font-size:.68rem;color:var(--text-d)">(${otherBld.name})</span>` : ''}
+        ${locLbl ? `<span class="bld-room-loc">${locLbl}</span>` : ''}
+      </label>
+      ${hasStruct && checked ? `
+        <div id="bmLocRow_${r.id}" style="padding-left:32px">
+          <select class="mselect" style="font-size:.74rem;padding:4px 8px"
+            id="bmLocSel_${r.id}"
+            onchange="bmRoomLocChange('${r.id}',this.value)">
+            ${bmLocOptions(r.id)}
+          </select>
+        </div>` : `<div id="bmLocRow_${r.id}" style="display:none"></div>`}
+    </div>`;
   }).join('');
+
+  // Ustaw wartości selectów lokalizacji
+  sortByName(appState.rooms).filter(r=>r.buildingId===bldId).forEach(r => {
+    const sel = document.getElementById('bmLocSel_'+r.id);
+    if(sel) sel.value = r.locationStr||'';
+  });
 }
 
+function bmRefreshLocSelect(roomId, checked) {
+  const row = document.getElementById('bmLocRow_'+roomId);
+  if(!row) return;
+  if(checked && _bmFloors.length) {
+    row.style.display = '';
+    if(!row.querySelector('select')) {
+      row.innerHTML = `<select class="mselect" style="font-size:.74px;padding:4px 8px"
+        id="bmLocSel_${roomId}" onchange="bmRoomLocChange('${roomId}',this.value)">
+        ${bmLocOptions(roomId)}
+      </select>`;
+    }
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function bmRoomLocChange(roomId, locStr) {
+  // Zapisujemy tymczasowo do _bmRoomLocs żeby save mógł to odczytać
+  if(!window._bmRoomLocs) window._bmRoomLocs = {};
+  window._bmRoomLocs[roomId] = locStr;
+}
+
+// ── Zapis ──
 function saveBuildingModal() {
   const name    = document.getElementById('bmName').value.trim();
   if(!name){ notify('Podaj nazwę budynku'); return; }
   const address = document.getElementById('bmAddress').value.trim();
   const note    = document.getElementById('bmNote').value.trim();
 
-  // Zbierz zaznaczone sale
-  const checkedRoomIds = [...document.querySelectorAll('#bmRoomsList input:checked')]
-    .map(i=>i.value);
-  // Odznaczone sale które należały do tego budynku → wyczyść buildingId
-  const uncheckedRoomIds = [...document.querySelectorAll('#bmRoomsList input:not(:checked)')]
-    .map(i=>i.value);
+  const checkedRoomIds = [...document.querySelectorAll('#bmRoomsList input:checked')].map(i=>i.value);
+  const uncheckedRoomIds = [...document.querySelectorAll('#bmRoomsList input:not(:checked)')].map(i=>i.value);
 
   let bldId;
   if(_bmId) {
-    // Edycja
     const b = appState.buildings.find(b=>b.id===_bmId);
-    if(b){ b.name=name; b.address=address; b.note=note; b.color=_bmColor; }
+    if(b){ b.name=name; b.address=address; b.note=note; b.color=_bmColor; b.floors=_bmFloors; }
     bldId = _bmId;
   } else {
-    // Nowy
     bldId = 'bld' + Date.now();
     if(!appState.buildings) appState.buildings = [];
-    appState.buildings.push({ id:bldId, name, address, note, color:_bmColor });
+    appState.buildings.push({ id:bldId, name, address, note, color:_bmColor, floors:_bmFloors });
   }
 
-  // Zaktualizuj buildingId sal
-  appState.rooms.forEach(r => {
-    if(checkedRoomIds.includes(r.id))   r.buildingId = bldId;
-    if(uncheckedRoomIds.includes(r.id) && r.buildingId === bldId) r.buildingId = null;
+  // Lokalizacje z selectów
+  const roomLocs = window._bmRoomLocs || {};
+  // Też odczytaj aktualne wartości selectów z DOM
+  document.querySelectorAll('[id^="bmLocSel_"]').forEach(sel => {
+    const rid = sel.id.replace('bmLocSel_','');
+    roomLocs[rid] = sel.value;
   });
 
+  appState.rooms.forEach(r => {
+    if(checkedRoomIds.includes(r.id)) {
+      r.buildingId  = bldId;
+      r.locationStr = roomLocs[r.id] || r.locationStr || '';
+    }
+    if(uncheckedRoomIds.includes(r.id) && r.buildingId===bldId) {
+      r.buildingId  = null;
+      r.locationStr = '';
+    }
+  });
+
+  window._bmRoomLocs = {};
   persistAll(); populateSelects(); renderSettings(); closeBuildingModal();
   notify(_bmId ? 'Zaktualizowano: '+name : 'Dodano: '+name);
 }
 
+// ── Usuń ──
 function bmDelete() {
   if(!_bmId) return;
   const b = (appState.buildings||[]).find(b=>b.id===_bmId);
   if(!confirm(`Usunąć budynek "${b?b.name:''}"? Sale pozostaną, ale stracą przypisanie do budynku.`)) return;
   appState.buildings = appState.buildings.filter(b=>b.id!==_bmId);
-  // Usuń buildingId z sal
-  appState.rooms.forEach(r=>{ if(r.buildingId===_bmId) r.buildingId=null; });
+  appState.rooms.forEach(r=>{ if(r.buildingId===_bmId){ r.buildingId=null; r.locationStr=''; } });
   persistAll(); populateSelects(); renderSettings(); closeBuildingModal();
   notify('Budynek usunięty');
 }
 
 function closeBuildingModal() {
   document.getElementById('buildingModal').classList.remove('show');
-  _bmId = null;
+  _bmId = null; _bmFloors = [];
+  window._bmRoomLocs = {};
 }
 document.getElementById('buildingModal').addEventListener('click', function(e){
   if(e.target===this) closeBuildingModal();
