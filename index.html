@@ -2619,11 +2619,12 @@ function renderMatrixView() {
     // ale clsId trzeba wybrać → otwieramy modal z wyborem klasy
     let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>
       <th class="row-header" style="min-width:52px">Godz.</th>`;
-    appState.teachers.forEach(t=>html+=`<th title="${t.first} ${t.last}">${t.abbr}</th>`);
+    sortTeachers(appState.teachers).forEach(t=>html+=`<th title="${t.first} ${t.last}">${t.abbr}</th>`);
     html+='</tr></thead><tbody>';
+    const sortedTch = sortTeachers(appState.teachers);
     hours.forEach(h=>{
       html+=`<tr><td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
-      appState.teachers.forEach(t=>{
+      sortedTch.forEach(t=>{
         // Znajdź lekcję tego nauczyciela w tej godzinie
         const entry=Object.entries(schedData).find(([k,v])=>{
           const parts=k.split('_');
