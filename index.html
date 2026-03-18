@@ -1607,10 +1607,33 @@ function migrateAppState() {
     if(!c.groups)    c.groups    = [];
     if(!c.homeRooms) c.homeRooms = [];
   });
-  // Zapewnij że każdy nauczyciel ma subjects i assignments
+  // Zapewnij że każdy nauczyciel ma subjects, assignments i nowe pola
   sortTeachers(appState.teachers).forEach(t => {
-    if(!t.subjects)    t.subjects    = [];
-    if(!t.assignments) t.assignments = [];
+    if(!t.subjects)           t.subjects           = [];
+    if(!t.assignments)        t.assignments        = [];
+    if(!t.individualTeaching) t.individualTeaching = [];
+    if(t.hoursTotal === undefined) t.hoursTotal = 0;
+    if(t.hoursExtra === undefined) t.hoursExtra = 0;
+  });
+  // Zapewnij że każdy budynek ma floors
+  appState.buildings.forEach(b => {
+    if(!b.floors) b.floors = [];
+  });
+  // Zapewnij że każda sala ma type, capacity, locationStr
+  appState.rooms.forEach(r => {
+    if(!r.type)     r.type     = 'full';
+    if(r.capacity === undefined) r.capacity = 0;
+    if(!r.locationStr) r.locationStr = '';
+  });
+  // Zapewnij że każde miejsce dyżuru ma nowy format tablicowy
+  appState.duties.forEach(d => {
+    if(!d.places) d.places = {};
+    ['mon','tue','wed','thu','fri'].forEach(k => {
+      const raw = d.places[k];
+      if(!Array.isArray(raw)) {
+        d.places[k] = raw ? [{place: raw, teacherId:''}] : [];
+      }
+    });
   });
 }
 function persistAll() {
@@ -3132,16 +3155,6 @@ function renderSettings() {
   document.getElementById('settingsContent').innerHTML = html;
 }
 
-function settingsAddClass() {
-  // Zachowane dla kompatybilności — używaj openAddClassModal()
-  openAddClassModal();
-}
-function settingsAddRoom() { openAddRoomModal(); }
-function removeClass(id) {
-  // Teraz obsługiwane przez cmDeleteClass() w modalu
-  openEditClassModal(id);
-}
-function removeSubject(id) { openEditSubjectModal(id); }
 function toggleTchCard(id) {
   const card = document.getElementById('tcard_' + id);
   if (card) card.classList.toggle('open');
@@ -3152,12 +3165,6 @@ function toggleClsCard(id) {
   if (card) card.classList.toggle('open');
 }
 
-function removeTeacher(id) {
-  appState.teachers=appState.teachers.filter(t=>t.id!==id);
-  persistAll();populateSelects();renderSettings();
-}
-function removeRoom(id) { openEditRoomModal(id); }
-function removeHour(num) { openEditHourModal(num); }
 function clearSchedule() {
   if(!confirm('Wyczyścić cały plan? Wszystkie lekcje zostaną usunięte.'))return;
   schedData={};persistAll();renderCurrentView();detectAndShowConflicts();notify('Plan wyczyszczony');
@@ -4741,19 +4748,6 @@ function renderDuties() {
 function dutySetDay(idx) {
   const wrap = document.getElementById('dutyContent');
   if(wrap) { wrap.dataset.activeDay = idx; renderDuties(); }
-}
-
-function dutySetPlace(dutyId, dayIdx, value) {
-  // Legacy - zachowane dla kompatybilności
-  if(!appState.duties) return;
-  const d = appState.duties.find(d=>d.id===dutyId);
-  if(!d) return;
-  if(!d.places) d.places={};
-  const key = DUTY_DAY_KEYS[dayIdx];
-  const cur = d.places[key];
-  if(Array.isArray(cur)) { if(cur[0]) cur[0].place=value; else cur.push({place:value,teacherId:''}); }
-  else d.places[key] = [{place:value,teacherId:''}];
-  persistAll();
 }
 
 // ================================================================
