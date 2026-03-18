@@ -347,14 +347,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   font-size:.8rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:700;
 }
 .sched-grid th.hour-header{width:52px;text-align:center}
-.day-label-hdr{width:30px;min-width:30px}
+.day-label-hdr{width:28px;min-width:28px;padding:0}
 .day-label-cell{
-  text-align:center;font-size:.68rem;font-weight:800;
-  color:var(--accent);background:var(--accent-g);
-  border-right:2px solid var(--accent);
-  padding:4px 3px;white-space:nowrap;vertical-align:middle;
+  text-align:center;font-size:.72rem;font-weight:800;
+  color:var(--accent);
+  background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
+  border-right:3px solid var(--accent);
+  border-bottom:2px solid var(--border);
+  padding:8px 4px;white-space:nowrap;vertical-align:middle;
   writing-mode:vertical-rl;text-orientation:mixed;
-  letter-spacing:.06em;
+  letter-spacing:.12em;text-transform:uppercase;
+  user-select:none;
 }
 .sched-grid td {
   border:1px solid var(--border);
@@ -2435,7 +2438,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   if(!hours.length) return '<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';
 
   const showDayLabel = !!(opts.showDayLabel && days.length > 1);
-  const DAY_SHORT    = ['Pon','Wt','Śr','Czw','Pt'];
+  // DAY_SHORT zastąpione przez DAYS[]
 
   // ── Nagłówek ──
   let html = '<div class="grid-wrap"><table class="sched-grid"><thead>';
@@ -2526,7 +2529,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
         html += '<tr>';
         if(hi === 0) {
           // Etykieta dnia z rowspan = liczba godzin
-          html += `<td class="day-label-cell" rowspan="${hours.length}">${DAY_SHORT[di]}</td>`;
+          html += `<td class="day-label-cell" rowspan="${hours.length}">${DAYS[di]}</td>`;
         }
         html += `<td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
         columns.forEach(col => { html += cellHtml(col, di, h); });
@@ -2573,7 +2576,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
       hours.forEach((h, hi)=>{
         html += '<tr>';
         if(hi===0){
-          html += `<td class="day-label-cell" rowspan="${hours.length}">${DAY_SHORT[di]}</td>`;
+          html += `<td class="day-label-cell" rowspan="${hours.length}">${DAYS[di]}</td>`;
         }
         html += `<td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
         columns.forEach(col=>{
