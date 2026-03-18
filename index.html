@@ -352,17 +352,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .sched-grid th.day-header{
   font-size:.78rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:700;
 }
-/* Narożnik lewy górny (pusty, gdy showDayLabel) — sticky top+left */
+/* Kolumna dnia — szerokość bazowa */
+:root { --day-col-w: 22px; --hour-col-w: 54px; }
+
+/* Narożnik lewy górny */
 .day-label-hdr{
-  width:18px;min-width:18px;padding:0;
+  width:var(--day-col-w);min-width:var(--day-col-w);max-width:var(--day-col-w);padding:0;
   position:sticky;top:0;left:0;z-index:7;
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
+  overflow:hidden;
 }
-/* Nagłówek godzin — sticky top, left ustawiany inline */
+/* Nagłówek godzin */
 .sched-grid th.hour-header{
-  width:52px;min-width:52px;
+  width:var(--hour-col-w);min-width:var(--hour-col-w);
   text-align:center;
+  position:sticky;top:0;left:var(--day-col-w);z-index:6;
+  background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
 }
 .sched-grid td {
@@ -373,26 +379,36 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 /* Kolumna dnia — sticky lewa */
 .day-label-cell{
-  text-align:center;font-size:.55rem;font-weight:800;
+  text-align:center;font-size:.58rem;font-weight:800;
   color:var(--accent);
   background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
   border-right:3px solid var(--accent) !important;
   border-bottom:1px solid var(--border) !important;
-  padding:4px 1px;white-space:nowrap;vertical-align:middle;
+  padding:4px 0;white-space:nowrap;vertical-align:middle;
   writing-mode:vertical-rl;text-orientation:mixed;
-  letter-spacing:.08em;text-transform:uppercase;
+  letter-spacing:.06em;text-transform:uppercase;
   user-select:none;
-  width:18px;min-width:18px;
+  width:var(--day-col-w);min-width:var(--day-col-w);max-width:var(--day-col-w);
+  overflow:hidden;
   position:sticky;left:0;z-index:3;
 }
-/* Kolumna godzin — sticky lewa za kolumną dnia */
+/* Kolumna godzin — sticky, domyślnie left:0 */
 .hour-cell{
   background:var(--s2);text-align:center;font-size:.72rem;
   font-family:var(--mono);color:var(--text-m);font-weight:500;
-  padding:0 6px;width:52px;min-width:52px;
+  padding:0 4px;
+  width:var(--hour-col-w);min-width:var(--hour-col-w);max-width:var(--hour-col-w);
   position:sticky;left:0;z-index:2;
   border-right:1px solid var(--border) !important;
   border-bottom:1px solid var(--border);
+  overflow:hidden;
+}
+/* Gdy jest kolumna dnia — hour-cell przesuwa się za nią */
+.grid-wrap.has-day-col .hour-cell{
+  left:var(--day-col-w);
+}
+.grid-wrap.has-day-col th.hour-header{
+  left:var(--day-col-w);
 }
 .sched-grid td.droptarget-hover{background:var(--accent-g);outline:2px dashed var(--accent);outline-offset:-2px}
 .sched-grid td.empty-cell{cursor:pointer}
@@ -2464,14 +2480,14 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   // DAY_SHORT zastąpione przez DAYS[]
 
   // ── Nagłówek ──
-  let html = '<div class="grid-wrap"><table class="sched-grid"><thead>';
+  let html = `<div class="grid-wrap${showDayLabel?' has-day-col':''}"><table class="sched-grid"><thead>`;
 
   if(showDayLabel) {
     // Tryb tygodniowy: etykiety dni są w kolumnie bocznej (rowspan) — bez nagłówka dni
     // Nagłówek: Dzień | Nr | [nazwy klas]
     html += '<tr>';
     html += '<th class="day-label-hdr"></th>';
-    html += '<th class="hour-header" style="position:sticky;top:0;left:18px;z-index:5">Nr</th>';
+    html += '<th class="hour-header">Nr</th>';
     columns.forEach(col => {
       html += `<th class="day-header">${col.label}</th>`;
     });
@@ -2479,7 +2495,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else if(days.length > 1) {
     // Wiele dni, bez etykiety bocznej: nagłówek z nazwami dni (colspan) + subheader z klasami
     html += '<tr>';
-    html += '<th class="hour-header" style="left:0">Nr</th>';
+    html += '<th class="hour-header">Nr</th>';
     days.forEach(di => {
       html += `<th class="day-header" colspan="${columns.length}">${DAYS[di]}</th>`;
     });
@@ -2496,7 +2512,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else {
     // Jeden dzień: nagłówek z nazwami klas
     html += '<tr>';
-    html += '<th class="hour-header" style="left:0">Nr</th>';
+    html += '<th class="hour-header">Nr</th>';
     columns.forEach(col => {
       html += `<th class="day-header">${col.label}</th>`;
     });
@@ -2554,7 +2570,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
           // Etykieta dnia z rowspan = liczba godzin
           html += `<td class="day-label-cell" rowspan="${hours.length}">${DAYS[di]}</td>`;
         }
-        html += `<td class="hour-cell" style="left:18px">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+        html += `<td class="hour-cell" >${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
         columns.forEach(col => { html += cellHtml(col, di, h); });
         html += '</tr>';
       });
