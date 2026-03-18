@@ -2698,7 +2698,7 @@ function renderSettings() {
     html += `<div style="color:var(--text-m);font-size:.82rem;padding:8px 0">Brak nauczycieli — dodaj pierwszego.</div>`;
   }
 
-  appState.teachers.forEach(t => {
+  sortTeachers(appState.teachers).forEach(t => {
     const subjects = (t.subjects||[]).map(sid => {
       const s = appState.subjects.find(s=>s.id===sid);
       return s ? `<span class="tch-badge" style="background:${hexToRgba(s.color,.18)};color:${s.color}">${s.abbr}</span>` : '';
