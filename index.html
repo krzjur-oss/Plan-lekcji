@@ -340,9 +340,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .sched-grid{
   border-collapse:separate;border-spacing:0;
   background:var(--s1);
-  table-layout:fixed;
 }
-.sched-grid th {
+.sched-grid th{
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
   padding:7px 10px;font-size:.7rem;font-weight:700;
@@ -354,55 +353,58 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   font-size:.78rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:700;
   min-width:90px;
 }
-/* Narożnik lewy górny — sticky top+left */
-.day-label-hdr{
-  width:20px;padding:0;
+.sched-grid td{
+  border-bottom:1px solid var(--border);border-right:1px solid var(--border);
+  padding:3px;vertical-align:top;
+  min-width:90px;height:52px;
+  transition:background .1s;
+}
+/* ── Narożnik (th) — sticky top+left:0 ── */
+.sched-grid th.day-label-hdr{
+  width:20px;min-width:20px;max-width:20px;padding:0;
   position:sticky;top:0;left:0;z-index:7;
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
+  overflow:hidden;
 }
-/* Nagłówek godzin — sticky top, left:0 domyślnie */
+/* ── Nagłówek godzin (th) — sticky top+left, zależy od trybu ── */
 .sched-grid th.hour-header{
-  width:56px;text-align:center;
+  width:56px;min-width:56px;max-width:56px;text-align:center;
   position:sticky;top:0;left:0;z-index:6;
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
 }
+/* Gdy jest kolumna dnia: nagłówek godzin przesuwa się za nią */
 .sched-grid.with-day-col th.hour-header{ left:20px; }
-/* Normalny td */
-.sched-grid td {
-  border-bottom:1px solid var(--border);border-right:1px solid var(--border);
-  padding:3px;vertical-align:top;
-  width:100px;height:52px;
-  transition:background .1s;
-}
-/* Kolumna dnia — sticky left:0 */
-.day-label-cell{
-  text-align:center;font-size:.58rem;font-weight:800;
+/* ── Komórka dnia (td) — sticky left:0 ── */
+.sched-grid td.day-label-cell{
+  width:20px;min-width:20px;max-width:20px;
+  padding:3px 0;vertical-align:middle;text-align:center;
+  font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
   color:var(--accent);
   background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
   border-right:3px solid var(--accent) !important;
   border-bottom:1px solid var(--border) !important;
-  padding:4px 0;vertical-align:middle;
   writing-mode:vertical-rl;text-orientation:mixed;
-  letter-spacing:.06em;text-transform:uppercase;
-  user-select:none;
-  width:20px;
+  user-select:none;overflow:hidden;
   position:sticky;left:0;z-index:3;
 }
-/* Kolumna godzin — sticky left:0 domyślnie */
-.hour-cell{
-  background:var(--s2);text-align:center;font-size:.72rem;
+/* ── Komórka godziny (td) — sticky left:0 lub left:20px ── */
+.sched-grid td.hour-cell{
+  width:56px;min-width:56px;max-width:56px;
+  padding:0 4px;text-align:center;font-size:.72rem;
   font-family:var(--mono);color:var(--text-m);font-weight:500;
-  padding:0 4px;width:56px;
-  position:sticky;left:0;z-index:2;
+  background:var(--s2);
   border-right:2px solid var(--border) !important;
   border-bottom:1px solid var(--border);
+  position:sticky;left:0;z-index:2;
 }
-.sched-grid.with-day-col .hour-cell{ left:20px; }
+/* Gdy jest kolumna dnia: komórka godziny przesuwa się za nią */
+.sched-grid.with-day-col td.hour-cell{ left:20px; }
 .sched-grid td.droptarget-hover{background:var(--accent-g);outline:2px dashed var(--accent);outline-offset:-2px}
 .sched-grid td.empty-cell{cursor:pointer}
 .sched-grid td.empty-cell:hover{background:var(--accent-g2)}
+
 /* lesson chip */
 .lesson-chip {
   display:flex;flex-direction:column;justify-content:center;
