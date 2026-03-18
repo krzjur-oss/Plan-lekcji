@@ -95,7 +95,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   min-height:100vh;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:40px 20px;
+  position:relative;
 }
+.wl-theme-toggle{
+  position:absolute;top:20px;right:24px;
+  display:flex;align-items:center;gap:8px;
+}
+.wl-theme-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:20px;
+  border:1px solid var(--border);background:var(--s1);
+  cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text-m);
+  transition:all .15s;
+}
+.wl-theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+.wl-theme-btn.active{background:var(--accent-g);border-color:var(--accent);color:var(--accent)}
 .wl-logo {
   font-size:2.6rem;font-weight:800;
   letter-spacing:-1px;
@@ -103,16 +117,33 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   margin-bottom:6px;
 }
 .wl-logo span{color:var(--accent)}
-.wl-tagline{font-size:.88rem;color:var(--text-m);letter-spacing:.05em;margin-bottom:48px}
+.wl-tagline{font-size:.88rem;color:var(--text-m);letter-spacing:.05em;margin-bottom:40px}
+
+/* Sekcja z istniejącym planem */
+.wl-continue-section{
+  width:100%;max-width:680px;margin-bottom:24px;
+  background:var(--accent-g);border:1.5px solid var(--accent);
+  border-radius:var(--radius-lg);padding:16px 20px;
+  display:flex;align-items:center;gap:16px;cursor:pointer;
+  transition:all .15s;
+}
+.wl-continue-section:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+.wl-continue-icon{font-size:1.6rem;flex-shrink:0}
+.wl-continue-info{flex:1}
+.wl-continue-title{font-size:.95rem;font-weight:800;color:var(--accent)}
+.wl-continue-meta{font-size:.75rem;color:var(--text-m);margin-top:2px}
+.wl-continue-arrow{font-size:1.4rem;color:var(--accent);font-weight:700}
+
 .wl-cards {
-  display:flex;gap:16px;flex-wrap:wrap;justify-content:center;
-  max-width:820px;width:100%;
+  display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+  max-width:680px;width:100%;
 }
 .wl-card {
-  flex:1;min-width:220px;max-width:260px;
+  flex:1;min-width:140px;max-width:200px;
   background:var(--s1);border:1px solid var(--border);
-  border-radius:var(--radius-lg);padding:28px 24px;
+  border-radius:var(--radius-lg);padding:22px 18px;
   cursor:pointer;transition:all .18s;position:relative;overflow:hidden;
+  text-align:center;
 }
 .wl-card::before {
   content:'';position:absolute;inset:0;
@@ -120,10 +151,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 .wl-card:hover::before{opacity:1}
 .wl-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
-.wl-card-icon{font-size:2rem;margin-bottom:14px}
-.wl-card-title{font-size:1rem;font-weight:700;margin-bottom:6px}
-.wl-card-desc{font-size:.8rem;color:var(--text-m);line-height:1.5}
+.wl-card-icon{font-size:1.8rem;margin-bottom:10px}
+.wl-card-title{font-size:.88rem;font-weight:700;margin-bottom:4px}
+.wl-card-desc{font-size:.72rem;color:var(--text-m);line-height:1.4}
 .wl-card.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.wl-divider{
+  font-size:.7rem;color:var(--text-d);text-transform:uppercase;letter-spacing:.1em;
+  margin-bottom:14px;
+}
 
 /* ══════════════════════════════════════
    WIZARD
@@ -925,18 +960,34 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 ══════════════════════════════════ -->
 <div id="welcomeScreen">
   <div class="wl-wrap">
+
+    <!-- Przełącznik motywu -->
+    <div class="wl-theme-toggle">
+      <button class="wl-theme-btn" id="wlThemeLight" onclick="wlSetTheme('light')">☀️ Jasny</button>
+      <button class="wl-theme-btn" id="wlThemeDark"  onclick="wlSetTheme('dark')">🌙 Ciemny</button>
+    </div>
+
     <div class="wl-logo">Plan<span>Lekcji</span></div>
     <div class="wl-tagline">Inteligentne układanie planów lekcji dla szkół</div>
+
+    <!-- Kontynuuj — widoczna tylko gdy istnieje plan -->
+    <div class="wl-continue-section" id="wlContinueSection" style="display:none" onclick="wlContinue()">
+      <div class="wl-continue-icon">📋</div>
+      <div class="wl-continue-info">
+        <div class="wl-continue-title" id="wlContinueTitle">Wróć do planu</div>
+        <div class="wl-continue-meta" id="wlContinueMeta">Kontynuuj pracę nad istniejącym planem</div>
+      </div>
+      <div class="wl-continue-arrow">→</div>
+    </div>
+
+    <div class="wl-divider" id="wlDivider" style="display:none">lub zacznij od nowa</div>
+
+    <!-- Karty akcji -->
     <div class="wl-cards">
       <div class="wl-card" onclick="wlStartNew()">
         <div class="wl-card-icon">✨</div>
         <div class="wl-card-title">Nowy plan</div>
         <div class="wl-card-desc">Skonfiguruj nowy rok szkolny krok po kroku</div>
-      </div>
-      <div class="wl-card" id="wlContinueCard" onclick="wlContinue()" style="display:none">
-        <div class="wl-card-icon">📋</div>
-        <div class="wl-card-title">Kontynuuj</div>
-        <div class="wl-card-desc" id="wlContinueDesc">Wróć do istniejącego planu</div>
       </div>
       <div class="wl-card" onclick="wlImport()">
         <div class="wl-card-icon">📂</div>
@@ -949,6 +1000,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <div class="wl-card-desc">Przeglądaj przykładowy plan szkolny</div>
       </div>
     </div>
+
     <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(this.files[0])">
   </div>
 </div>
@@ -1582,18 +1634,8 @@ function init() {
 }
 
 function showWelcome() {
-  const ws = document.getElementById('welcomeScreen');
-  ws.classList.add('show');
-  const cont = document.getElementById('wlContinueCard');
-  const desc = document.getElementById('wlContinueDesc');
-  // If local data exists from a previous session
-  try {
-    const s = JSON.parse(localStorage.getItem(LS.STATE)||'null');
-    if(s) {
-      cont.style.display='';
-      desc.textContent = s.name + ' · ' + (s.year||'');
-    }
-  } catch(e){}
+  document.getElementById('welcomeScreen').classList.add('show');
+  wlInit(); // wypełnij kartę Kontynuuj i ustaw motyw
 }
 
 function showApp() {
@@ -1609,17 +1651,60 @@ function showApp() {
 // ================================================================
 //  WELCOME ACTIONS
 // ================================================================
+
+function wlSetTheme(t) {
+  // Ustaw motyw i zapisz preferencję
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('pl_theme', t);
+  document.querySelectorAll('.wl-theme-btn').forEach(b=>b.classList.remove('active'));
+  const btn = document.getElementById(t==='dark'?'wlThemeDark':'wlThemeLight');
+  if(btn) btn.classList.add('active');
+  // Odśwież przycisk w appRoot jeśli widoczny
+  const tb = document.getElementById('themeToggle');
+  if(tb) tb.textContent = t==='dark' ? '☀️' : '🌙';
+}
+
+function wlInit() {
+  // Przywróć motyw
+  const saved = localStorage.getItem('pl_theme')||'dark';
+  wlSetTheme(saved);
+
+  // Sprawdź czy istnieje zapisany plan
+  try {
+    const raw = localStorage.getItem('pl_state');
+    if(raw) {
+      const st = JSON.parse(raw);
+      const sec = document.getElementById('wlContinueSection');
+      const title = document.getElementById('wlContinueTitle');
+      const meta  = document.getElementById('wlContinueMeta');
+      const div   = document.getElementById('wlDivider');
+      if(sec && st && st.name) {
+        title.textContent = st.name + (st.year ? ' · ' + st.year : '');
+        const cls  = (st.classes||[]).length;
+        const tch  = (st.teachers||[]).length;
+        const rooms= (st.rooms||[]).length;
+        meta.textContent = `${cls} klas · ${tch} nauczycieli · ${rooms} sal`;
+        sec.style.display = '';
+        if(div) div.style.display = '';
+      }
+    }
+  } catch(e) {}
+}
+
 function wlStartNew() {
   document.getElementById('welcomeScreen').classList.remove('show');
   startWizard();
 }
+
 function wlContinue() {
   loadAll();
   if(appState) showApp();
 }
+
 function wlImport() {
   document.getElementById('importFileInput').click();
 }
+
 function wlDemo() {
   _demoMode = true;
   appState = buildDemoState();
@@ -1628,10 +1713,11 @@ function wlDemo() {
   showApp();
   notify('Tryb demo — zmiany nie są zapisywane');
 }
+
 function openSettings() {
-  // Allow reconfiguring
   document.getElementById('welcomeScreen').classList.add('show');
   document.getElementById('appRoot').classList.remove('show');
+  wlInit(); // odśwież stan karty Kontynuuj
 }
 
 // ================================================================
