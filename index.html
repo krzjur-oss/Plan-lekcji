@@ -5062,11 +5062,10 @@ function renderDuties() {
   html += `<div class="grid-wrap-outer">
     <table class="sched-grid${dayVal==='all'?' with-day-col':''}"><thead><tr>`;
   if(dayVal==='all') html += `<th class="day-label-hdr"></th>`;
-  html += `<th class="hour-header" style="${dayVal==='all'?'left:20px':'left:0'}">Godzina</th>`;
+  html += `<th class="hour-header">Godzina</th>`;
   allPlaces.forEach(p => html += `<th class="day-header" style="min-width:110px">${p}</th>`);
   html += `</tr></thead><tbody>`;
 
-  const DAY_SHORT = ['Pon','Wt','Śr','Czw','Pt'];
   days.forEach(di => {
     const dayKey = DUTY_DAY_KEYS[di];
     duties.forEach((d, dIdx) => {
@@ -5080,11 +5079,11 @@ function renderDuties() {
       html += `<tr>`;
       // Etykieta dnia — tylko przy pierwszym dyżurze każdego dnia
       if(dayVal==='all' && dIdx===0) {
-        html += `<td class="day-label-cell" rowspan="${duties.length}">${DAY_SHORT[di]}</td>`;
+        html += `<td class="day-label-cell" rowspan="${duties.length}">${DUTY_DAYS[di]}</td>`;
       }
       // Komórka godziny
       const label = d.label || (d.start+'–'+d.end);
-      html += `<td class="hour-cell" style="${dayVal==='all'?'left:20px':'left:0'}">
+      html += `<td class="hour-cell">
         <div style="font-size:.72rem;font-family:var(--mono);font-weight:600">${d.start}</div>
         <div style="font-size:.62rem;color:var(--text-d)">${d.end}</div>
         <div style="font-size:.6rem;color:var(--text-d);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52px" title="${label}">${label}</div>
