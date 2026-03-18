@@ -361,13 +361,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
 }
-/* Nagłówek godzin — sticky top+left za narożnikiem */
+/* Nagłówek godzin — sticky top, left:0 domyślnie */
 .sched-grid th.hour-header{
   width:56px;text-align:center;
-  position:sticky;top:0;left:20px;z-index:6;
+  position:sticky;top:0;left:0;z-index:6;
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
 }
+.sched-grid.with-day-col th.hour-header{ left:20px; }
 /* Normalny td */
 .sched-grid td {
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
@@ -389,19 +390,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   width:20px;
   position:sticky;left:0;z-index:3;
 }
-/* Kolumna godzin — sticky left:20px (za kolumną dnia) */
+/* Kolumna godzin — sticky left:0 domyślnie */
 .hour-cell{
   background:var(--s2);text-align:center;font-size:.72rem;
   font-family:var(--mono);color:var(--text-m);font-weight:500;
   padding:0 4px;width:56px;
-  position:sticky;left:20px;z-index:2;
+  position:sticky;left:0;z-index:2;
   border-right:2px solid var(--border) !important;
   border-bottom:1px solid var(--border);
 }
-/* Bez kolumny dnia — hour-cell od lewej */
-.hour-cell.no-day{
-  left:0;
-}
+.sched-grid.with-day-col .hour-cell{ left:20px; }
 .sched-grid td.droptarget-hover{background:var(--accent-g);outline:2px dashed var(--accent);outline-offset:-2px}
 .sched-grid td.empty-cell{cursor:pointer}
 .sched-grid td.empty-cell:hover{background:var(--accent-g2)}
@@ -573,6 +571,18 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
 .matrix-table th{background:var(--s2);font-weight:700;color:var(--text-m);text-transform:uppercase;
   letter-spacing:.04em;padding:7px 10px;position:sticky;top:0;z-index:2}
 .matrix-table th.row-header{position:sticky;left:0;z-index:3}
+.m-day-label{
+  text-align:center;font-size:.58rem;font-weight:800;
+  color:var(--accent);
+  background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
+  border-right:3px solid var(--accent);
+  border-bottom:1px solid var(--border);
+  padding:4px 0;vertical-align:middle;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  letter-spacing:.06em;text-transform:uppercase;
+  user-select:none;width:20px;
+  position:sticky;left:0;z-index:2;
+}
 .matrix-table td{vertical-align:top;min-width:100px;height:48px;position:relative}
 .matrix-table td.m-hour{
   background:var(--s2);text-align:center;font-size:.7rem;
@@ -2338,7 +2348,7 @@ function populateSelects() {
 
   // Matrix day select
   const mds=document.getElementById('matrixDaySelect');
-  if(mds) mds.innerHTML=DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('');
+  if(mds) mds.innerHTML='<option value="all">Cały tydzień</option>'+DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('');
 
   // Class select
   const cs=document.getElementById('classSelect');
@@ -2472,7 +2482,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   // DAY_SHORT zastąpione przez DAYS[]
 
   // ── Nagłówek ──
-  let html = `<div class="grid-wrap-outer"><table class="sched-grid"><thead>`;
+  let html = `<div class="grid-wrap-outer"><table class="sched-grid${showDayLabel?' with-day-col':''}"><thead>`;
 
   if(showDayLabel) {
     // Tryb tygodniowy: etykiety dni są w kolumnie bocznej (rowspan) — bez nagłówka dni
@@ -2656,7 +2666,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else {
     // Oryginalny tryb: wiersze = godziny, kolumny = dni × klasy
     hours.forEach(h=>{
-      html += `<tr><td class="hour-cell no-day">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+      html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
       days.forEach(di=>{
         columns.forEach(col=>{
           const lesson = getLesson(col.id, di, h.num);
@@ -2766,7 +2776,8 @@ function renderRoomView() {
 // ── MATRIX VIEW ──
 function renderMatrixView() {
   if(!appState) return;
-  const dayIdx = parseInt(document.getElementById('matrixDaySelect').value)||0;
+  const dayVal = document.getElementById('matrixDaySelect').value;
+  const dayIdx = dayVal==='all' ? 'all' : (parseInt(dayVal)||0);
   const mode   = document.getElementById('matrixModeSelect').value;
   const wrap   = document.getElementById('matrixGridWrap');
   const hours  = appState.hours;
@@ -2812,62 +2823,71 @@ function renderMatrixView() {
     }
   }
 
+  const allDays = dayIdx==='all' ? [0,1,2,3,4] : [dayIdx];
+  const DAY_SHORT_M = ['Pon','Wt','Śr','Czw','Pt'];
+
   if(mode==='class'){
-    // Wiersze = godziny, Kolumny = klasy
-    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>
-      <th class="row-header" style="min-width:52px">Godz.</th>`;
+    // Wiersze = godziny (× dni jeśli cały tydzień), Kolumny = klasy
+    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>`;
+    if(dayIdx==='all') html+=`<th class="row-header" style="min-width:36px"></th>`;
+    html+=`<th class="row-header" style="min-width:52px">Godz.</th>`;
     appState.classes.forEach(c=>html+=`<th>${c.name}</th>`);
     html+='</tr></thead><tbody>';
-    hours.forEach(h=>{
-      html+=`<tr><td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
-      appState.classes.forEach(c=>{
-        const lesson=getLesson(c.id,dayIdx,h.num);
-        const tch=lesson?appState.teachers.find(t=>t.id===lesson.teacherId):null;
-        const room=lesson?appState.rooms.find(r=>r.id===lesson.roomId):null;
-        const line2=[tch?.abbr, room?.name].filter(Boolean).join(' · ');
-        html += mCell(c.id, dayIdx, h.num, lesson, {line2});
+    allDays.forEach(di=>{
+      hours.forEach((h,hi)=>{
+        html+=`<tr>`;
+        if(dayIdx==='all' && hi===0)
+          html+=`<td class="m-day-label" rowspan="${hours.length}">${DAY_SHORT_M[di]}</td>`;
+        html+=`<td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
+        appState.classes.forEach(c=>{
+          const lesson=getLesson(c.id,di,h.num);
+          const tch=lesson?appState.teachers.find(t=>t.id===lesson.teacherId):null;
+          const room=lesson?appState.rooms.find(r=>r.id===lesson.roomId):null;
+          const line2=[tch?.abbr, room?.name].filter(Boolean).join(' · ');
+          html += mCell(c.id, di, h.num, lesson, {line2});
+        });
+        html+='</tr>';
       });
-      html+='</tr>';
     });
     html+='</tbody></table></div>';
     wrap.innerHTML=html;
 
   } else {
-    // Wiersze = godziny, Kolumny = nauczyciele
-    // W tym trybie komórka dotyczy: nauczyciel ma lekcję → szukamy jego clsId
-    // Dodajemy możliwość edycji: klik w pustą komórkę → modal z pre-wypełnionym nauczycielem
-    // ale clsId trzeba wybrać → otwieramy modal z wyborem klasy
-    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>
-      <th class="row-header" style="min-width:52px">Godz.</th>`;
+    // Wiersze = godziny (× dni jeśli cały tydzień), Kolumny = nauczyciele
+    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>`;
+    if(dayIdx==='all') html+=`<th class="row-header" style="min-width:36px"></th>`;
+    html+=`<th class="row-header" style="min-width:52px">Godz.</th>`;
     sortTeachers(appState.teachers).forEach(t=>html+=`<th title="${t.first} ${t.last}">${t.abbr}</th>`);
     html+='</tr></thead><tbody>';
     const sortedTch = sortTeachers(appState.teachers);
-    hours.forEach(h=>{
-      html+=`<tr><td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
-      sortedTch.forEach(t=>{
-        // Znajdź lekcję tego nauczyciela w tej godzinie
-        const entry=Object.entries(schedData).find(([k,v])=>{
-          const parts=k.split('_');
-          return parseInt(parts[1])===dayIdx && parseInt(parts[2])===h.num && v.teacherId===t.id;
+    allDays.forEach(di=>{
+      hours.forEach((h,hi)=>{
+        html+=`<tr>`;
+        if(dayIdx==='all' && hi===0)
+          html+=`<td class="m-day-label" rowspan="${hours.length}">${DAY_SHORT_M[di]}</td>`;
+        html+=`<td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
+        sortedTch.forEach(t=>{
+          const entry=Object.entries(schedData).find(([k,v])=>{
+            const parts=k.split('_');
+            return parseInt(parts[1])===di && parseInt(parts[2])===h.num && v.teacherId===t.id;
+          });
+          if(entry){
+            const [key,lesson]=entry;
+            const clsId=key.split('_')[0];
+            const cls=appState.classes.find(c=>c.id===clsId);
+            const room=appState.rooms.find(r=>r.id===lesson.roomId);
+            const line2=[cls?.name, room?.name].filter(Boolean).join(' · ');
+            html += mCell(clsId, di, h.num, lesson, {line2});
+          } else {
+            html+=`<td class="m-empty" data-day="${di}" data-hour="${h.num}" data-teacher="${t.id}"
+              ondragover="doDragOver(event,this)" ondrop="doDropTeacherCell(event,'${t.id}',${di},${h.num})" ondragleave="doDragLeave(event)"
+              onclick="openAddModalForTeacher('${t.id}',${di},${h.num})">
+              <button class="m-add-btn" tabindex="-1">＋</button>
+            </td>`;
+          }
         });
-        if(entry){
-          const [key,lesson]=entry;
-          const clsId=key.split('_')[0];
-          const cls=appState.classes.find(c=>c.id===clsId);
-          const room=appState.rooms.find(r=>r.id===lesson.roomId);
-          const line2=[cls?.name, room?.name].filter(Boolean).join(' · ');
-          html += mCell(clsId, dayIdx, h.num, lesson, {line2});
-        } else {
-          // Pusta komórka: kliknięcie otwiera modal z pre-wybranym nauczycielem
-          // Klasa musi być wybrana w modalu — prefTeacher pre-wypełnia pole
-          html+=`<td class="m-empty" data-day="${dayIdx}" data-hour="${h.num}" data-teacher="${t.id}"
-            ondragover="doDragOver(event,this)" ondrop="doDropTeacherCell(event,'${t.id}',${dayIdx},${h.num})" ondragleave="doDragLeave(event)"
-            onclick="openAddModalForTeacher('${t.id}',${dayIdx},${h.num})">
-            <button class="m-add-btn" tabindex="-1">＋</button>
-          </td>`;
-        }
+        html+='</tr>';
       });
-      html+='</tr>';
     });
     html+='</tbody></table></div>';
     wrap.innerHTML=html;
