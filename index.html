@@ -565,9 +565,10 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
 /* ══════════════════════════════════════
    MATRIX / SCHOOL VIEW
 ══════════════════════════════════════ */
-.matrix-grid{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border)}
-.matrix-table{border-collapse:collapse;white-space:nowrap;background:var(--s1)}
-.matrix-table th,.matrix-table td{border:1px solid var(--border);padding:0;font-size:.72rem}
+.matrix-grid-outer{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 160px);border-radius:var(--radius-lg);border:1px solid var(--border)}
+.matrix-grid{display:inline-block;min-width:100%}
+.matrix-table{border-collapse:separate;border-spacing:0;white-space:nowrap;background:var(--s1)}
+.matrix-table th,.matrix-table td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:0;font-size:.72rem}
 .matrix-table th{background:var(--s2);font-weight:700;color:var(--text-m);text-transform:uppercase;
   letter-spacing:.04em;padding:7px 10px;position:sticky;top:0;z-index:2}
 .matrix-table th.row-header{position:sticky;left:0;z-index:3}
@@ -575,20 +576,21 @@ td.empty-cell:hover .add-cell-btn{opacity:1;color:var(--text-m)}
   text-align:center;font-size:.58rem;font-weight:800;
   color:var(--accent);
   background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
-  border-right:3px solid var(--accent);
-  border-bottom:1px solid var(--border);
+  border-right:3px solid var(--accent) !important;
+  border-bottom:1px solid var(--border) !important;
   padding:4px 0;vertical-align:middle;
   writing-mode:vertical-rl;text-orientation:mixed;
   letter-spacing:.06em;text-transform:uppercase;
   user-select:none;width:20px;
   position:sticky;left:0;z-index:2;
 }
-.matrix-table td{vertical-align:top;min-width:100px;height:48px;position:relative}
+.matrix-table td{vertical-align:top;min-width:100px;height:48px}
 .matrix-table td.m-hour{
   background:var(--s2);text-align:center;font-size:.7rem;
   font-family:var(--mono);color:var(--text-m);padding:4px 8px;
-  position:sticky;left:0;z-index:1;min-width:52px;
+  position:sticky;left:20px;z-index:1;min-width:52px;
 }
+.matrix-table.no-day-col td.m-hour{ left:0; }
 .matrix-table td.m-empty{cursor:pointer}
 .matrix-table td.m-empty:hover{background:var(--accent-g2)}
 .matrix-table td.droptarget-hover{background:var(--accent-g)!important;outline:2px dashed var(--accent);outline-offset:-2px}
@@ -2828,7 +2830,8 @@ function renderMatrixView() {
 
   if(mode==='class'){
     // Wiersze = godziny (× dni jeśli cały tydzień), Kolumny = klasy
-    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>`;
+    const noDay = dayIdx!=='all';
+    let html=`<div class="matrix-grid-outer"><div class="matrix-grid"><table class="matrix-table${noDay?' no-day-col':''}"><thead><tr>`;
     if(dayIdx==='all') html+=`<th class="row-header" style="min-width:36px"></th>`;
     html+=`<th class="row-header" style="min-width:52px">Godz.</th>`;
     appState.classes.forEach(c=>html+=`<th>${c.name}</th>`);
@@ -2849,12 +2852,13 @@ function renderMatrixView() {
         html+='</tr>';
       });
     });
-    html+='</tbody></table></div>';
+    html+='</tbody></table></div></div>';
     wrap.innerHTML=html;
 
   } else {
     // Wiersze = godziny (× dni jeśli cały tydzień), Kolumny = nauczyciele
-    let html=`<div class="matrix-grid"><table class="matrix-table"><thead><tr>`;
+    const noDay = dayIdx!=='all';
+    let html=`<div class="matrix-grid-outer"><div class="matrix-grid"><table class="matrix-table${noDay?' no-day-col':''}"><thead><tr>`;
     if(dayIdx==='all') html+=`<th class="row-header" style="min-width:36px"></th>`;
     html+=`<th class="row-header" style="min-width:52px">Godz.</th>`;
     sortTeachers(appState.teachers).forEach(t=>html+=`<th title="${t.first} ${t.last}">${t.abbr}</th>`);
@@ -2889,7 +2893,7 @@ function renderMatrixView() {
         html+='</tr>';
       });
     });
-    html+='</tbody></table></div>';
+    html+='</tbody></table></div></div>';
     wrap.innerHTML=html;
   }
 }
