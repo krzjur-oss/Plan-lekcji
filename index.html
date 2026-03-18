@@ -354,14 +354,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 /* Narożnik lewy górny — sticky top+left */
 .day-label-hdr{
-  width:26px;min-width:26px;padding:0;
+  width:18px;min-width:18px;padding:0;
   position:sticky;top:0;left:0;z-index:7;
   background:var(--s2);
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
 }
 /* Nagłówek godzin — sticky top+left za kolumną dnia */
 .sched-grid th.hour-header{
-  position:sticky;top:0;
+  position:sticky;top:0;left:0;
   border-bottom:1px solid var(--border);border-right:1px solid var(--border);
 }
 .sched-grid td {
@@ -372,16 +372,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 /* Kolumna dnia — sticky lewa */
 .day-label-cell{
-  text-align:center;font-size:.6rem;font-weight:800;
+  text-align:center;font-size:.55rem;font-weight:800;
   color:var(--accent);
   background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
   border-right:3px solid var(--accent) !important;
   border-bottom:1px solid var(--border) !important;
-  padding:6px 2px;white-space:nowrap;vertical-align:middle;
+  padding:4px 1px;white-space:nowrap;vertical-align:middle;
   writing-mode:vertical-rl;text-orientation:mixed;
-  letter-spacing:.1em;text-transform:uppercase;
+  letter-spacing:.08em;text-transform:uppercase;
   user-select:none;
-  width:26px;min-width:26px;
+  width:18px;min-width:18px;
   position:sticky;left:0;z-index:3;
 }
 /* Kolumna godzin — sticky lewa za kolumną dnia */
@@ -389,7 +389,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   background:var(--s2);text-align:center;font-size:.72rem;
   font-family:var(--mono);color:var(--text-m);font-weight:500;
   padding:0 6px;width:52px;min-width:52px;
-  position:sticky;z-index:2;
+  position:sticky;left:0;z-index:2;
   border-right:1px solid var(--border) !important;
   border-bottom:1px solid var(--border);
 }
@@ -2470,7 +2470,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
     // Nagłówek: Dzień | Nr | [nazwy klas]
     html += '<tr>';
     html += '<th class="hour-header day-label-hdr"></th>';
-    html += '<th class="hour-header" style="left:28px">Nr</th>';
+    html += '<th class="hour-header" style="left:18px">Nr</th>';
     columns.forEach(col => {
       html += `<th class="day-header">${col.label}</th>`;
     });
@@ -2553,7 +2553,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
           // Etykieta dnia z rowspan = liczba godzin
           html += `<td class="day-label-cell" rowspan="${hours.length}">${DAYS[di]}</td>`;
         }
-        html += `<td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+        html += `<td class="hour-cell" style="left:18px">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
         columns.forEach(col => { html += cellHtml(col, di, h); });
         html += '</tr>';
       });
@@ -2561,7 +2561,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else {
     // Tryb normalny: wiersze = godziny, kolumny = (dni ×) klasy
     hours.forEach(h => {
-      html += `<tr><td class="hour-cell" style="left:0">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+      html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
       days.forEach(di => {
         columns.forEach(col => { html += cellHtml(col, di, h); });
       });
