@@ -1347,6 +1347,9 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <button onclick="dmCopyFromFirst()" class="mbtn mbtn-ghost" style="font-size:.72rem;padding:5px 10px">
           ↓ Kopiuj Poniedziałek → wszystkie
         </button>
+        <button onclick="dmCopyToAllDuties()" class="mbtn mbtn-ghost" style="font-size:.72rem;padding:5px 10px">
+          ⚡ Kopiuj te miejsca → wszystkie dyżury
+        </button>
       </div>
       <div id="dmPlacesGrid"></div>
     </div>
@@ -4369,6 +4372,42 @@ function dmCopyFromFirst() {
   });
   dmRenderPlaces();
   notify('Skopiowano miejsca z Poniedziałku do pozostałych dni');
+}
+
+function dmCopyToAllDuties() {
+  if(!appState.duties || appState.duties.length <= 1) {
+    notify('Brak innych dyżurów do skopiowania', 'warn'); return;
+  }
+  // Zbierz miejsca z aktualnego stanu _dmPlaces (bieżący modal)
+  const srcPlaces = {};
+  DUTY_DAY_KEYS.forEach(k => {
+    srcPlaces[k] = (_dmPlaces[k]||[]).filter(r => r.place||r.teacherId)
+                                      .map(r => ({place: r.place, teacherId: r.teacherId}));
+  });
+  const hasAny = DUTY_DAY_KEYS.some(k => srcPlaces[k].length > 0);
+  if(!hasAny) { notify('Brak miejsc do skopiowania — najpierw dodaj miejsca', 'warn'); return; }
+
+  const others = appState.duties.filter(d => d.id !== _dmId);
+  const withTeacher = confirm(
+    `Skopiować miejsca do ${others.length} pozostałych dyżurów?
+
+OK = kopiuj razem z nauczycielami
+Anuluj = kopiuj tylko miejsca (bez nauczycieli)`
+  );
+  if(withTeacher === null) return;
+
+  others.forEach(d => {
+    if(!d.places) d.places = {};
+    DUTY_DAY_KEYS.forEach(k => {
+      d.places[k] = srcPlaces[k].map(r => ({
+        place: r.place,
+        teacherId: withTeacher ? r.teacherId : ''
+      }));
+    });
+  });
+
+  persistAll();
+  notify(`Skopiowano miejsca do ${others.length} dyżurów`);
 }
 
 function dmPlaceAdd(dayKey) {
