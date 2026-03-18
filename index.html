@@ -347,6 +347,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   font-size:.8rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:700;
 }
 .sched-grid th.hour-header{width:52px;text-align:center}
+.day-label-hdr{width:30px;min-width:30px}
+.day-label-cell{
+  text-align:center;font-size:.68rem;font-weight:800;
+  color:var(--accent);background:var(--accent-g);
+  border-right:2px solid var(--accent);
+  padding:4px 3px;white-space:nowrap;vertical-align:middle;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  letter-spacing:.06em;
+}
 .sched-grid td {
   border:1px solid var(--border);
   padding:3px;vertical-align:top;
@@ -2418,29 +2427,31 @@ function setLesson(clsId, dayIdx, hourIdx, lesson) {
 
 function renderGrid(columns, getLabel, getDays, opts={}) {
   // columns: [{id, label}], getDays: filtered DAYS indices
-  // returns HTML string
-  const days = getDays; // array of day indices
+  // opts.showDayLabel: dodaj kolumnę z nazwą dnia przed godziną (tryb cały tydzień)
+  const days = getDays;
   const hours = appState.hours;
   if(!hours||!hours.length) return '<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';
+  const showDayLabel = !!(opts.showDayLabel && days.length > 1);
+  const DAY_SHORT = ['Pon','Wt','Śr','Czw','Pt'];
 
-  let html = `<div class="grid-wrap"><table class="sched-grid"><thead><tr>
-    <th class="hour-header">Nr</th>`;
+  let html = `<div class="grid-wrap"><table class="sched-grid"><thead><tr>`;
+  if(showDayLabel) html += `<th class="hour-header day-label-hdr">Dzień</th>`;
+  html += `<th class="hour-header">Nr</th>`;
 
   if(days.length>1){
     days.forEach(di=>{
-      const colspan = columns.length;
-      html += `<th class="day-header" colspan="${colspan}">${DAYS[di]}</th>`;
+      html += `<th class="day-header" colspan="${columns.length}">${DAYS[di]}</th>`;
     });
   } else {
-    columns.forEach(col=>{
-      html += `<th class="day-header">${col.label}</th>`;
-    });
+    columns.forEach(col=>{ html += `<th class="day-header">${col.label}</th>`; });
   }
   html += '</tr>';
 
-  // subheader if multi-day and multi-column
+  // subheader — nazwy klas pod nagłówkami dni
   if(days.length>1 && columns.length>1){
-    html += '<tr><th></th>';
+    html += '<tr>';
+    if(showDayLabel) html += '<th></th>';
+    html += '<th></th>';
     days.forEach(()=>{
       columns.forEach(col=>{
         html += `<th style="font-size:.65rem;padding:4px 8px">${col.label}</th>`;
@@ -2450,10 +2461,20 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   }
   html += '</thead><tbody>';
 
-  hours.forEach(h=>{
-    html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+  // Gdy showDayLabel: iterujemy dzień→godzina (żeby rowspan działał per dzień)
+  // W innym wypadku: godzina→dzień (oryginalny układ)
+  const iterDays   = showDayLabel ? days   : [null];
+  const iterHours  = hours;
+
+  if(showDayLabel){
     days.forEach(di=>{
-      columns.forEach(col=>{
+      hours.forEach((h, hi)=>{
+        html += '<tr>';
+        if(hi===0){
+          html += `<td class="day-label-cell" rowspan="${hours.length}">${DAY_SHORT[di]}</td>`;
+        }
+        html += `<td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+        columns.forEach(col=>{
         const lesson = getLesson(col.id, di, h.num);
         const key = lessonKey(col.id, di, h.num);
         if(lesson){
@@ -2496,6 +2517,55 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
     html += '</tr>';
   });
 
+  } else {
+    // Oryginalny tryb: wiersze = godziny, kolumny = dni × klasy
+    hours.forEach(h=>{
+      html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+      days.forEach(di=>{
+        columns.forEach(col=>{
+          const lesson = getLesson(col.id, di, h.num);
+          const key = lessonKey(col.id, di, h.num);
+          if(lesson){
+            const subj = appState.subjects.find(s=>s.id===lesson.subjectId);
+            const tch  = appState.teachers.find(t=>t.id===lesson.teacherId);
+            const room = appState.rooms.find(r=>r.id===lesson.roomId);
+            const color = subj?.color||'#38bdf8';
+            const isDark = isDarkColor(color);
+            const textCol = isDark ? '#fff' : '#111';
+            const bg = hexToRgba(color,.18);
+            const border = hexToRgba(color,.45);
+            const hasConflict = checkCellConflict(col.id, di, h.num, lesson);
+            html += `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
+              draggable="false"
+              ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)">
+              <div class="lesson-chip ${hasConflict?'conflict-chip':''}"
+                style="background:${bg};border-left:3px solid ${color};color:${textCol}"
+                draggable="true"
+                ondragstart="doDragStart(event,'${col.id}',${di},${h.num})"
+                ondragend="doDragEnd(event)"
+                ondragover="event.preventDefault();event.stopPropagation();this.closest('td').classList.add('droptarget-hover')"
+                ondragleave="event.stopPropagation()"
+                ondrop="event.stopPropagation();doDrop(event,'${col.id}',${di},${h.num})"
+                onclick="event.stopPropagation();openEditModal('${col.id}',${di},${h.num})">
+                <div class="lesson-chip-subj">${subj?.abbr||'?'} ${lesson.groups&&lesson.groups.length?'('+lesson.groups.join('/')+')':''}</div>
+                <div class="lesson-chip-meta">${tch?tch.abbr:''} ${room?'· '+room.name+(()=>{const b=(appState.buildings||[]).find(b=>b.id===room.buildingId);return b?' ('+b.name+')':''})():''}</div>
+                <div class="lesson-chip-del" onclick="event.stopPropagation();deleteLesson('${col.id}',${di},${h.num})">×</div>
+                ${hasConflict?'<div class="conflict-dot"></div>':''}
+              </div>
+            </td>`;
+          } else {
+            html += `<td class="empty-cell" data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
+              ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)"
+              onclick="openAddModal('${col.id}',${di},${h.num},'${opts.fixTeacher||''}','${opts.fixRoom||''}')">
+              <button class="add-cell-btn" tabindex="-1">＋</button>
+            </td>`;
+          }
+        });
+      });
+      html += '</tr>';
+    });
+  }
+
   html += '</tbody></table></div>';
   return html;
 }
@@ -2515,17 +2585,13 @@ function renderClassView() {
 // ── TEACHER VIEW ──
 function renderTeacherView() {
   if(!appState) return;
-  const tchId = document.getElementById('teacherSelect').value;
+  const tchId  = document.getElementById('teacherSelect').value;
   const dayVal = document.getElementById('teacherDaySelect').value;
-  const wrap = document.getElementById('teacherGridWrap');
+  const wrap   = document.getElementById('teacherGridWrap');
   if(!tchId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">👩‍🏫</div><div class="empty-state-title">Wybierz nauczyciela z listy</div></div>`;return;}
   const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
-  // For teacher view: show all classes that have a lesson with this teacher
-  const hours = appState.hours;
   const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
-  // Build a virtual grid: for teacher, we show all classes
-  wrap.innerHTML = renderGrid(cols, null, days, {fixTeacher:tchId});
-  // Overlay: grey out cells where lesson has a different teacher
+  wrap.innerHTML = renderGrid(cols, null, days, {fixTeacher:tchId, showDayLabel: dayVal==='all'});
   wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
     const clsId=td.dataset.clsid;
     const di=parseInt(td.dataset.day);
@@ -2534,10 +2600,7 @@ function renderTeacherView() {
     if(lesson && lesson.teacherId!==tchId){
       td.querySelector('.lesson-chip')&&(td.querySelector('.lesson-chip').style.opacity='.2');
     }
-    if(!lesson){
-      // In teacher view, clicking empty cell should pre-fill teacher
-      td.onclick=()=>openAddModal(clsId,di,hn,tchId,'');
-    }
+    if(!lesson) td.onclick=()=>openAddModal(clsId,di,hn,tchId,'');
   });
 }
 
@@ -2546,11 +2609,11 @@ function renderRoomView() {
   if(!appState) return;
   const roomId = document.getElementById('roomSelect').value;
   const dayVal = document.getElementById('roomDaySelect').value;
-  const wrap = document.getElementById('roomGridWrap');
+  const wrap   = document.getElementById('roomGridWrap');
   if(!roomId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">Wybierz salę z listy</div></div>`;return;}
   const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
   const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
-  wrap.innerHTML = renderGrid(cols, null, days, {fixRoom:roomId});
+  wrap.innerHTML = renderGrid(cols, null, days, {fixRoom:roomId, showDayLabel: dayVal==='all'});
   wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
     const clsId=td.dataset.clsid;
     const di=parseInt(td.dataset.day);
@@ -2560,9 +2623,7 @@ function renderRoomView() {
       const chip=td.querySelector('.lesson-chip');
       if(chip)chip.style.opacity='.15';
     }
-    if(!lesson){
-      td.onclick=()=>openAddModal(clsId,di,hn,'',roomId);
-    }
+    if(!lesson) td.onclick=()=>openAddModal(clsId,di,hn,'',roomId);
   });
 }
 
