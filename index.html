@@ -2426,25 +2426,116 @@ function setLesson(clsId, dayIdx, hourIdx, lesson) {
 }
 
 function renderGrid(columns, getLabel, getDays, opts={}) {
-  // columns: [{id, label}], getDays: filtered DAYS indices
-  // opts.showDayLabel: dodaj kolumnę z nazwą dnia przed godziną (tryb cały tydzień)
-  const days = getDays;
-  const hours = appState.hours;
-  if(!hours||!hours.length) return '<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';
+  // columns: [{id, label}]
+  // getDays: tablica indeksów dni [0..4]
+  // opts.showDayLabel: dodaj kolumnę z nazwą dnia (tryb cały tydzień, nauczyciel/sala)
+  // opts.fixTeacher, opts.fixRoom: pre-fill przy dodawaniu lekcji
+  const days  = getDays;
+  const hours = (appState.hours||[]).slice().sort((a,b)=>a.num-b.num);
+  if(!hours.length) return '<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';
+
   const showDayLabel = !!(opts.showDayLabel && days.length > 1);
-  const DAY_SHORT = ['Pon','Wt','Śr','Czw','Pt'];
+  const DAY_SHORT    = ['Pon','Wt','Śr','Czw','Pt'];
 
-  let html = `<div class="grid-wrap"><table class="sched-grid"><thead><tr>`;
-  if(showDayLabel) html += `<th class="hour-header day-label-hdr">Dzień</th>`;
-  html += `<th class="hour-header">Nr</th>`;
+  // ── Nagłówek ──
+  let html = '<div class="grid-wrap"><table class="sched-grid"><thead><tr>';
+  if(showDayLabel) html += '<th class="hour-header day-label-hdr">Dzień</th>';
+  html += '<th class="hour-header">Nr</th>';
 
-  if(days.length>1){
-    days.forEach(di=>{
+  if(days.length > 1) {
+    days.forEach(di => {
       html += `<th class="day-header" colspan="${columns.length}">${DAYS[di]}</th>`;
     });
   } else {
-    columns.forEach(col=>{ html += `<th class="day-header">${col.label}</th>`; });
+    columns.forEach(col => {
+      html += `<th class="day-header">${col.label}</th>`;
+    });
   }
+  html += '</tr>';
+
+  // Subheader z nazwami klas (gdy wiele dni i wiele klas)
+  if(days.length > 1 && columns.length > 1) {
+    html += '<tr>';
+    if(showDayLabel) html += '<th></th>';
+    html += '<th></th>';
+    days.forEach(() => {
+      columns.forEach(col => {
+        html += `<th style="font-size:.65rem;padding:4px 8px">${col.label}</th>`;
+      });
+    });
+    html += '</tr>';
+  }
+  html += '</thead><tbody>';
+
+  // ── Helper: renderuj jedną komórkę ──
+  const cellHtml = (col, di, h) => {
+    const lesson = getLesson(col.id, di, h.num);
+    if(lesson) {
+      const subj  = appState.subjects.find(s=>s.id===lesson.subjectId);
+      const tch   = appState.teachers.find(t=>t.id===lesson.teacherId);
+      const room  = appState.rooms.find(r=>r.id===lesson.roomId);
+      const color = subj?.color||'#38bdf8';
+      const bg    = hexToRgba(color,.18);
+      const bord  = hexToRgba(color,.45);
+      const textC = isDarkColor(color)?'#fff':'#111';
+      const hasC  = checkCellConflict(col.id, di, h.num, lesson);
+      const bldSuffix = room ? (()=>{ const b=(appState.buildings||[]).find(b=>b.id===room.buildingId); return b?' ('+b.name+')':''; })() : '';
+      return `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
+          style="${hasC?'background:var(--red-g)':''}"
+          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)">
+          <div class="lesson-chip ${hasC?'conflict-chip':''}"
+            style="background:${bg};border-left:3px solid ${color};color:${textC}"
+            draggable="true"
+            ondragstart="doDragStart(event,'${col.id}',${di},${h.num})"
+            ondragend="doDragEnd(event)"
+            ondragover="event.preventDefault();event.stopPropagation();this.closest('td').classList.add('droptarget-hover')"
+            ondragleave="event.stopPropagation()"
+            ondrop="event.stopPropagation();doDrop(event,'${col.id}',${di},${h.num})"
+            onclick="event.stopPropagation();openEditModal('${col.id}',${di},${h.num})">
+            <div class="lesson-chip-subj">${subj?.abbr||'?'}${lesson.groups&&lesson.groups.length?' ('+lesson.groups.join('/')+')':''}</div>
+            <div class="lesson-chip-meta">${tch?tch.abbr:''}${room?' · '+room.name+bldSuffix:''}</div>
+            <div class="lesson-chip-del" onclick="event.stopPropagation();deleteLesson('${col.id}',${di},${h.num})">×</div>
+            ${hasC?'<div class="conflict-dot"></div>':''}
+          </div>
+        </td>`;
+    } else {
+      return `<td class="empty-cell" data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
+          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)"
+          onclick="openAddModal('${col.id}',${di},${h.num},'${opts.fixTeacher||''}','${opts.fixRoom||''}')">
+          <button class="add-cell-btn" tabindex="-1">＋</button>
+        </td>`;
+    }
+  }
+
+  // ── Ciało tabeli ──
+  if(showDayLabel) {
+    // Tryb tygodniowy: dni jako grupy wierszy z etykietą po lewej
+    days.forEach(di => {
+      hours.forEach((h, hi) => {
+        html += '<tr>';
+        if(hi === 0) {
+          // Etykieta dnia z rowspan = liczba godzin
+          html += `<td class="day-label-cell" rowspan="${hours.length}">${DAY_SHORT[di]}</td>`;
+        }
+        html += `<td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+        columns.forEach(col => { html += cellHtml(col, di, h); });
+        html += '</tr>';
+      });
+    });
+  } else {
+    // Tryb normalny: wiersze = godziny, kolumny = (dni ×) klasy
+    hours.forEach(h => {
+      html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+      days.forEach(di => {
+        columns.forEach(col => { html += cellHtml(col, di, h); });
+      });
+      html += '</tr>';
+    });
+  }
+
+  html += '</tbody></table></div>';
+  return html;
+
   html += '</tr>';
 
   // subheader — nazwy klas pod nagłówkami dni
