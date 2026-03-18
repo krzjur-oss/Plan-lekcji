@@ -332,10 +332,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 /* ══════════════════════════════════════
    SCHEDULE GRID
 ══════════════════════════════════════ */
-.grid-wrap{
+.grid-wrap-outer{
   overflow-x:auto;overflow-y:auto;
   max-height:calc(100vh - 160px);
   border-radius:var(--radius-lg);border:1px solid var(--border);
+}
+.grid-wrap{
+  display:inline-block;min-width:100%;
 }
 .sched-grid{
   border-collapse:separate;border-spacing:0;
@@ -2480,7 +2483,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   // DAY_SHORT zastąpione przez DAYS[]
 
   // ── Nagłówek ──
-  let html = `<div class="grid-wrap${showDayLabel?' has-day-col':''}"><table class="sched-grid"><thead>`;
+  let html = `<div class="grid-wrap-outer"><div class="grid-wrap${showDayLabel?' has-day-col':''}"><table class="sched-grid"><thead>`;
 
   if(showDayLabel) {
     // Tryb tygodniowy: etykiety dni są w kolumnie bocznej (rowspan) — bez nagłówka dni
@@ -2586,7 +2589,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
     });
   }
 
-  html += '</tbody></table></div>';
+  html += '</tbody></table></div></div>';
   return html;
 
   html += '</tr>';
@@ -2710,7 +2713,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
     });
   }
 
-  html += '</tbody></table></div>';
+  html += '</tbody></table></div></div>';
   return html;
 }
 
