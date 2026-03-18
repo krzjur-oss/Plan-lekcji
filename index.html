@@ -1686,7 +1686,6 @@ function wizStep0() {
   </div>`;
 }
 
-// Step 1: Classes
 // Step 1: Buildings / Locations
 function wizStep1() {
   const BCOLORS = ['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
@@ -1694,21 +1693,39 @@ function wizStep1() {
     const swatches = BCOLORS.map(c =>
       `<div class="color-swatch ${b.color===c?'sel':''}" style="background:${c};width:16px;height:16px" onclick="wSetBldColor(${i},'${c}')"></div>`
     ).join('');
-    return `<div class="subj-row">
-      <div class="cdot" style="background:${b.color||'#38bdf8'}"></div>
-      <div class="subj-name">${b.name}</div>
-      <div class="subj-abbr" style="font-size:.72rem;color:var(--text-m);flex:2">${b.address||''}</div>
-      <div class="color-pick">${swatches}</div>
-      <span class="tag-del" onclick="wRemoveBuilding(${i})">×</span>
+    const floors = (b.floors||[]);
+    const floorsHtml = floors.map((fl,fi) => `
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;padding-left:12px">
+        <span style="font-size:.72rem;font-weight:700;flex:1">🏢 ${fl.label}</span>
+        <span style="font-size:.68rem;color:var(--text-m)">${fl.segments.map(s=>s.label).join(', ')||'brak segmentów'}</span>
+        <input class="winput" id="wSegInp_${i}_${fi}" placeholder="+ Segment" style="width:130px;padding:3px 6px;font-size:.72rem"
+          onkeydown="if(event.key==='Enter')wAddSegment(${i},${fi})">
+        <button class="tag-add-btn" style="padding:3px 8px;font-size:.68rem" onclick="wAddSegment(${i},${fi})">+</button>
+        ${fl.segments.map((s,si)=>`<span class="tag" style="font-size:.68rem;padding:2px 6px">${s.label}
+          <span class="tag-del" onclick="wRemoveSegment(${i},${fi},${si})">×</span></span>`).join('')}
+        <span class="tag-del" onclick="wRemoveFloor(${i},${fi})">✕</span>
+      </div>`).join('');
+    return `<div class="subj-row" style="flex-direction:column;align-items:stretch;gap:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="cdot" style="background:${b.color||'#38bdf8'}"></div>
+        <div class="subj-name" style="flex:1">${b.name}</div>
+        <div style="font-size:.72rem;color:var(--text-m);flex:2">${b.address||''}</div>
+        <div class="color-pick">${swatches}</div>
+        <input class="winput" id="wFloorInp_${i}" placeholder="+ Piętro / skrzydło"
+          style="width:150px;padding:3px 6px;font-size:.72rem"
+          onkeydown="if(event.key==='Enter')wAddFloor(${i})">
+        <button class="tag-add-btn" style="padding:3px 8px;font-size:.68rem" onclick="wAddFloor(${i})">+ Piętro</button>
+        <span class="tag-del" onclick="wRemoveBuilding(${i})">×</span>
+      </div>
+      ${floorsHtml}
     </div>`;
   }).join('');
 
   return `<div class="wcard">
     <div class="wcard-title">Budynki i lokalizacje zajęć</div>
     <p style="font-size:.82rem;color:var(--text-m);margin-bottom:16px;line-height:1.5">
-      Wpisz wszystkie miejsca, w których szkoła realizuje zajęcia — budynek główny, hale sportowe,
-      baseny, filie itp. Każda sala będzie przypisana do budynku. Jeśli szkoła ma tylko jeden budynek,
-      możesz ten krok pominąć.
+      Wpisz wszystkie miejsca, w których szkoła realizuje zajęcia. Do każdego budynku możesz od razu
+      dodać <strong>piętra</strong> i <strong>segmenty</strong> — będą służyć do przypisywania sal i miejsc dyżurów.
     </p>
     <div class="wfield"><label>Adres / siedziba główna szkoły</label>
       <input class="winput" id="wMainAddress" value="${wData.mainAddress||''}" placeholder="np. ul. Szkolna 1, Warszawa"></div>
@@ -1796,8 +1813,9 @@ function wizStep3() {
 function wizStep4() {
   const rows = wData.teachers.map((t,i) => `
     <div class="subj-row">
-      <div class="subj-name">${t.first} ${t.last}</div>
+      <div class="subj-name" style="flex:2">${t.first} ${t.last}</div>
       <div class="subj-abbr" style="font-family:var(--mono)">${t.abbr}</div>
+      ${t.hoursTotal ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${t.hoursTotal}${t.hoursExtra?'+'+t.hoursExtra:''} godz.</span>` : ''}
       <span class="tag-del" onclick="wRemoveTeacher(${i})">×</span>
     </div>`).join('');
   return `<div class="wcard">
@@ -1807,10 +1825,17 @@ function wizStep4() {
       <div class="wfield"><label>Nazwisko</label><input class="winput" id="wTLast" placeholder="Kowalska" oninput="wAutoAbbr()"></div>
       <div class="wfield"><label>Skrót</label><input class="winput" id="wTAbbr" placeholder="AKow" maxlength="6"></div>
     </div>
+    <div class="wrow">
+      <div class="wfield"><label>Pensum (godz./tydz.)</label>
+        <input class="winput" id="wTHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
+      <div class="wfield"><label>Nadgodziny stałe</label>
+        <input class="winput" id="wTHoursExtra" type="number" min="0" max="20" placeholder="np. 2"
+          title="Godziny ponad pensum wynikające z przydziału rocznego"></div>
+    </div>
     <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddTeacher()">+ Dodaj nauczyciela</button>
     ${rows}
-    <p class="import-hint">Masowe: <em>Anna;Kowalska;AKow</em> — jeden nauczyciel na linię</p>
-    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow&#10;Jan;Nowak;JNow&#10;Maria;Wiśniewska;MWis"></textarea>
+    <p class="import-hint">Masowe: <em>Anna;Kowalska;AKow;18;0</em> — imię;nazwisko;skrót;pensum;nadgodz.</p>
+    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow;18;0&#10;Jan;Nowak;JNow;18;2&#10;Maria;Wiśniewska;MWis;20;0"></textarea>
     <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wAddTeacherBulk()">Importuj z pola</button>
   </div>
   <div class="wbtn-row">
@@ -1830,27 +1855,36 @@ function wizStep5() {
   const rows = wData.rooms.map((r,i) => {
     const bld = (r.buildingId !== null && r.buildingId !== undefined && r.buildingId !== '')
       ? wData.buildings[parseInt(r.buildingId)] : null;
+    const rt = ROOM_TYPES[r.type]||ROOM_TYPES.full;
     return `<div class="subj-row">
       ${bld ? `<div class="cdot" style="background:${bld.color||'#888'}"></div>` : '<div class="cdot" style="background:var(--border)"></div>'}
       <div class="subj-name">${r.name}</div>
-      <div class="subj-abbr" style="font-size:.72rem;color:var(--text-m);flex:2">${bld?bld.name:''}</div>
+      <span style="font-size:.7rem">${rt.icon}</span>
+      <div style="font-size:.72rem;color:var(--text-m);flex:2">${bld?bld.name:''}${r.capacity?' · '+r.capacity+' os.':''}</div>
       <span class="tag-del" onclick="wRemoveRoom(${i})">×</span>
     </div>`;
   }).join('');
+
+  const typeOpts = Object.entries(ROOM_TYPES).map(([k,v])=>
+    `<option value="${k}">${v.icon} ${v.label}</option>`).join('');
 
   return `<div class="wcard">
     <div class="wcard-title">Sale lekcyjne</div>
     <div class="wrow">
       <div class="wfield" style="flex:2"><label>Nazwa sali</label>
         <input class="winput" id="wRoomInput" placeholder="np. 101, Sala gimnastyczna, Basen" onkeydown="if(event.key==='Enter')wAddRoom()"></div>
-      ${hasBld ? `<div class="wfield"><label>Budynek / lokalizacja</label>
-        <select class="wselect" id="wRoomBuilding">${bldOptions}</select></div>` : ''}
+      <div class="wfield"><label>Typ sali</label>
+        <select class="wselect" id="wRoomType">${typeOpts}</select></div>
+      <div class="wfield" style="flex:.8"><label>Pojemność</label>
+        <input class="winput" id="wRoomCapacity" type="number" min="1" max="60" placeholder="os."></div>
     </div>
+    ${hasBld ? `<div class="wrow">
+      <div class="wfield"><label>Budynek / lokalizacja</label>
+        <select class="wselect" id="wRoomBuilding">${bldOptions}</select></div>
+    </div>` : ''}
     <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddRoom()">+ Dodaj salę</button>
     ${rows}
-    <p class="import-hint">${hasBld
-      ? 'Masowe (bez przypisania budynku): <em>101;102;103;Aula</em>'
-      : 'Masowe: <em>101;102;103;Sala gimnastyczna</em>'}</p>
+    <p class="import-hint">Masowe (tylko nazwy): <em>101;102;103;Aula</em> — typ i pojemność uzupełnisz w ustawieniach</p>
     <div class="tag-add-row" style="margin-top:6px">
       <input class="winput" id="wRoomBulk" placeholder="101;102;103;Aula">
       <button class="tag-add-btn" onclick="wAddRoomBulk()">Importuj</button>
@@ -1935,11 +1969,11 @@ function wizFinish() {
     name: wData.name,
     year: wData.year,
     mainAddress: wData.mainAddress||'',
-    buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||''})),
+    buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||'', floors:b.floors||[]})),
     classes: wData.classes.map((c,i)=>({id:'cls'+i, name:c.name, groups:c.groups||[]})),
     subjects: wData.subjects.map((s,i)=>({id:'subj'+i, name:s.name, abbr:s.abbr, color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length]})),
-    teachers: wData.teachers.map((t,i)=>({id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr})),
-    rooms: wData.rooms.map((r,i)=>({id:'room'+i, name:r.name, buildingId:r.buildingId||null})),
+    teachers: wData.teachers.map((t,i)=>({id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr, hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0, subjects:[], assignments:[]})),
+    rooms: wData.rooms.map((r,i)=>({id:'room'+i, name:r.name, type:r.type||'full', capacity:r.capacity||0, buildingId:r.buildingId!=null?'bld'+parseInt(r.buildingId):null})),
     hours: wData.hours.sort((a,b)=>a.num-b.num),
   };
   schedData = {};
@@ -2001,18 +2035,27 @@ function wAddTeacher() {
   const l=document.getElementById('wTLast').value.trim();
   const a=document.getElementById('wTAbbr').value.trim()||((f[0]||'').toUpperCase()+l.slice(0,3));
   if(!f&&!l) return;
-  wData.teachers.push({first:f,last:l,abbr:a});
+  const hoursTotal=parseInt(document.getElementById('wTHoursTotal')?.value)||0;
+  const hoursExtra=parseInt(document.getElementById('wTHoursExtra')?.value)||0;
+  wData.teachers.push({first:f,last:l,abbr:a,hoursTotal,hoursExtra});
   document.getElementById('wTFirst').value='';
   document.getElementById('wTLast').value='';
   document.getElementById('wTAbbr').value='';
+  document.getElementById('wTHoursTotal').value='';
+  document.getElementById('wTHoursExtra').value='';
   renderWizStep();
 }
 function wAddTeacherBulk() {
   const raw = document.getElementById('wTeacherBulk').value.trim();
   if(!raw) return;
   raw.split('\n').forEach(line=>{
-    const [f,l,a]=(line||'').split(';').map(x=>x.trim());
-    if(f||l) wData.teachers.push({first:f||'',last:l||'',abbr:a||(f?f[0]:'')+(l?l.slice(0,3):'')});
+    const [f,l,a,ht,he]=(line||'').split(';').map(x=>x.trim());
+    if(f||l) wData.teachers.push({
+      first:f||'',last:l||'',
+      abbr:a||(f?f[0]:'')+(l?l.slice(0,3):''),
+      hoursTotal:parseInt(ht)||0,
+      hoursExtra:parseInt(he)||0
+    });
   });
   renderWizStep();
 }
@@ -2025,10 +2068,35 @@ function wAddBuilding() {
   const note = (document.getElementById('wBldNote')||{}).value?.trim()||'';
   if(!name){notify('Podaj nazwę lokalizacji');return;}
   const BCOLORS=['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
-  wData.buildings.push({name, address, note, color:BCOLORS[wData.buildings.length%BCOLORS.length]});
+  wData.buildings.push({name, address, note, color:BCOLORS[wData.buildings.length%BCOLORS.length], floors:[]});
   document.getElementById('wBldName').value='';
   document.getElementById('wBldAddress').value='';
   document.getElementById('wBldNote').value='';
+  renderWizStep();
+}
+function wAddFloor(bi) {
+  const inp = document.getElementById('wFloorInp_'+bi);
+  const label = inp?.value.trim();
+  if(!label){notify('Podaj nazwę piętra');return;}
+  if(!wData.buildings[bi].floors) wData.buildings[bi].floors=[];
+  wData.buildings[bi].floors.push({id:'fl_'+Date.now()+'_'+bi, label, segments:[]});
+  if(inp) inp.value='';
+  renderWizStep();
+}
+function wRemoveFloor(bi,fi) {
+  wData.buildings[bi].floors.splice(fi,1);
+  renderWizStep();
+}
+function wAddSegment(bi,fi) {
+  const inp = document.getElementById('wSegInp_'+bi+'_'+fi);
+  const label = inp?.value.trim();
+  if(!label){notify('Podaj nazwę segmentu');return;}
+  wData.buildings[bi].floors[fi].segments.push({id:'seg_'+Date.now(), label});
+  if(inp) inp.value='';
+  renderWizStep();
+}
+function wRemoveSegment(bi,fi,si) {
+  wData.buildings[bi].floors[fi].segments.splice(si,1);
   renderWizStep();
 }
 function wRemoveBuilding(i){wData.buildings.splice(i,1);renderWizStep();}
@@ -2040,8 +2108,11 @@ function wAddRoom() {
   if(!v)return;
   const bldEl=document.getElementById('wRoomBuilding');
   const buildingId=(bldEl&&bldEl.value!=='')?bldEl.value:null;
-  if(!wData.rooms.find(r=>r.name===v))wData.rooms.push({name:v,buildingId});
+  const type=document.getElementById('wRoomType')?.value||'full';
+  const capacity=parseInt(document.getElementById('wRoomCapacity')?.value)||0;
+  if(!wData.rooms.find(r=>r.name===v))wData.rooms.push({name:v,buildingId,type,capacity});
   document.getElementById('wRoomInput').value='';
+  if(document.getElementById('wRoomCapacity')) document.getElementById('wRoomCapacity').value='';
   renderWizStep();
 }
 function wAddRoomBulk() {
