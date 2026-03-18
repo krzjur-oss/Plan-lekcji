@@ -1653,20 +1653,21 @@ function showApp() {
 // ================================================================
 
 function wlSetTheme(t) {
-  // Ustaw motyw i zapisz preferencję
-  document.documentElement.setAttribute('data-theme', t);
-  localStorage.setItem('pl_theme', t);
+  // Ten sam mechanizm co applyTheme/toggleTheme
+  document.body.classList.toggle('light', t==='light');
+  localStorage.setItem(LS.THEME, t);
+  // Odśwież przycisk w appRoot
+  const appBtn = document.getElementById('themeBtn');
+  if(appBtn) appBtn.textContent = t==='light' ? '🌙' : '☀️';
+  // Odśwież przyciski na welcome screen
   document.querySelectorAll('.wl-theme-btn').forEach(b=>b.classList.remove('active'));
-  const btn = document.getElementById(t==='dark'?'wlThemeDark':'wlThemeLight');
-  if(btn) btn.classList.add('active');
-  // Odśwież przycisk w appRoot jeśli widoczny
-  const tb = document.getElementById('themeToggle');
-  if(tb) tb.textContent = t==='dark' ? '☀️' : '🌙';
+  const wlBtn = document.getElementById(t==='dark'?'wlThemeDark':'wlThemeLight');
+  if(wlBtn) wlBtn.classList.add('active');
 }
 
 function wlInit() {
-  // Przywróć motyw
-  const saved = localStorage.getItem('pl_theme')||'dark';
+  // Przywróć motyw używając tego samego klucza co applyTheme
+  const saved = localStorage.getItem(LS.THEME)||'dark';
   wlSetTheme(saved);
 
   // Sprawdź czy istnieje zapisany plan
