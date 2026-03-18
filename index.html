@@ -1340,6 +1340,14 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px">
         Każdy wiersz to jedno miejsce dyżuru. Możesz dodać wiele miejsc na jeden dzień.
       </p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button onclick="dmAddToAllDays()" class="mbtn mbtn-ghost" style="font-size:.72rem;padding:5px 10px">
+          📋 Dodaj miejsce do wszystkich dni
+        </button>
+        <button onclick="dmCopyFromFirst()" class="mbtn mbtn-ghost" style="font-size:.72rem;padding:5px 10px">
+          ↓ Kopiuj Poniedziałek → wszystkie
+        </button>
+      </div>
       <div id="dmPlacesGrid"></div>
     </div>
 
@@ -4338,6 +4346,29 @@ function dmRenderPlaces() {
       idx++;
     });
   });
+}
+
+function dmAddToAllDays() {
+  // Pyta o nazwę miejsca i dodaje do wszystkich dni
+  const place = prompt('Nazwa miejsca dyżuru (np. Korytarz A):','');
+  if(place === null) return; // anulowano
+  DUTY_DAY_KEYS.forEach(key => {
+    if(!_dmPlaces[key]) _dmPlaces[key] = [];
+    _dmPlaces[key].push({place: place.trim(), teacherId: ''});
+  });
+  dmRenderPlaces();
+  notify('Dodano miejsce do wszystkich dni');
+}
+
+function dmCopyFromFirst() {
+  const src = _dmPlaces['mon'] || [];
+  if(!src.length) { notify('Brak miejsc w Poniedziałek — najpierw dodaj miejsca tam', 'warn'); return; }
+  DUTY_DAY_KEYS.forEach((key, i) => {
+    if(i === 0) return; // pomiń poniedziałek
+    _dmPlaces[key] = src.map(r => ({place: r.place, teacherId: r.teacherId}));
+  });
+  dmRenderPlaces();
+  notify('Skopiowano miejsca z Poniedziałku do pozostałych dni');
 }
 
 function dmPlaceAdd(dayKey) {
