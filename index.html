@@ -342,23 +342,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   padding:9px 12px;font-size:.72rem;font-weight:700;
   color:var(--text-m);letter-spacing:.05em;text-transform:uppercase;
   white-space:nowrap;
+  position:sticky;top:0;z-index:4;
 }
 .sched-grid th.day-header{
   font-size:.8rem;color:var(--text);text-transform:none;letter-spacing:0;font-weight:700;
 }
 .sched-grid th.hour-header{width:52px;text-align:center}
-.day-label-hdr{width:28px;min-width:28px;padding:0}
-.day-label-cell{
-  text-align:center;font-size:.72rem;font-weight:800;
-  color:var(--accent);
-  background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
-  border-right:3px solid var(--accent);
-  border-bottom:2px solid var(--border);
-  padding:8px 4px;white-space:nowrap;vertical-align:middle;
-  writing-mode:vertical-rl;text-orientation:mixed;
-  letter-spacing:.12em;text-transform:uppercase;
-  user-select:none;
+/* Nagłówek kolumny dnia (lewy górny róg) — sticky top+left */
+.day-label-hdr{
+  width:28px;min-width:28px;padding:0;
+  position:sticky;left:0;z-index:6;
+  background:var(--s2);
 }
+/* Nagłówek godzin — sticky top, za kolumną dnia */
+.sched-grid th.hour-header{
+  position:sticky;top:0;
+}
+/* Wszystkie td: względne pozycjonowanie domyślnie */
 .sched-grid td {
   border:1px solid var(--border);
   padding:3px;vertical-align:top;
@@ -366,14 +366,30 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   position:relative;
   transition:background .1s;
 }
-.sched-grid td.droptarget-hover{background:var(--accent-g);outline:2px dashed var(--accent);outline-offset:-2px}
-.sched-grid td.empty-cell{cursor:pointer}
-.sched-grid td.empty-cell:hover{background:var(--accent-g2)}
+/* Kolumna dnia — sticky lewa, najwyższy z-index w tbody */
+.day-label-cell{
+  text-align:center;font-size:.62rem;font-weight:800;
+  color:var(--accent);
+  background:linear-gradient(180deg,var(--s2) 0%,var(--s3) 100%);
+  border-right:3px solid var(--accent);
+  border-bottom:2px solid var(--accent);
+  padding:6px 2px;white-space:nowrap;vertical-align:middle;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  letter-spacing:.1em;text-transform:uppercase;
+  user-select:none;
+  width:28px;min-width:28px;
+  position:sticky;left:0;z-index:3;
+}
+/* Kolumna godzin — sticky za kolumną dnia */
 .hour-cell{
   background:var(--s2);text-align:center;font-size:.75rem;
   font-family:var(--mono);color:var(--text-m);font-weight:500;
   padding:0 8px;width:52px;
+  position:sticky;z-index:2;
 }
+.sched-grid td.droptarget-hover{background:var(--accent-g);outline:2px dashed var(--accent);outline-offset:-2px}
+.sched-grid td.empty-cell{cursor:pointer}
+.sched-grid td.empty-cell:hover{background:var(--accent-g2)}
 /* lesson chip */
 .lesson-chip {
   display:flex;flex-direction:column;justify-content:center;
@@ -2448,7 +2464,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
     // Nagłówek: Dzień | Nr | [nazwy klas]
     html += '<tr>';
     html += '<th class="hour-header day-label-hdr"></th>';
-    html += '<th class="hour-header">Nr</th>';
+    html += '<th class="hour-header" style="left:28px">Nr</th>';
     columns.forEach(col => {
       html += `<th class="day-header">${col.label}</th>`;
     });
@@ -2456,7 +2472,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else if(days.length > 1) {
     // Wiele dni, bez etykiety bocznej: nagłówek z nazwami dni (colspan) + subheader z klasami
     html += '<tr>';
-    html += '<th class="hour-header">Nr</th>';
+    html += '<th class="hour-header" style="left:0">Nr</th>';
     days.forEach(di => {
       html += `<th class="day-header" colspan="${columns.length}">${DAYS[di]}</th>`;
     });
@@ -2473,7 +2489,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else {
     // Jeden dzień: nagłówek z nazwami klas
     html += '<tr>';
-    html += '<th class="hour-header">Nr</th>';
+    html += '<th class="hour-header" style="left:0">Nr</th>';
     columns.forEach(col => {
       html += `<th class="day-header">${col.label}</th>`;
     });
@@ -2539,7 +2555,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   } else {
     // Tryb normalny: wiersze = godziny, kolumny = (dni ×) klasy
     hours.forEach(h => {
-      html += `<tr><td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
+      html += `<tr><td class="hour-cell" style="left:0">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
       days.forEach(di => {
         columns.forEach(col => { html += cellHtml(col, di, h); });
       });
