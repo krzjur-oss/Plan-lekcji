@@ -2515,29 +2515,30 @@ function renderClassView() {
 // ── TEACHER VIEW ──
 function renderTeacherView() {
   if(!appState) return;
-  const tchId  = document.getElementById('teacherSelect').value;
+  const tchId = document.getElementById('teacherSelect').value;
   const dayVal = document.getElementById('teacherDaySelect').value;
-  const wrap   = document.getElementById('teacherGridWrap');
+  const wrap = document.getElementById('teacherGridWrap');
   if(!tchId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">👩‍🏫</div><div class="empty-state-title">Wybierz nauczyciela z listy</div></div>`;return;}
-
-  if(dayVal === 'all') {
-    // Tryb tygodniowy: kolumny = dni, wiersze = godziny
-    wrap.innerHTML = renderWeekGrid('teacher', tchId);
-  } else {
-    const days = [parseInt(dayVal)];
-    const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
-    wrap.innerHTML = renderGrid(cols, null, days, {fixTeacher:tchId});
-    wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
-      const clsId=td.dataset.clsid;
-      const di=parseInt(td.dataset.day);
-      const hn=parseInt(td.dataset.hour);
-      const lesson=getLesson(clsId,di,hn);
-      if(lesson && lesson.teacherId!==tchId){
-        td.querySelector('.lesson-chip')&&(td.querySelector('.lesson-chip').style.opacity='.2');
-      }
-      if(!lesson) td.onclick=()=>openAddModal(clsId,di,hn,tchId,'');
-    });
-  }
+  const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
+  // For teacher view: show all classes that have a lesson with this teacher
+  const hours = appState.hours;
+  const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
+  // Build a virtual grid: for teacher, we show all classes
+  wrap.innerHTML = renderGrid(cols, null, days, {fixTeacher:tchId});
+  // Overlay: grey out cells where lesson has a different teacher
+  wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
+    const clsId=td.dataset.clsid;
+    const di=parseInt(td.dataset.day);
+    const hn=parseInt(td.dataset.hour);
+    const lesson=getLesson(clsId,di,hn);
+    if(lesson && lesson.teacherId!==tchId){
+      td.querySelector('.lesson-chip')&&(td.querySelector('.lesson-chip').style.opacity='.2');
+    }
+    if(!lesson){
+      // In teacher view, clicking empty cell should pre-fill teacher
+      td.onclick=()=>openAddModal(clsId,di,hn,tchId,'');
+    }
+  });
 }
 
 // ── ROOM VIEW ──
@@ -2545,132 +2546,24 @@ function renderRoomView() {
   if(!appState) return;
   const roomId = document.getElementById('roomSelect').value;
   const dayVal = document.getElementById('roomDaySelect').value;
-  const wrap   = document.getElementById('roomGridWrap');
+  const wrap = document.getElementById('roomGridWrap');
   if(!roomId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">Wybierz salę z listy</div></div>`;return;}
-
-  if(dayVal === 'all') {
-    // Tryb tygodniowy: kolumny = dni, wiersze = godziny
-    wrap.innerHTML = renderWeekGrid('room', roomId);
-  } else {
-    const days = [parseInt(dayVal)];
-    const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
-    wrap.innerHTML = renderGrid(cols, null, days, {fixRoom:roomId});
-    wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
-      const clsId=td.dataset.clsid;
-      const di=parseInt(td.dataset.day);
-      const hn=parseInt(td.dataset.hour);
-      const lesson=getLesson(clsId,di,hn);
-      if(lesson && lesson.roomId!==roomId){
-        const chip=td.querySelector('.lesson-chip');
-        if(chip)chip.style.opacity='.15';
-      }
-      if(!lesson) td.onclick=()=>openAddModal(clsId,di,hn,'',roomId);
-    });
-  }
-}
-
-// ── WEEK GRID (nauczyciel / sala — cały tydzień) ──
-// kolumny = dni tygodnia, wiersze = godziny lekcyjne
-function renderWeekGrid(mode, entityId) {
-  const hours  = (appState.hours || []).slice().sort((a,b)=>a.num-b.num);
-  if(!hours.length) return `<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>`;
-  const DAY_SHORT = ['Pon','Wt','Śr','Czw','Pt'];
-
-  let html = `<div class="matrix-grid"><table class="matrix-table"><thead><tr>
-    <th class="row-header" style="min-width:52px">Godz.</th>`;
-  DAY_SHORT.forEach(d => { html += `<th>${d}</th>`; });
-  html += `</tr></thead><tbody>`;
-
-  hours.forEach(h => {
-    html += `<tr><td class="m-hour">${h.num}<br><span style="font-size:.62rem">${h.start}</span></td>`;
-    [0,1,2,3,4].forEach(di => {
-      // Znajdź lekcję dla tego nauczyciela/sali w tym dniu i godzinie
-      let foundKey = null, foundLesson = null;
-      for(const [k,v] of Object.entries(schedData)) {
-        const parts = k.split('_');
-        if(parseInt(parts[1]) !== di || parseInt(parts[2]) !== h.num) continue;
-        if(mode === 'teacher' && v.teacherId !== entityId) continue;
-        if(mode === 'room'    && v.roomId    !== entityId) continue;
-        foundKey = k; foundLesson = v; break;
-      }
-
-      if(foundLesson) {
-        const clsId  = foundKey.split('_')[0];
-        const subj   = appState.subjects.find(s=>s.id===foundLesson.subjectId);
-        const cls    = appState.classes.find(c=>c.id===clsId);
-        const tch    = appState.teachers.find(t=>t.id===foundLesson.teacherId);
-        const room   = appState.rooms.find(r=>r.id===foundLesson.roomId);
-        const color  = subj?.color||'#38bdf8';
-        const bg     = hexToRgba(color,.18);
-        const bord   = hexToRgba(color,.5);
-        const textC  = isDarkColor(color)?'#fff':'#111';
-        const hasC   = checkCellConflict(clsId,di,h.num,foundLesson);
-        // Linia 1: przedmiot, Linia 2: zależy od trybu
-        const line2  = mode==='teacher'
-          ? [cls?.name, room?.name].filter(Boolean).join(' · ')
-          : [cls?.name, tch?.abbr].filter(Boolean).join(' · ');
-        html += `<td data-clsid="${clsId}" data-day="${di}" data-hour="${h.num}"
-          style="${hasC?'background:var(--red-g)':''}"
-          ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${clsId}',${di},${h.num})" ondragleave="doDragLeave(event)">
-          <div class="m-chip ${hasC?'conflict-chip':''}"
-            style="background:${bg};border-left:3px solid ${color};color:${textC}"
-            draggable="true"
-            ondragstart="doDragStart(event,'${clsId}',${di},${h.num})"
-            ondragend="doDragEnd(event)">
-            <div style="font-weight:700;font-size:.72rem">${subj?.abbr||'?'}${foundLesson.groups?.length?' ('+foundLesson.groups.join('/')+')':''}</div>
-            <div style="font-size:.65rem;opacity:.8">${line2}</div>
-          </div>
-          <div class="lesson-chip-del" onclick="event.stopPropagation();deleteLesson('${clsId}',${di},${h.num})">×</div>
-        </td>`;
-      } else {
-        // Pusta komórka — przy kliknięciu otwieramy modal z pre-wypełnionym nauczycielem/salą
-        const fixTch  = mode==='teacher' ? entityId : '';
-        const fixRoom = mode==='room'    ? entityId : '';
-        // Musimy wybrać klasę — otwieramy modal klasy do wyboru, lub brak (użytkownik wybierze)
-        html += `<td class="empty-cell week-empty" data-day="${di}" data-hour="${h.num}"
-          ondragover="doDragOver(event,this)" ondragleave="doDragLeave(event)"
-          ondrop="event.preventDefault()"
-          onclick="weekCellClick(${di},${h.num},'${fixTch}','${fixRoom}')">
-          <button class="add-cell-btn" tabindex="-1">＋</button>
-        </td>`;
-      }
-    });
-    html += `</tr>`;
+  const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
+  const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
+  wrap.innerHTML = renderGrid(cols, null, days, {fixRoom:roomId});
+  wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
+    const clsId=td.dataset.clsid;
+    const di=parseInt(td.dataset.day);
+    const hn=parseInt(td.dataset.hour);
+    const lesson=getLesson(clsId,di,hn);
+    if(lesson && lesson.roomId!==roomId){
+      const chip=td.querySelector('.lesson-chip');
+      if(chip)chip.style.opacity='.15';
+    }
+    if(!lesson){
+      td.onclick=()=>openAddModal(clsId,di,hn,'',roomId);
+    }
   });
-
-  html += `</tbody></table></div>`;
-  return html;
-}
-
-// Klik w pustą komórkę tygodniową — wybierz klasę a potem otwórz modal
-function weekCellClick(di, hnum, fixTch, fixRoom) {
-  if(!appState.classes.length){ notify('Brak klas w planie'); return; }
-  // Jeśli jest tylko jedna klasa — od razu otwórz
-  if(appState.classes.length === 1) {
-    openAddModal(appState.classes[0].id, di, hnum, fixTch, fixRoom);
-    return;
-  }
-  // Więcej klas — mini picker
-  const existing = document.getElementById('weekClsPicker');
-  if(existing) existing.remove();
-
-  const picker = document.createElement('div');
-  picker.id = 'weekClsPicker';
-  picker.style.cssText = `position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5)`;
-  picker.innerHTML = `
-    <div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:20px;min-width:260px;max-width:90vw">
-      <div style="font-weight:700;font-size:.9rem;margin-bottom:12px">Wybierz klasę</div>
-      <div style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto">
-        ${sortByName(appState.classes).map(c=>`
-          <button onclick="document.getElementById('weekClsPicker').remove();openAddModal('${c.id}',${di},${hnum},'${fixTch}','${fixRoom}')"
-            style="padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--s2);cursor:pointer;text-align:left;font-size:.85rem;font-weight:600;color:var(--text)">${c.name}</button>
-        `).join('')}
-      </div>
-      <button onclick="document.getElementById('weekClsPicker').remove()"
-        style="margin-top:10px;width:100%;padding:7px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text-m);cursor:pointer;font-size:.8rem">Anuluj</button>
-    </div>`;
-  picker.addEventListener('click', e => { if(e.target === picker) picker.remove(); });
-  document.body.appendChild(picker);
 }
 
 // ── MATRIX VIEW ──
