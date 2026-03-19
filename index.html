@@ -4004,6 +4004,13 @@ function genSaveConstraints() {
 //  Zachłanny z backtrackingiem + lokalna optymalizacja (SA)
 // ================================================================
 
+// ================================================================
+//  SOLVER — Etap 2
+//  Architektura: główny wątek steruje UI, solver działa jako
+//  inline Web Worker (blob URL) żeby nie blokować interfejsu.
+//  Algorytm: Greedy + Simulated Annealing
+// ================================================================
+
 function genRun() {
   if(!appState) { notify('Brak danych szkoły','warn'); return; }
   const C       = getConstraints();
@@ -4013,442 +4020,539 @@ function genRun() {
   const subjects= appState.subjects||[];
   const rooms   = appState.rooms||[];
 
-  if(!hours.length)   { notify('Brak godzin lekcyjnych','warn'); return; }
-  if(!classes.length) { notify('Brak klas','warn'); return; }
-  if(!teachers.length){ notify('Brak nauczycieli','warn'); return; }
+  if(!hours.length)   { notify('Uzupełnij godziny lekcyjne','warn'); return; }
+  if(!classes.length) { notify('Dodaj klasy','warn'); return; }
+  if(!teachers.length){ notify('Dodaj nauczycieli','warn'); return; }
+
+  const hasAssignments = teachers.some(t=>(t.assignments||[]).some(a=>a.hours>0));
+  if(!hasAssignments) { notify('Brak przydziałów godzin — przypisz nauczycielom klasy i przedmioty','warn'); return; }
 
   // Pokaż UI postępu
   const wrap = document.getElementById('generatorContent');
   wrap.innerHTML = `<div style="max-width:900px">
-    <div class="gen-run-bar">
-      <div>
-        <div style="font-size:.85rem;font-weight:700">⚡ Generowanie planu…</div>
-        <div style="font-size:.72rem;color:var(--text-m);margin-top:2px" id="genStatus">Inicjalizacja…</div>
+    <div class="gen-run-bar" style="margin-bottom:10px">
+      <span style="font-size:1.2rem">⚡</span>
+      <div style="flex:1">
+        <div style="font-size:.85rem;font-weight:700">Generowanie planu…</div>
+        <div style="font-size:.72rem;color:var(--text-m);margin-top:2px" id="genStatus">Przygotowanie…</div>
       </div>
-      <button class="wbtn wbtn-ghost" style="margin-left:auto;font-size:.78rem"
-        onclick="renderGenerator()">✕ Anuluj</button>
+      <button class="wbtn wbtn-ghost" style="font-size:.78rem" onclick="genStop()">✕ Zatrzymaj</button>
     </div>
-    <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:8px">
-      <div id="genPBar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .3s"></div>
+    <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:12px">
+      <div id="genPBar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .4s"></div>
     </div>
-    <div class="gen-log" id="genLog" style="height:200px"></div>
+    <div class="gen-log" id="genLog" style="height:180px;font-size:.68rem"></div>
     <div id="genResultArea" style="margin-top:16px"></div>
   </div>`;
 
-  setTimeout(() => genSolve(C, hours, classes, teachers, subjects, rooms), 80);
+  // Przygotuj dane do solvera
+  const payload = {
+    C,
+    hours,
+    days: genActiveDays(C),
+    classes:  classes.map(c=>({
+      id:c.id, name:c.name, studentCount:c.studentCount||0,
+      optionalSubjects:(c.optionalSubjects||[]),
+      homeRooms:(c.homeRooms||[])
+    })),
+    teachers: teachers.map(t=>({
+      id:t.id, abbr:t.abbr, first:t.first, last:t.last,
+      hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0,
+      employment:t.employment||'full',
+      employmentFraction:t.employmentFraction||1,
+      assignments:(t.assignments||[]).filter(a=>a.hours>0),
+      availability:((C.teacherAvail||{})[t.id])||{}
+    })),
+    subjects: subjects.map(s=>({
+      id:s.id, name:s.name, abbr:s.abbr, color:s.color,
+      duration:s.duration||'year', classes:s.classes||[]
+    })),
+    rooms: rooms.map(r=>({
+      id:r.id, name:r.name, type:r.type||'full',
+      capacity:r.capacity||0,
+      preferredSubjects:r.preferredSubjects||[],
+      note:r.note||''
+    })),
+    activeSem: appState.activeSem||1,
+    schoolWindow: appState.schoolWindow||{}
+  };
+
+  window._genWorker = genRunWorker(payload);
+}
+
+function genActiveDays(C) {
+  const win = C.schoolWindow || appState.schoolWindow || {};
+  const keys = ['mon','tue','wed','thu','fri'];
+  return [0,1,2,3,4].filter(di => !(win[keys[di]]||[])[2]);
+}
+
+function genStop() {
+  if(window._genWorker) { window._genWorker.terminate(); window._genWorker=null; }
+  renderGenerator();
+  notify('Generowanie zatrzymane');
 }
 
 function genLog(msg) {
   const el = document.getElementById('genLog');
-  if(el) { el.textContent += (el.textContent?'\n':'')+msg; el.scrollTop=el.scrollHeight; }
+  if(!el) return;
+  el.textContent += (el.textContent?'\n':'')+msg;
+  el.scrollTop = el.scrollHeight;
 }
 function genStatus(msg) {
-  const el = document.getElementById('genStatus'); if(el) el.textContent = msg;
+  const el = document.getElementById('genStatus'); if(el) el.textContent=msg;
 }
 function genProgress(pct) {
-  const el = document.getElementById('genPBar'); if(el) el.style.width = pct+'%';
+  const el = document.getElementById('genPBar'); if(el) el.style.width=Math.round(pct)+'%';
 }
 
-function genSolve(C, hours, classes, teachers, subjects, rooms) {
-  const DAYS = [0,1,2,3,4];
-  const log  = genLog;
-  const warnings = [];
-  const newSched = {}; // clsId_di_hnum → {subjectId,teacherId,roomId,groups:[]}
+// ── Uruchom solver jako Web Worker (blob) ──
+function genRunWorker(payload) {
+  const workerCode = `(${genWorkerFn.toString()})()`;
+  const blob   = new Blob([workerCode], {type:'application/javascript'});
+  const url    = URL.createObjectURL(blob);
+  const worker = new Worker(url);
 
-  // ── Struktury zajętości ──
-  const tchSlots  = {}; // tchId  → Set('di_hn')
-  const clsSlots  = {}; // clsId  → Set('di_hn')
-  const roomSlots = {}; // roomId → Set('di_hn')
-
-  const slotKey  = (di,hn) => `${di}_${hn}`;
-  const schedKey = (cid,di,hn) => `${cid}_${di}_${hn}`;
-
-  const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(slotKey(di,hn));
-  const isClsFree  = (cid,di,hn) => !clsSlots[cid]?.has(slotKey(di,hn));
-  const isRoomFree = (rid,di,hn) => !roomSlots[rid]?.has(slotKey(di,hn));
-
-  const markTch  = (tid,di,hn)  => { if(!tchSlots[tid])  tchSlots[tid] =new Set(); tchSlots[tid].add(slotKey(di,hn)); };
-  const markCls  = (cid,di,hn)  => { if(!clsSlots[cid])  clsSlots[cid] =new Set(); clsSlots[cid].add(slotKey(di,hn)); };
-  const markRoom = (rid,di,hn)  => { if(!roomSlots[rid])  roomSlots[rid]=new Set(); roomSlots[rid].add(slotKey(di,hn)); };
-  const unmarkTch  = (tid,di,hn) => tchSlots[tid]?.delete(slotKey(di,hn));
-  const unmarkCls  = (cid,di,hn) => clsSlots[cid]?.delete(slotKey(di,hn));
-  const unmarkRoom = (rid,di,hn) => roomSlots[rid]?.delete(slotKey(di,hn));
-
-  // ── Pomocniki ──
-  const tchAvail = (tid,di,hn) => {
-    const av = (C.teacherAvail||{})[tid];
-    if(!av) return true;
-    return av[slotKey(di,hn)] !== 'blocked';
+  worker.onmessage = (e) => {
+    const msg = e.data;
+    if(msg.type==='log')      genLog(msg.text);
+    if(msg.type==='status')   genStatus(msg.text);
+    if(msg.type==='progress') genProgress(msg.pct);
+    if(msg.type==='done')     genHandleResult(msg.result, msg.warnings, msg.stats);
+    if(msg.type==='error')    { genLog('BŁĄD: '+msg.text); genStatus('Błąd solvera'); }
   };
-  const tchPref = (tid,di,hn) => {
-    const av = (C.teacherAvail||{})[tid];
-    return av?.[slotKey(di,hn)] === 'preferred' ? 2 : 0;
-  };
+  worker.onerror = (e) => { genLog('Worker error: '+e.message); };
+  worker.postMessage(payload);
+  URL.revokeObjectURL(url);
+  return worker;
+}
 
-  // Znajdź wolną salę dla przedmiotu
-  const findRoom = (subjId, di, hn, exclude=[]) => {
-    // 1. Preferowana i wolna
-    const pref = rooms.filter(r =>
-      !exclude.includes(r.id) && isRoomFree(r.id,di,hn) &&
-      (r.preferredSubjects||[]).includes(subjId)
-    );
-    if(pref.length) return pref[Math.floor(Math.random()*pref.length)];
-    // 2. Zwykła wolna (nie specjalistyczna lub specjalistyczna bez ograniczeń)
-    const free = rooms.filter(r =>
-      !exclude.includes(r.id) && isRoomFree(r.id,di,hn) &&
-      !(r.preferredSubjects||[]).length
-    );
-    if(free.length) return free[Math.floor(Math.random()*free.length)];
-    // 3. Jakakolwiek wolna
-    const any = rooms.filter(r => !exclude.includes(r.id) && isRoomFree(r.id,di,hn));
-    return any.length ? any[Math.floor(Math.random()*any.length)] : null;
-  };
+// ── Obsługa wyniku ──
+function genHandleResult(newSched, warnings, stats) {
+  window._genSched    = newSched;
+  window._genWarnings = warnings;
 
-  // Czy godzina jest skrajna dla klasy w danym dniu
-  const isEdge = (cid, di, hn) => {
-    const booked = [...(clsSlots[cid]||[])].filter(k=>k.startsWith(di+'_')).map(k=>parseInt(k.split('_')[1]));
-    if(!booked.length) return true; // pierwsza godzina = zawsze skrajna
-    const hiNums = hours.map(h=>h.num);
-    const minBooked = Math.min(...booked, hn);
-    const maxBooked = Math.max(...booked, hn);
-    // Skrajna jeśli hn jest min lub max spośród wszystkich zarezerwowanych
-    return hn <= minBooked || hn >= maxBooked;
-  };
-
-  // ── Zbierz grupy łączone (opcjonalne między-klasowe) ──
-  const mergedGroups = []; // [{subjId, clsIds, tchId}]
-  const processedMerge = new Set();
-  classes.forEach(cls => {
-    (cls.optionalSubjects||[]).forEach(o => {
-      if(!o.subjId || !(o.mergeWith||[]).length) return;
-      const allCls = [cls.id,...o.mergeWith].sort();
-      const mkey   = allCls.join('|')+':'+o.subjId;
-      if(processedMerge.has(mkey)) return;
-      processedMerge.add(mkey);
-      // Znajdź nauczyciela przypisanego do tego przedmiotu w klasie bazowej
-      const tch = teachers.find(t=>(t.assignments||[]).some(a=>a.classId===cls.id&&a.subjectId===o.subjId));
-      mergedGroups.push({subjId:o.subjId, clsIds:allCls, tchId:tch?.id||null, position:o.position||'edge'});
-    });
-  });
-
-  // ── Zbierz zadania ──
-  // Zadanie: {clsId, subjId, tchId, hoursLeft, isOpt, position, blockSize, maxPerDay, noBlock}
-  log('Budowanie listy zadań…');
-  const tasks = [];
-  const addedKeys = new Set();
-
-  // Zadania z przydziałów nauczycieli
-  teachers.forEach(t => {
-    (t.assignments||[]).forEach(a => {
-      if(!a.hours || !a.classId || !a.subjectId) return;
-      const taskKey = `${a.classId}_${a.subjectId}_${t.id}`;
-      if(addedKeys.has(taskKey)) return;
-      addedKeys.add(taskKey);
-
-      const cls  = classes.find(c=>c.id===a.classId);
-      const subj = subjects.find(s=>s.id===a.subjectId);
-      if(!cls||!subj) return;
-
-      // Sprawdź czy to przedmiot opcjonalny (ma grupę łączoną)
-      const isMerged = mergedGroups.some(m=>m.subjId===a.subjectId&&m.clsIds.includes(a.classId));
-
-      // Sprawdź czy to samodzielny opcjonalny (nie łączony)
-      const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
-      const isOpt    = !!optEntry;
-
-      tasks.push({
-        clsId:    a.classId,
-        subjId:   a.subjectId,
-        tchId:    t.id,
-        hoursLeft: a.hours,
-        isOpt,
-        isMerged,
-        position: (C.subjPosition||{})[a.subjectId] || (optEntry?.position) || 'any',
-        blockSize: (C.noBlock||[]).includes(a.subjectId) ? 1 : Math.max(1,(C.lessonBlocks||{})[a.subjectId]?.blockSize||1),
-        noBlock:   (C.noBlock||[]).includes(a.subjectId),
-        maxPerDay: (C.maxPerDay||{})[a.subjectId]||0,
-        isGroup:   !!(C.groupSplit||{})[a.classId+'_'+a.subjectId] || isOpt,
-      });
-    });
-  });
-
-  // Sortuj: najpierw zadania z ograniczeniami (skrajne, bloki, opcjonalne), potem zwykłe
-  tasks.sort((a,b) => {
-    const scoreA = (a.position!=='any'?4:0) + (a.isMerged?3:0) + (a.isOpt?2:0) + (a.blockSize>1?1:0);
-    const scoreB = (b.position!=='any'?4:0) + (b.isMerged?3:0) + (b.isOpt?2:0) + (b.blockSize>1?1:0);
-    return scoreB - scoreA;
-  });
-
-  log(`Zadań do przydzielenia: ${tasks.length}, łącznie godzin: ${tasks.reduce((s,t)=>s+t.hoursLeft,0)}`);
-  log(`Grup łączonych: ${mergedGroups.length}`);
-
-  // Tracker max per day: clsId_subjId_di → count
-  const perDay = {};
-  const getPerDay = (cid,sid,di) => perDay[`${cid}_${sid}_${di}`]||0;
-  const addPerDay = (cid,sid,di) => { const k=`${cid}_${sid}_${di}`; perDay[k]=(perDay[k]||0)+1; };
-
-  // ── Funkcja przydzielania pojedynczego bloku ──
-  function placeBlock(task, di, hiStart, bs) {
-    const hnums = hours.slice(hiStart, hiStart+bs).map(h=>h.num);
-    // Znajdź salę dla całego bloku (ta sama sala)
-    const room = findRoom(task.subjId, di, hnums[0]);
-    hnums.forEach((hn,idx) => {
-      const rid = idx===0 ? room?.id : (isRoomFree(room?.id,di,hn) ? room?.id : findRoom(task.subjId,di,hn)?.id);
-      newSched[schedKey(task.clsId,di,hn)] = {
-        subjectId: task.subjId, teacherId: task.tchId,
-        roomId: rid||null, groups: task.isGroup?['gr.1','gr.2']:[]
-      };
-      markTch(task.tchId,di,hn);
-      markCls(task.clsId,di,hn);
-      if(rid) markRoom(rid,di,hn);
-      addPerDay(task.clsId,task.subjId,di);
-    });
-    return hnums.length;
-  }
-
-  function unplaceBlock(task, di, hiStart, bs) {
-    const hnums = hours.slice(hiStart, hiStart+bs).map(h=>h.num);
-    hnums.forEach(hn => {
-      const entry = newSched[schedKey(task.clsId,di,hn)];
-      if(entry) {
-        unmarkTch(task.tchId,di,hn);
-        unmarkCls(task.clsId,di,hn);
-        if(entry.roomId) unmarkRoom(entry.roomId,di,hn);
-        delete newSched[schedKey(task.clsId,di,hn)];
-      }
-    });
-  }
-
-  // ── Główna pętla przydzielania ──
-  let placed = 0, failed = 0;
-  const totalHours = tasks.reduce((s,t)=>s+t.hoursLeft,0);
-  let processed = 0;
-
-  for(const task of tasks) {
-    let remaining = task.hoursLeft;
-    let attempts  = 0;
-    const maxAttempts = 60;
-
-    while(remaining > 0 && attempts < maxAttempts) {
-      attempts++;
-      const bs = task.noBlock ? 1 : Math.min(task.blockSize, remaining);
-
-      // Zbierz kandydatów
-      const candidates = [];
-      for(const di of DAYS) {
-        for(let hi=0; hi<=hours.length-bs; hi++) {
-          const hnums = hours.slice(hi,hi+bs).map(h=>h.num);
-
-          // Sprawdź twarde warunki dla całego bloku
-          const hard = hnums.every(hn =>
-            tchAvail(task.tchId,di,hn) &&
-            isTchFree(task.tchId,di,hn) &&
-            isClsFree(task.clsId,di,hn)
-          );
-          if(!hard) continue;
-
-          // maxPerDay
-          if(task.maxPerDay && getPerDay(task.clsId,task.subjId,di)+bs > task.maxPerDay) continue;
-
-          // Pozycja
-          const pos = task.position;
-          if(pos==='first'  && hi > 1) continue;
-          if(pos==='last'   && hi < hours.length-2) continue;
-          if(pos==='edge') {
-            // Blok musi być na początku lub końcu godzin tej klasy w tym dniu
-            const booked = [...(clsSlots[task.clsId]||[])]
-              .filter(k=>k.startsWith(di+'_')).map(k=>parseInt(k.split('_')[1]));
-            if(booked.length) {
-              const mn = Math.min(...booked), mx = Math.max(...booked);
-              const blockEnd = hnums[hnums.length-1];
-              if(!(hnums[0] <= mn || blockEnd >= mx)) continue;
-            }
-          }
-
-          // Score
-          let score = hnums.reduce((s,hn)=>s+tchPref(task.tchId,di,hn),0);
-          // Preferuj równomierne rozłożenie po tygodniu (penalizuj dzień z już wieloma godz.)
-          const dayLoad = getPerDay(task.clsId,task.subjId,di);
-          score -= dayLoad * 2;
-          // Preferuj środek tygodnia (wt/śr/czw = 1,2,3)
-          score += [0,-1,1,1,-1][di]||0;
-
-          candidates.push({di, hi, bs, hnums, score});
-        }
-      }
-
-      if(!candidates.length) {
-        // Brak kandydatów — spróbuj bs=1 bez ograniczenia pozycji
-        let fallback = null;
-        outer: for(const di of DAYS) {
-          for(let hi=0; hi<hours.length; hi++) {
-            const hn = hours[hi].num;
-            if(tchAvail(task.tchId,di,hn) && isTchFree(task.tchId,di,hn) && isClsFree(task.clsId,di,hn)) {
-              fallback = {di,hi,bs:1,hnums:[hn],score:-99};
-              break outer;
-            }
-          }
-        }
-        if(fallback) candidates.push(fallback);
-      }
-
-      if(!candidates.length) break; // Nie ma gdzie
-
-      // Wybierz najlepszego kandydata (top 30% z losowością)
-      candidates.sort((a,b)=>b.score-a.score);
-      const topN  = candidates.slice(0, Math.max(1, Math.ceil(candidates.length*0.3)));
-      const chosen = topN[Math.floor(Math.random()*topN.length)];
-
-      const placed_ = placeBlock(task, chosen.di, chosen.hi, chosen.bs);
-      remaining -= placed_;
-      placed    += placed_;
-    }
-
-    if(remaining > 0) {
-      warnings.push(`Nieprzydzielone: ${classes.find(c=>c.id===task.clsId)?.name||'?'} — ${subjects.find(s=>s.id===task.subjId)?.name||'?'} (brak ${remaining}h)`);
-      failed += remaining;
-    }
-
-    processed++;
-    genProgress(Math.round(processed/tasks.length*70));
-    genStatus(`Przydzielam: ${processed}/${tasks.length} zadań…`);
-  }
-
-  log(`Przydzielono ${placed}h, nieprzydzielone: ${failed}h`);
-
-  // ── Optymalizacja lokalna: minimalizuj okienka nauczyciela ──
-  genStatus('Optymalizacja okienek nauczycieli…');
-  log('Optymalizacja lokalna (500 iteracji)…');
-
-  const schedKeys = () => Object.keys(newSched);
-  const countWindows = (tchId) => {
-    let total = 0;
-    DAYS.forEach(di => {
-      const hnums = [...(tchSlots[tchId]||[])].filter(k=>k.startsWith(di+'_'))
-        .map(k=>parseInt(k.split('_')[1])).sort((a,b)=>a-b);
-      for(let i=1;i<hnums.length;i++) {
-        const gap = hnums[i]-hnums[i-1];
-        if(gap>1) total += gap-1;
-      }
-    });
-    return total;
-  };
-
-  for(let step=0;step<500;step++) {
-    const keys = schedKeys();
-    if(keys.length<2) break;
-    const k1 = keys[Math.floor(Math.random()*keys.length)];
-    const k2 = keys[Math.floor(Math.random()*keys.length)];
-    if(k1===k2) continue;
-    const [c1,d1s,h1s] = k1.split('_'); const d1=parseInt(d1s), h1=parseInt(h1s);
-    const [c2,d2s,h2s] = k2.split('_'); const d2=parseInt(d2s), h2=parseInt(h2s);
-    if(c1!==c2 || d1!==d2) continue; // tylko w tej samej klasie i dniu
-    const l1=newSched[k1], l2=newSched[k2];
-    if(!l1||!l2||l1.teacherId===l2.teacherId) continue;
-
-    // Sprawdź czy zamiana jest możliwa
-    const t1ok = tchAvail(l2.teacherId,d1,h1) && (isTchFree(l2.teacherId,d1,h1)||l2.teacherId===l1.teacherId);
-    const t2ok = tchAvail(l1.teacherId,d2,h2) && (isTchFree(l1.teacherId,d2,h2)||l1.teacherId===l2.teacherId);
-    if(!t1ok||!t2ok) continue;
-
-    // Czy zamiana zmniejsza okienka?
-    const winBefore = countWindows(l1.teacherId) + countWindows(l2.teacherId);
-    // Zamień tymczasowo
-    newSched[k1]=l2; newSched[k2]=l1;
-    unmarkTch(l1.teacherId,d1,h1); markTch(l2.teacherId,d1,h1);
-    unmarkTch(l2.teacherId,d2,h2); markTch(l1.teacherId,d2,h2);
-    const winAfter = countWindows(l1.teacherId) + countWindows(l2.teacherId);
-    if(winAfter > winBefore) {
-      // Cofnij
-      newSched[k1]=l1; newSched[k2]=l2;
-      unmarkTch(l2.teacherId,d1,h1); markTch(l1.teacherId,d1,h1);
-      unmarkTch(l1.teacherId,d2,h2); markTch(l2.teacherId,d2,h2);
-    }
-    if(step%50===0) genProgress(70+Math.round(step/500*25));
-  }
+  const placed  = stats.placed||0;
+  const total   = stats.total||0;
+  const pct     = total ? Math.round(placed/total*100) : 100;
+  const perfect = placed >= total;
 
   genProgress(100);
-  genStatus('Gotowe!');
-  log(`\nPodsumowanie: ${placed}h przydzielono, ${failed}h nieprzydzielone, ${warnings.length} ostrzeżeń`);
+  genStatus(perfect ? '✓ Plan ułożony kompletnie!' : `Ułożono ${pct}% lekcji`);
 
-  // ── Raport i opcje zapisu ──
-  genShowResult(newSched, placed, failed, warnings, tasks.reduce((s,t)=>s+t.hoursLeft,0));
-}
-
-function genShowResult(sched, placed, failed, warnings, total) {
-  const pct     = Math.round(placed/(placed+failed)*100);
-  const color   = pct>=95?'var(--accent)':pct>=80?'var(--orange)':'var(--red)';
-  const icon    = pct>=95?'✓':pct>=80?'⚠':'✕';
-
-  // Zapisz tymczasowo
-  try { localStorage.setItem('pl_sched_generated', JSON.stringify({sched,placed,failed,total,pct})); }
-  catch(e) {}
-
-  const resArea = document.getElementById('genResultArea');
-  if(!resArea) return;
-
-  resArea.innerHTML = `
-    <div style="padding:14px 16px;border-radius:10px;border:2px solid ${color}44;background:${color}10;margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <span style="font-size:1.6rem">${icon}</span>
-        <div>
-          <div style="font-size:.9rem;font-weight:700;color:${color}">
-            ${pct}% planu ułożone
-          </div>
-          <div style="font-size:.73rem;color:var(--text-m);margin-top:2px">
-            ${placed}h przydzielono · ${failed}h nieprzydzielone · ${warnings.length} ostrzeżeń
-          </div>
+  // Raport
+  let html = `<div style="padding:14px 16px;border-radius:10px;margin-bottom:12px;
+    background:${perfect?'var(--accent)':'var(--orange)'}12;
+    border:2px solid ${perfect?'var(--accent)':'var(--orange)'}44">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="font-size:1.3rem">${perfect?'🎉':'⚠'}</span>
+      <div>
+        <div style="font-size:.85rem;font-weight:700">
+          ${perfect?'Plan kompletny!':'Plan częściowy — '+placed+' z '+total+' lekcji ('+pct+'%)'}
+        </div>
+        <div style="font-size:.72rem;color:var(--text-m)">
+          Czas generowania: ${(stats.ms/1000).toFixed(1)}s · 
+          ${stats.saSteps||0} kroków optymalizacji SA
         </div>
       </div>
-
-      ${warnings.length ? `<div style="font-size:.7rem;font-family:var(--mono);
-        background:var(--s1);border-radius:6px;padding:8px;max-height:120px;overflow-y:auto;
-        white-space:pre-wrap;color:var(--text-m);margin-bottom:10px">${warnings.join('\n')}</div>` : ''}
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="wbtn wbtn-primary" onclick="genApply()" style="font-size:.78rem">
-          ✓ Zastosuj jako aktywny plan
-        </button>
-        <button class="wbtn wbtn-ghost" onclick="genPreview()" style="font-size:.78rem">
-          👁 Podgląd w widoku klas
-        </button>
-        <button class="wbtn wbtn-ghost" onclick="renderGenerator()" style="font-size:.78rem">
-          ↩ Wróć do konfiguracji
-        </button>
-        <button onclick="genDiscard()"
-          style="font-size:.72rem;color:var(--red);background:none;border:none;cursor:pointer;
-                 align-self:center;margin-left:auto">✕ Odrzuć</button>
-      </div>
     </div>`;
+
+  // Statystyki
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+    ${[
+      ['✓ Ułożono',placed+' lekcji','var(--accent)'],
+      ['✕ Brakuje',(total-placed)+' lekcji',total-placed?'var(--red)':'var(--text-d)'],
+      ['⚠ Ostrzeżenia',warnings.length,'var(--orange)'],
+    ].map(([l,v,c])=>`<div style="padding:6px 10px;background:var(--s1);border-radius:7px;text-align:center">
+      <div style="font-size:.68rem;color:var(--text-m)">${l}</div>
+      <div style="font-size:.85rem;font-weight:700;color:${c}">${v}</div>
+    </div>`).join('')}
+  </div>`;
+
+  // Ostrzeżenia
+  if(warnings.length) {
+    html += `<div style="max-height:150px;overflow-y:auto;font-size:.7rem;
+      background:var(--s1);border-radius:7px;padding:8px;margin-bottom:10px">
+      ${warnings.map(w=>`<div style="padding:2px 0;border-bottom:1px solid var(--border);color:${
+        w.type==='error'?'var(--red)':w.type==='warn'?'var(--orange)':'var(--text-m)'
+      }">${w.type==='error'?'✕':w.type==='warn'?'⚠':'ℹ'} ${w.msg}</div>`).join('')}
+    </div>`;
+  }
+
+  // Przyciski akcji
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="wbtn wbtn-primary" onclick="genApply()" style="font-size:.78rem">
+      ✓ Zastosuj jako aktywny plan
+    </button>
+    <button class="wbtn wbtn-ghost" onclick="genPreview()" style="font-size:.78rem">
+      👁 Podgląd
+    </button>
+    <button class="wbtn wbtn-ghost" onclick="genRunAgain()" style="font-size:.78rem">
+      🔄 Generuj ponownie
+    </button>
+    <button class="wbtn wbtn-ghost" onclick="renderGenerator()" style="font-size:.78rem">
+      ⚙ Zmień warunki
+    </button>
+  </div>`;
+
+  if(!perfect) {
+    html += `<div style="margin-top:10px;padding:8px 12px;background:var(--s2);border-radius:7px;
+      font-size:.72rem;color:var(--text-m);line-height:1.6">
+      <strong>Co zrobić z brakującymi lekcjami?</strong><br>
+      • <strong>Zastosuj częściowy plan</strong> i uzupełnij brakujące lekcje ręcznie w widoku klas<br>
+      • <strong>Zmień warunki</strong> — odblokuj godziny nauczycielom lub zwiększ dostępność sal<br>
+      • <strong>Generuj ponownie</strong> — solver losuje kolejność, może dać inny wynik
+    </div>`;
+  }
+
+  html += `</div>`;
+  const ra = document.getElementById('genResultArea');
+  if(ra) ra.innerHTML = html;
+
+  // Zapisz w localStorage jako backup
+  try { localStorage.setItem('pl_sched_generated', JSON.stringify({sched:newSched,ts:Date.now()})); }
+  catch(_) {}
 }
 
 function genApply() {
-  const raw = localStorage.getItem('pl_sched_generated');
-  if(!raw) { notify('Brak wygenerowanego planu','warn'); return; }
-  if(!confirm('Zastąpić aktualny plan wygenerowanym?\n\nAktualny plan zostanie nadpisany — zapisz go najpierw przez eksport JSON jeśli chcesz go zachować.')) return;
-  const {sched} = JSON.parse(raw);
-  schedData = sched;
+  if(!window._genSched) { notify('Brak wygenerowanego planu','warn'); return; }
+  if(!confirm('Zastąpić aktualny plan wygenerowanym?\nAktualne wpisy zostaną nadpisane.')) return;
+  schedData = window._genSched;
   persistAll();
-  localStorage.removeItem('pl_sched_generated');
   notify('Plan wygenerowany zastosowany!');
   switchView('class', document.querySelector('[data-view=class]'));
 }
 
 function genPreview() {
-  const raw = localStorage.getItem('pl_sched_generated');
-  if(!raw) return;
-  const {sched} = JSON.parse(raw);
-  window._genBackupSched = schedData;
-  schedData = sched;
+  if(!window._genSched) return;
+  window._genBackup = schedData;
+  schedData = window._genSched;
   switchView('class', document.querySelector('[data-view=class]'));
-  notify('Podgląd planu — dane NIE są zapisane. Wróć do Generatora aby zastosować lub odrzucić.');
+  notify('Podgląd — nie zapisano. Wróć do Generatora aby anulować.');
 }
 
-function genDiscard() {
-  if(window._genBackupSched) { schedData = window._genBackupSched; delete window._genBackupSched; }
-  localStorage.removeItem('pl_sched_generated');
-  renderGenerator();
-  notify('Plan odrzucony');
+function genRunAgain() {
+  window._genSched = null;
+  genRun();
+}
+
+// ================================================================
+//  KOD WORKERA (uruchamiany w osobnym wątku)
+// ================================================================
+function genWorkerFn() {
+  // Funkcje pomocnicze (muszą być zdefiniowane wewnątrz workera)
+  const key  = (cid,di,hn) => `${cid}_${di}_${hn}`;
+  const rnd  = (n) => Math.floor(Math.random()*n);
+  const pick = (arr) => arr[rnd(arr.length)];
+  const shuffle = (arr) => {
+    const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];} return a;
+  };
+
+  self.onmessage = (e) => {
+    const P   = e.data;
+    const t0  = Date.now();
+    const log = (msg) => self.postMessage({type:'log',text:msg});
+    const sts = (msg) => self.postMessage({type:'status',text:msg});
+    const prg = (pct) => self.postMessage({type:'progress',pct});
+
+    try {
+      const result = solve(P, log, sts, prg);
+      self.postMessage({type:'done', ...result, stats:{...result.stats, ms:Date.now()-t0}});
+    } catch(err) {
+      self.postMessage({type:'error', text:err.message||String(err)});
+    }
+  };
+
+  function solve(P, log, sts, prg) {
+    const {C, hours, days, classes, teachers, subjects, rooms, activeSem, schoolWindow} = P;
+    const warnings = [];
+    const warn = (type,msg) => warnings.push({type,msg});
+    const newSched = {};
+
+    // ── Struktury zajętości ──
+    const tchSlots  = {}; // tchId  → Set('di_hn')
+    const clsSlots  = {}; // clsId  → Set('di_hn')
+    const roomSlots = {}; // roomId → Set('di_hn')
+
+    const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(`${di}_${hn}`);
+    const isClsFree  = (cid,di,hn) => !clsSlots[cid]?.has(`${di}_${hn}`);
+    const isRoomFree = (rid,di,hn) => !roomSlots[rid]?.has(`${di}_${hn}`);
+
+    const occupy = (tid,cid,rid,di,hn) => {
+      if(tid) { if(!tchSlots[tid])  tchSlots[tid] =new Set(); tchSlots[tid].add(`${di}_${hn}`); }
+      if(cid) { if(!clsSlots[cid])  clsSlots[cid] =new Set(); clsSlots[cid].add(`${di}_${hn}`); }
+      if(rid) { if(!roomSlots[rid]) roomSlots[rid]=new Set(); roomSlots[rid].add(`${di}_${hn}`); }
+    };
+    const vacate = (tid,cid,rid,di,hn) => {
+      tchSlots[tid]?.delete(`${di}_${hn}`);
+      clsSlots[cid]?.delete(`${di}_${hn}`);
+      if(rid) roomSlots[rid]?.delete(`${di}_${hn}`);
+    };
+
+    // ── Dostępność nauczyciela ──
+    const tchAvail = (tid,di,hn) => {
+      const av = (C.teacherAvail||{})[tid]||{};
+      return av[`${di}_${hn}`] !== 'blocked';
+    };
+    const tchPref  = (tid,di,hn) => {
+      const av = (C.teacherAvail||{})[tid]||{};
+      return av[`${di}_${hn}`]==='preferred' ? 2 : av[`${di}_${hn}`]==='window' ? -1 : 0;
+    };
+
+    // ── Okno szkoły per dzień ──
+    const WKEYS = ['mon','tue','wed','thu','fri'];
+    const dayWindow = days.map(di => {
+      const w = (schoolWindow||{})[WKEYS[di]]||[null,null];
+      return {from:w[0]||null, to:w[1]||null};
+    });
+    const inWindow = (di,hn) => {
+      const wi = days.indexOf(di);
+      if(wi<0) return false;
+      const {from,to} = dayWindow[wi];
+      if(from!==null && hn<from) return false;
+      if(to!==null   && hn>to)   return false;
+      return true;
+    };
+
+    // ── Ważny semestr — filtruj przedmioty ──
+    const subjActive = (sid) => {
+      const s = subjects.find(s=>s.id===sid);
+      if(!s) return false;
+      if(s.duration==='sem1' && activeSem!==1) return false;
+      if(s.duration==='sem2' && activeSem!==2) return false;
+      return true;
+    };
+
+    // ── Zbuduj zadania ──
+    sts('Budowanie listy zadań…');
+    const tasks = [];
+    teachers.forEach(t => {
+      t.assignments.forEach(a => {
+        if(!subjActive(a.subjectId)) return;
+        const cls = classes.find(c=>c.id===a.classId);
+        if(!cls || !a.hours) return;
+        // Sprawdź czy predmiot jest dla tej klasy
+        const subj = subjects.find(s=>s.id===a.subjectId);
+        if(subj?.classes?.length && !subj.classes.includes(cls.id)) return;
+
+        const noBlk  = (C.noBlock||[]).includes(a.subjectId);
+        const blkSz  = noBlk ? 1 : Math.max(1,(C.lessonBlocks||{})[a.subjectId]?.blockSize||1);
+        const pos    = (C.subjPosition||{})[a.subjectId]||'any';
+        const maxPD  = (C.maxPerDay||{})[a.subjectId]||0;
+        const maxCon = (C.maxConsecutive||{})[a.subjectId]||0;
+
+        // Opcjonalne — skrajne godziny
+        const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
+        const isEdge   = optEntry?.position==='edge';
+        const effectivePos = isEdge ? 'edge' : pos;
+
+        // Grupy połączone między klasami
+        const mergeClsIds = optEntry?.mergeWith?.length
+          ? [cls.id,...optEntry.mergeWith]
+          : null;
+
+        tasks.push({
+          clsId:cls.id, clsName:cls.name,
+          tchId:t.id, tchAbbr:t.abbr,
+          subjId:a.subjectId, subjName:subj?.name||'?',
+          hoursLeft:a.hours, blkSz,
+          pos:effectivePos, maxPD, maxCon,
+          isOptional:!!optEntry, mergeClsIds,
+          priority: (effectivePos!=='any'?10:0) + (blkSz>1?5:0) + a.hours
+        });
+      });
+    });
+
+    log(`Zadań: ${tasks.length}, godzin do przydzielenia: ${tasks.reduce((s,t)=>s+t.hoursLeft,0)}`);
+
+    // Sortuj: najpierw najtrudniejsze (opcjonalne/skrajne, blokami, dużo godzin)
+    tasks.sort((a,b)=>b.priority-a.priority);
+
+    // ── Śledź per-dzień ──
+    const perDay = {}; // `${clsId}_${subjId}_${di}` → count
+    const consec = {}; // `${clsId}_${subjId}` → [di1,di2,...] ostatnie dni
+
+    const pdKey = (cid,sid,di) => `${cid}_${sid}_${di}`;
+    const getPD = (cid,sid,di) => perDay[pdKey(cid,sid,di)]||0;
+    const incrPD= (cid,sid,di) => perDay[pdKey(cid,sid,di)]=(perDay[pdKey(cid,sid,di)]||0)+1;
+    const decrPD= (cid,sid,di) => perDay[pdKey(cid,sid,di)]=Math.max(0,(perDay[pdKey(cid,sid,di)]||0)-1);
+
+    // ── Wybierz salę ──
+    const findRoom = (subjId,di,hn,excludeIds=[]) => {
+      const isSpecial = rooms.some(r=>(r.preferredSubjects||[]).length>0);
+      // Preferowana dla tego przedmiotu
+      const pref = rooms.filter(r=>
+        (r.preferredSubjects||[]).includes(subjId) &&
+        isRoomFree(r.id,di,hn) && !excludeIds.includes(r.id)
+      );
+      if(pref.length) return pick(pref);
+      // Sala bez preferencji (nie specjalistyczna)
+      const free = rooms.filter(r=>
+        !(r.preferredSubjects||[]).length &&
+        isRoomFree(r.id,di,hn) && !excludeIds.includes(r.id)
+      );
+      if(free.length) return pick(free);
+      // Ostatnia szansa — dowolna wolna
+      const any = rooms.filter(r=>isRoomFree(r.id,di,hn) && !excludeIds.includes(r.id));
+      return any.length ? pick(any) : null;
+    };
+
+    // ── Zbierz kandydatów dla zadania ──
+    const getCandidates = (task, usedHours) => {
+      const cands = [];
+      const hnums = hours.map(h=>h.num);
+      const maxHi = hours.length - task.blkSz;
+
+      for(const di of shuffle(days)) {
+        if(task.maxPD && getPD(task.clsId,task.subjId,di)+task.blkSz > task.maxPD) continue;
+        for(let hi=0; hi<=maxHi; hi++) {
+          const block = hours.slice(hi, hi+task.blkSz).map(h=>h.num);
+
+          // Okno szkoły
+          if(!block.every(hn=>inWindow(di,hn))) continue;
+          // Pozycja
+          if(task.pos==='first' && hi>1) continue;
+          if(task.pos==='last'  && hi<hours.length-2) continue;
+          if(task.pos==='edge'  && hi>0 && hi<hours.length-task.blkSz) continue;
+          // Wolność nauczyciela i klasy
+          if(!block.every(hn=>isTchFree(task.tchId,di,hn) && isClsFree(task.clsId,di,hn))) continue;
+          // Dostępność nauczyciela (nie zablokowany)
+          if(!block.every(hn=>tchAvail(task.tchId,di,hn))) continue;
+          // Dla połączonych klas — wszystkie muszą być wolne
+          if(task.mergeClsIds) {
+            if(!task.mergeClsIds.every(cid=>block.every(hn=>isClsFree(cid,di,hn)))) continue;
+          }
+
+          const score = block.reduce((s,hn)=>s+tchPref(task.tchId,di,hn),0)
+            + (task.pos!=='any'?3:0);
+          cands.push({di,hi,block,score});
+        }
+      }
+      return cands.sort((a,b)=>b.score-a.score);
+    };
+
+    // ── Przydziel zadanie ──
+    const placeTask = (task) => {
+      let hoursLeft = task.hoursLeft;
+      let placedForTask = 0;
+
+      while(hoursLeft > 0) {
+        const blk  = Math.min(task.blkSz, hoursLeft);
+        const taskCopy = {...task, blkSz:blk};
+        const cands = getCandidates(taskCopy, placedForTask);
+
+        if(!cands.length) break;
+
+        // Wybierz z top 30% losowo (dla różnorodności)
+        const topN = Math.max(1, Math.ceil(cands.length*0.3));
+        const chosen = cands.slice(0,topN)[rnd(Math.min(topN,cands.length))];
+        if(!chosen) break;
+
+        const room = findRoom(task.subjId, chosen.di, chosen.block[0]);
+
+        chosen.block.forEach(hn => {
+          const entry = {subjectId:task.subjId, teacherId:task.tchId,
+                         roomId:room?.id||null, groups:[]};
+          newSched[key(task.clsId,chosen.di,hn)] = entry;
+          occupy(task.tchId, task.clsId, room?.id, chosen.di, hn);
+          incrPD(task.clsId, task.subjId, chosen.di);
+          // Połączone klasy
+          if(task.mergeClsIds) {
+            task.mergeClsIds.filter(cid=>cid!==task.clsId).forEach(cid => {
+              newSched[key(cid,chosen.di,hn)] = {...entry};
+              occupy(null, cid, null, chosen.di, hn);
+            });
+          }
+        });
+        hoursLeft  -= chosen.block.length;
+        placedForTask += chosen.block.length;
+      }
+
+      return task.hoursLeft - hoursLeft; // ile udało się umieścić
+    };
+
+    // ── Faza 1: Zachłanny ──
+    sts('Faza 1: rozmieszczanie lekcji…');
+    let placed=0, failed=0;
+    const total = tasks.reduce((s,t)=>s+t.hoursLeft,0);
+    const unplaced = [];
+
+    tasks.forEach((task,ti) => {
+      const p = placeTask(task);
+      placed += p;
+      if(p < task.hoursLeft) {
+        const missing = task.hoursLeft - p;
+        failed += missing;
+        warn('warn',`${task.clsName} · ${task.subjName} (${task.tchAbbr}): brakuje ${missing}h`);
+        unplaced.push({...task, hoursLeft:missing});
+      }
+      prg(Math.round(ti/tasks.length*60));
+    });
+    log(`Faza 1: ułożono ${placed}/${total} (${Math.round(placed/total*100)}%)`);
+
+    // ── Faza 2: SA — minimalizuj okienka i poprawiaj jakość ──
+    sts('Faza 2: optymalizacja…');
+    const SA_STEPS = Math.min(2000, placed*10);
+    let temp = 1.5;
+    const schedKeys = Object.keys(newSched);
+
+    const countGaps = (tchId) => {
+      let gaps=0;
+      days.forEach(di=>{
+        const occupied = hours.map(h=>h.num).filter(hn=>tchSlots[tchId]?.has(`${di}_${hn}`));
+        if(occupied.length<2) return;
+        gaps += occupied[occupied.length-1] - occupied[0] - (occupied.length-1);
+      });
+      return gaps;
+    };
+
+    for(let step=0; step<SA_STEPS; step++) {
+      temp *= 0.9995;
+      const k1 = schedKeys[rnd(schedKeys.length)];
+      const k2 = schedKeys[rnd(schedKeys.length)];
+      if(k1===k2) continue;
+      const [c1,d1,h1] = k1.split('_');
+      const [c2,d2,h2] = k2.split('_');
+      if(c1!==c2) continue; // tylko ta sama klasa
+      const l1=newSched[k1], l2=newSched[k2];
+      if(l1.teacherId===l2.teacherId) continue;
+
+      // Sprawdź czy zamiana jest możliwa
+      const ok1 = isTchFree(l2.teacherId,+d1,+h1) && tchAvail(l2.teacherId,+d1,+h1);
+      const ok2 = isTchFree(l1.teacherId,+d2,+h2) && tchAvail(l1.teacherId,+d2,+h2);
+      if(!ok1||!ok2) continue;
+
+      const before = countGaps(l1.teacherId)+countGaps(l2.teacherId);
+      // Zamień
+      newSched[k1]={...l1,teacherId:l2.teacherId};
+      newSched[k2]={...l2,teacherId:l1.teacherId};
+      const after = countGaps(l1.teacherId)+countGaps(l2.teacherId);
+
+      // Akceptuj jeśli lepiej lub z prawdopodobieństwem SA
+      if(after>before && Math.random()>Math.exp((before-after)/temp)) {
+        // Cofnij
+        newSched[k1]=l1; newSched[k2]=l2;
+      }
+      if(step%200===0) prg(60+Math.round(step/SA_STEPS*35));
+    }
+
+    // ── Faza 3: Spróbuj wcisnąć nieumieszczone ──
+    if(unplaced.length) {
+      sts('Faza 3: ponowna próba dla brakujących…');
+      unplaced.forEach(task => {
+        const p2 = placeTask(task);
+        if(p2>0) { placed+=p2; failed-=p2; }
+      });
+      log(`Faza 3: łącznie ułożono ${placed}/${total}`);
+    }
+
+    prg(100);
+    sts(placed>=total ? '✓ Kompletny!' : `Ułożono ${Math.round(placed/total*100)}%`);
+
+    return {
+      result:newSched, warnings,
+      stats:{placed,total,saSteps:SA_STEPS}
+    };
+  }
 }
 
 
