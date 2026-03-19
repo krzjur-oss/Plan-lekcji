@@ -3425,6 +3425,15 @@ function genPositionUI(C) {
   const activeSubjects = sortSubjects(subjects).filter(s => !(s.classes||[]).length || (appState.classes||[]).some(c => s.classes.includes(c.id)));
   if(!activeSubjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów z przypisanymi klasami</div>';
 
+  // Zbierz automatyczne reguły z przedmiotów opcjonalnych klas
+  const autoPositions = {}; // subjId → Set('first'|'last'|'any')
+  (appState.classes||[]).forEach(cls => {
+    (cls.optionalSubjects||[]).forEach(o => {
+      if(!autoPositions[o.subjId]) autoPositions[o.subjId] = new Set();
+      autoPositions[o.subjId].add(o.position||'first');
+    });
+  });
+
   const POS = [
     ['any',   'Dowolna', ''],
     ['first', 'Na początku', '🌅'],
@@ -3435,13 +3444,21 @@ function genPositionUI(C) {
     const pos = (C.subjPosition||{})[s.id]||'any';
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
                   background:${s.color||'#888'};flex-shrink:0"></span>`;
+    const autoPosSet = autoPositions[s.id];
+    const autoInfo = autoPosSet?.size ? (() => {
+      const vals = [...autoPosSet];
+      const lbl  = vals.includes('edge') ? 'skrajne' : '';
+      return lbl ? `<span style="font-size:.66rem;padding:1px 7px;border-radius:10px;
+        background:var(--accent-g);color:var(--accent);border:1px solid var(--accent)44">
+        ◑ auto: ${lbl} (z opcjonalnych)</span>` : '';
+    })() : '';
     const pills = POS.map(([v,l,ic]) =>
       `<div class="gen-pill ${pos===v?'active':''}" onclick="genSetPosition('${s.id}','${v}')">
         ${ic} ${l}
       </div>`
     ).join('');
     return `<div class="gen-subj-row">
-      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${s.name}</span>
+      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${s.name}${autoInfo}</span>
       <div class="gen-field-row">${pills}</div>
     </div>`;
   }).join('');
@@ -3784,7 +3801,7 @@ function renderSettings() {
         ${homeroom ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Wychowawca">👤 ${homeroom.abbr}</span>` : ''}
         ${c.groups&&c.groups.length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">gr: ${c.groups.join(', ')}</span>` : ''}
         ${homeRoomNames.length ? `<span style="font-size:.72rem;color:var(--teal);margin-right:6px" title="Sale gospodarz">🏫 ${homeRoomNames.join(', ')}</span>` : ''}
-        ${(c.optionalSubjects||[]).length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Przedmioty opcjonalne">◑ ${(c.optionalSubjects||[]).map(o=>{const s=appState.subjects.find(s=>s.id===o.subjId);return s?(s.abbr||s.name)+(o.count?` (${o.count})`:''): '';}).filter(Boolean).join(', ')}</span>` : ''}
+        ${(c.optionalSubjects||[]).length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Przedmioty opcjonalne">◑ ${(c.optionalSubjects||[]).map(o=>{const s=appState.subjects.find(s=>s.id===o.subjId);return s?(s.abbr||s.name)+(o.count?` (${o.count})`:'')+(o.position==='edge'?' ⇔':''):'';}).filter(Boolean).join(', ')}</span>` : ''}
         <span style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-right:6px">${assignedTeachers.length} naucz. · ${totalHoursInClass} godz.</span>
         <button class="si-btn" onclick="event.stopPropagation();openEditClassModal('${c.id}')" style="margin-right:4px">Edytuj</button>
         <span class="tch-card-arr">▼</span>
@@ -6318,21 +6335,33 @@ function cmRenderOptSubjects() {
     const subj = subjects.find(s=>s.id===o.subjId);
     const dot  = subj ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;
       background:${subj.color};flex-shrink:0"></span>` : '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;
-                background:var(--s2);border-radius:7px;border:1px solid var(--border)">
-      ${dot}
-      <select class="mselect" style="flex:2;padding:5px 8px;font-size:.76rem"
-        onchange="_cmOptSubjects[${i}].subjId=this.value;cmRenderOptSubjects()">
-        ${subjects.map(s=>`<option value="${s.id}" ${s.id===o.subjId?'selected':''}>${s.name}</option>`).join('')}
-      </select>
-      <span style="font-size:.72rem;color:var(--text-m);white-space:nowrap">Liczba uczniów:</span>
-      <input type="number" min="1" max="999" class="minput"
-        style="width:70px;padding:5px 8px;font-size:.78rem;text-align:center"
-        value="${o.count||''}" placeholder="np. 22"
-        onchange="_cmOptSubjects[${i}].count=parseInt(this.value)||0">
-      <button onclick="_cmOptSubjects.splice(${i},1);cmRenderOptSubjects()"
-        style="padding:4px 8px;border:none;background:none;color:var(--red);
-               cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
+    const pos  = o.position||'first';
+    return `<div style="display:flex;flex-direction:column;gap:6px;padding:8px 10px;
+                background:var(--s2);border-radius:8px;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${dot}
+        <select class="mselect" style="flex:2;padding:5px 8px;font-size:.76rem"
+          onchange="_cmOptSubjects[${i}].subjId=this.value;cmRenderOptSubjects()">
+          ${subjects.map(s=>`<option value="${s.id}" ${s.id===o.subjId?'selected':''}>${s.name}</option>`).join('')}
+        </select>
+        <span style="font-size:.72rem;color:var(--text-m);white-space:nowrap">Uczniów:</span>
+        <input type="number" min="1" max="999" class="minput"
+          style="width:64px;padding:5px 8px;font-size:.78rem;text-align:center"
+          value="${o.count||''}" placeholder="np. 22"
+          onchange="_cmOptSubjects[${i}].count=parseInt(this.value)||0">
+        <button onclick="_cmOptSubjects.splice(${i},1);cmRenderOptSubjects()"
+          style="padding:4px 8px;border:none;background:none;color:var(--red);
+                 cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding-left:16px">
+        <span style="font-size:.7rem;color:var(--text-m)">Skrajne godziny:</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.72rem">
+          <input type="checkbox" ${pos==='edge'?'checked':''}
+            onchange="_cmOptSubjects[${i}].position=this.checked?'edge':'any';cmRenderOptSubjects()"
+            style="accent-color:var(--accent);width:15px;height:15px">
+          Zawsze pierwsza lub ostatnia godzina klasy
+        </label>
+      </div>
     </div>`;
   }).join('');
 }
@@ -6341,7 +6370,7 @@ function cmAddOptSubj() {
   // Zaproponuj pierwszy przedmiot który nie jest jeszcze na liście
   const used  = _cmOptSubjects.map(o=>o.subjId);
   const first = (appState.subjects||[]).find(s=>!used.includes(s.id));
-  _cmOptSubjects.push({subjId: first?.id||'', count: 0});
+  _cmOptSubjects.push({subjId: first?.id||'', count: 0, position: 'edge'});
   cmRenderOptSubjects();
 }
 
