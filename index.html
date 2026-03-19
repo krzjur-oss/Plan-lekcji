@@ -3359,8 +3359,10 @@ function genHoursUI() {
 function genBlocksUI(C) {
   const subjects = appState.subjects||[];
   if(!subjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów</div>';
+  const activeSubjects = sortSubjects(subjects).filter(s => !(s.classes||[]).length || (appState.classes||[]).some(c => s.classes.includes(c.id)));
+  if(!activeSubjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów z przypisanymi klasami</div>';
 
-  return sortSubjects(subjects).map(s => {
+  return activeSubjects.map(s => {
     const block = (C.lessonBlocks||{})[s.id] || {blockSize:1};
     const noBlk = (C.noBlock||[]).includes(s.id);
     const dot   = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
@@ -3403,6 +3405,8 @@ function genToggleNoBlock(subjId) {
 function genPositionUI(C) {
   const subjects = appState.subjects||[];
   if(!subjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów</div>';
+  const activeSubjects = sortSubjects(subjects).filter(s => !(s.classes||[]).length || (appState.classes||[]).some(c => s.classes.includes(c.id)));
+  if(!activeSubjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów z przypisanymi klasami</div>';
 
   const POS = [
     ['any',   'Dowolna', ''],
@@ -3410,7 +3414,7 @@ function genPositionUI(C) {
     ['last',  'Na końcu',   '🌇'],
   ];
 
-  return sortSubjects(subjects).map(s => {
+  return activeSubjects.map(s => {
     const pos = (C.subjPosition||{})[s.id]||'any';
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
                   background:${s.color||'#888'};flex-shrink:0"></span>`;
@@ -3441,7 +3445,16 @@ function genGroupsUI(C) {
     return '<div style="color:var(--text-d);font-size:.78rem">Brak klas lub przedmiotów</div>';
 
   return sortByName(classes).map(cls => {
-    const pills = sortSubjects(subjects).map(s => {
+    // Pokaż tylko przedmioty przypisane do tej klasy (s.classes puste = wszystkie klasy)
+    const clsSubjects = sortSubjects(subjects).filter(s =>
+      !(s.classes||[]).length || s.classes.includes(cls.id)
+    );
+    if(!clsSubjects.length) return `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+      <div style="font-size:.75rem;font-weight:700;margin-bottom:4px">${cls.name}</div>
+      <div style="font-size:.72rem;color:var(--text-d)">Brak przypisanych przedmiotów</div>
+    </div>`;
+
+    const pills = clsSubjects.map(s => {
       const key    = cls.id+'_'+s.id;
       const active = !!(C.groupSplit||{})[key];
       const dot    = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;
@@ -3471,8 +3484,10 @@ function genToggleGroup(clsId, subjId) {
 function genMaxDayUI(C) {
   const subjects = appState.subjects||[];
   if(!subjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów</div>';
+  const activeSubjects = sortSubjects(subjects).filter(s => !(s.classes||[]).length || (appState.classes||[]).some(c => s.classes.includes(c.id)));
+  if(!activeSubjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów z przypisanymi klasami</div>';
 
-  return sortSubjects(subjects).map(s => {
+  return activeSubjects.map(s => {
     const mx  = (C.maxPerDay||{})[s.id]||0;
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
                   background:${s.color||'#888'};flex-shrink:0"></span>`;
