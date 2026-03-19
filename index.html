@@ -3176,6 +3176,9 @@ function renderGenerator() {
   // ─── SEKCJA 7: Preferencje sal ───
   html += genSection('rooms', '🏫 Preferencje sal', genRoomPrefUI());
 
+  // ─── SEKCJA 8: Analiza pojemności sal ───
+  html += genSection('capacity', '📐 Analiza pojemności sal', genCapacityUI());
+
   html += `</div>`;
   wrap.innerHTML = html;
 }
@@ -3674,6 +3677,211 @@ function genRoomPrefUI() {
   return html;
 }
 
+
+// ── UI: Analiza sal ──
+function genCapacityUI() {
+  const rooms    = appState.rooms||[];
+  const classes  = appState.classes||[];
+  const subjects = appState.subjects||[];
+  const teachers = appState.teachers||[];
+  const hours    = (appState.hours||[]);
+
+  if(!rooms.length) return `<div style="color:var(--text-d);font-size:.78rem">
+    Brak sal — <button onclick="switchView('settings',document.querySelector('[data-view=settings]'))"
+      style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">
+      dodaj sale w Ustawieniach →</button></div>`;
+
+  let html = `<p style="font-size:.72rem;color:var(--text-m);margin:0 0 14px">
+    Trzy analizy: (1) czy sal wystarczy na szczyt obłożenia,
+    (2) czy sale specjalistyczne nie będą zajęte przez nieodpowiednie przedmioty,
+    (3) czy sale mają ograniczenia wiekowe.
+  </p>`;
+
+  // ═══════════════════════════════════════════════════
+  // ANALIZA 1 — Równoczesne zapotrzebowanie na sale
+  // ═══════════════════════════════════════════════════
+  const totalRooms = rooms.length;
+
+  // Grupy łączone między klasami
+  const mergedGroups = [];
+  const processedKeys = new Set();
+  classes.forEach(cls => {
+    (cls.optionalSubjects||[]).forEach(o => {
+      if(!o.subjId) return;
+      const allCls = [cls.id,...(o.mergeWith||[])].sort();
+      const key = allCls.join('|')+':'+o.subjId;
+      if(processedKeys.has(key)) return;
+      processedKeys.add(key);
+      if(o.mergeWith?.length) mergedGroups.push({subjId:o.subjId, clsIds:allCls});
+    });
+  });
+
+  // Zapotrzebowanie: każda klasa = 1 sala, każdy opcjonalny w klasie = +1 sala
+  const extraForOptional = classes.reduce((s,cls)=>s+(cls.optionalSubjects||[]).length, 0);
+  const mergedSavings    = mergedGroups.reduce((s,g)=>s+(g.clsIds.length-1), 0);
+  const maxNeeded        = classes.length + extraForOptional - mergedSavings;
+  const ok1   = totalRooms >= maxNeeded;
+  const diff1 = totalRooms - maxNeeded;
+  const c1    = ok1 ? 'var(--accent)' : 'var(--red)';
+
+  html += `<div style="margin-bottom:20px">
+    <div style="font-size:.75rem;font-weight:700;color:var(--text);margin-bottom:8px;
+      display:flex;align-items:center;gap:6px">
+      <span style="color:${c1}">${ok1?'✓':'✕'}</span> 1. Równoczesne zapotrzebowanie na sale
+    </div>
+    <div style="padding:10px 14px;border-radius:8px;background:${c1}10;border:1px solid ${c1}33">
+      <div style="font-size:.78rem;color:var(--text-m);display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;justify-content:space-between">
+          <span>Liczba klas</span>
+          <span style="font-family:var(--mono)">${classes.length}</span>
+        </div>
+        ${extraForOptional?`<div style="display:flex;justify-content:space-between">
+          <span>Przedmioty opcjonalne (+1 sala per równoległa grupa)</span>
+          <span style="font-family:var(--mono);color:var(--orange)">+${extraForOptional}</span>
+        </div>`:''}
+        ${mergedSavings?`<div style="display:flex;justify-content:space-between">
+          <span>Grupy łączone między klasami (oszczędność)</span>
+          <span style="font-family:var(--mono);color:var(--accent)">−${mergedSavings}</span>
+        </div>`:''}
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);
+          padding-top:5px;margin-top:3px;font-weight:700">
+          <span>Maks. równoczesne zapotrzebowanie</span>
+          <span style="font-family:var(--mono);color:${c1}">${maxNeeded}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Dostępnych sal w szkole</span>
+          <span style="font-family:var(--mono);color:${c1}">${totalRooms}
+            ${ok1?`<span style="color:var(--accent)">(zapas: ${diff1})</span>`:`<span style="color:var(--red)">(brakuje: ${-diff1})</span>`}
+          </span>
+        </div>
+      </div>
+      ${!ok1?`<div style="margin-top:8px;font-size:.72rem;color:var(--text-m);
+        padding:7px;background:var(--s1);border-radius:6px;line-height:1.6">
+        <strong style="color:var(--red)">Co zrobić:</strong><br>
+        • Zablokuj nauczycielom godziny w sekcji <em>Dostępność nauczycieli</em>
+          — solver rozłoży klasy nierównomiernie i nie wszystkie będą miały lekcję jednocześnie.<br>
+        • Połącz więcej małych grup opcjonalnych między klasami (mniej sal potrzebnych).<br>
+        • Przeznacz sale specjalistyczne tylko dla właściwych przedmiotów
+          — wtedy inne klasy nie będą mogły do nich wejść i solver będzie lepiej rozdzielał klasy.
+      </div>`:''}
+    </div>
+  </div>`;
+
+  // ═══════════════════════════════════════════════════
+  // ANALIZA 2 — Sale specjalistyczne vs przedmioty
+  // ═══════════════════════════════════════════════════
+  const specialRooms = rooms.filter(r=>(r.preferredSubjects||[]).length > 0);
+  const issues2 = [];
+
+  specialRooms.forEach(room => {
+    const prefSubjIds = room.preferredSubjects||[];
+    // Ile klas ma lekcje z tych przedmiotów jednocześnie?
+    const subjNames = prefSubjIds.map(id=>subjects.find(s=>s.id===id)?.name).filter(Boolean);
+    // Dla każdego NIE-preferowanego przedmiotu — ile klas może trafić do tej sali
+    // Znajdź wszystkie klasy które nie mają tego przedmiotu w planie = mogą "zająć" salę
+    const clsWithPrefSubj = new Set();
+    teachers.forEach(t => {
+      (t.assignments||[]).forEach(a => {
+        if(prefSubjIds.includes(a.subjectId)) clsWithPrefSubj.add(a.classId);
+      });
+    });
+    const clsNeedingRoom = clsWithPrefSubj.size;
+    // Jeśli sal z tym przedmiotem jest mniej niż klas potrzebujących ich jednocześnie
+    const sameTypeSals = specialRooms.filter(r2=>
+      prefSubjIds.some(id=>(r2.preferredSubjects||[]).includes(id))
+    ).length;
+    if(clsNeedingRoom > sameTypeSals) {
+      issues2.push({room, subjNames, clsNeedingRoom, sameTypeSals});
+    }
+  });
+
+  html += `<div style="margin-bottom:20px">
+    <div style="font-size:.75rem;font-weight:700;color:var(--text);margin-bottom:8px;
+      display:flex;align-items:center;gap:6px">
+      <span style="color:${issues2.length?'var(--orange)':'var(--accent)'}">${issues2.length?'⚠':'✓'}</span>
+      2. Sale specjalistyczne — ryzyko zajęcia przez nieodpowiedni przedmiot
+    </div>`;
+
+  if(!specialRooms.length) {
+    html += `<div style="font-size:.72rem;color:var(--text-d);padding:8px 12px;
+      background:var(--s2);border-radius:7px">
+      Brak sal z przypisanymi preferowanymi przedmiotami.
+      Ustaw preferowane przedmioty w Ustawieniach → Sale (np. sala komp. → Informatyka),
+      a solver będzie pilnował żeby inne przedmioty jej nie zajęły.
+      <button onclick="switchView('settings',document.querySelector('[data-view=settings]'))"
+        style="font-size:.68rem;color:var(--accent);background:none;border:none;cursor:pointer;
+               text-decoration:underline;display:block;margin-top:4px">
+        Przejdź do Ustawień →</button>
+    </div>`;
+  } else {
+    // Pokaż sale specjalistyczne i ich przypisania
+    html += `<div style="display:flex;flex-direction:column;gap:5px">`;
+    specialRooms.forEach(r => {
+      const sNames = (r.preferredSubjects||[]).map(id=>subjects.find(s=>s.id===id)?.name).filter(Boolean);
+      const issue  = issues2.find(i=>i.room.id===r.id);
+      const c      = issue ? 'var(--orange)' : 'var(--accent)';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+        border-radius:7px;background:${c}0d;border:1px solid ${c}33">
+        <span style="font-size:.78rem;font-weight:600;min-width:90px">${r.name}</span>
+        <span style="font-size:.68rem;color:var(--text-m)">tylko dla:</span>
+        <span style="font-size:.7rem;color:${c}">${sNames.join(', ')||'—'}</span>
+        ${issue?`<span style="font-size:.68rem;color:var(--orange);margin-left:auto">
+          ⚠ ${issue.clsNeedingRoom} klas potrzebuje, ${issue.sameTypeSals} sal dostępnych</span>`
+          :`<span style="font-size:.68rem;color:var(--accent);margin-left:auto">✓ OK</span>`}
+      </div>`;
+    });
+    html += `</div>
+    <div style="font-size:.7rem;color:var(--text-d);margin-top:6px">
+      Solver nie przydzieli tych sal do innych przedmiotów — ale tylko jeśli masz wystarczającą
+      liczbę zwykłych sal dla pozostałych klas.
+    </div>`;
+  }
+  html += `</div>`;
+
+  // ═══════════════════════════════════════════════════
+  // ANALIZA 3 — Ograniczenia wiekowe sal
+  // ═══════════════════════════════════════════════════
+  html += `<div>
+    <div style="font-size:.75rem;font-weight:700;color:var(--text);margin-bottom:8px;
+      display:flex;align-items:center;gap:6px">
+      🎓 3. Ograniczenia wiekowe sal
+    </div>
+    <div style="font-size:.72rem;color:var(--text-m);padding:8px 12px;
+      background:var(--s2);border-radius:7px;margin-bottom:8px">
+      Oznacz w ustawieniach sali jakie klasy mogą z niej korzystać (np. sala dla klas 1–3).
+      Solver nie przydzieli wtedy klasy 8 do sali dla maluchów.
+    </div>`;
+
+  // Pokaż sale z ograniczeniami wiekowymi (pole note jako wskazówka lub dedykowane pole)
+  // Sprawdź czy któraś sala ma w nazwie/uwagach sugestię wiekową
+  const ageRooms = rooms.filter(r => {
+    const note = (r.note||'').toLowerCase();
+    const name = (r.name||'').toLowerCase();
+    return /kl\.|klasa|klas|1-3|4-6|7-8|sp|wczesno|młod|star/.test(note+name);
+  });
+
+  if(ageRooms.length) {
+    html += `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">`;
+    ageRooms.forEach(r => {
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;
+        border-radius:6px;background:var(--orange)0d;border:1px solid var(--orange)33">
+        <span style="font-size:.72rem;font-weight:600">${r.name}</span>
+        <span style="font-size:.68rem;color:var(--text-m)">${r.note||''}</span>
+        <button onclick="openEditRoomModal('${r.id}')"
+          style="margin-left:auto;font-size:.65rem;color:var(--accent);background:none;
+                 border:none;cursor:pointer">✎ edytuj</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `<div style="font-size:.7rem;color:var(--text-d)">
+    💡 Wpisz w polu <em>Uwagi</em> sali np. <code>kl. 1–3</code> lub <code>edukacja wczesnoszkolna</code>
+    — solver w Etapie 2 odczyta to jako ograniczenie wiekowe.
+  </div></div>`;
+
+  return html;
+}
 
 function genSaveConstraints() {
   persistAll();
