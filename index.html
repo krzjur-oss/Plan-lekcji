@@ -1676,6 +1676,20 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <p style="font-size:.72rem;color:var(--text-m);margin-top:5px">Zaznaczone sale będą podpowiadane jako pierwsze przy dodawaniu lekcji tej klasy.</p>
     </div>
 
+    <!-- Przedmioty opcjonalne — część klasy -->
+    <div class="mfield">
+      <label>Przedmioty realizowane przez część klasy</label>
+      <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px">
+        Np. religia — 22 z 25 uczniów, etyka — 3 z 25. Wpisz liczbę uczniów uczęszczających.
+      </p>
+      <div id="cmOptSubjList" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button onclick="cmAddOptSubj()"
+        style="margin-top:6px;font-size:.72rem;color:var(--accent);background:none;
+               border:1px dashed var(--accent);border-radius:6px;padding:4px 10px;cursor:pointer">
+        + dodaj przedmiot opcjonalny
+      </button>
+    </div>
+
     <!-- Nauczyciele — tylko podgląd -->
     <div class="mfield">
       <label>Przypisani nauczyciele (z przydziałów)</label>
@@ -1765,6 +1779,9 @@ function migrateAppState() {
     if(!b.floors) b.floors = [];
   });
   // Zapewnij że każda sala ma type, capacity, locationStr
+  (appState.classes||[]).forEach(c => {
+    if(!c.optionalSubjects) c.optionalSubjects = [];
+  });
   (appState.subjects||[]).forEach(s => {
     if(s.level    === undefined) s.level    = '';
     if(s.duration === undefined) s.duration = 'year';
@@ -3767,6 +3784,7 @@ function renderSettings() {
         ${homeroom ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Wychowawca">👤 ${homeroom.abbr}</span>` : ''}
         ${c.groups&&c.groups.length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">gr: ${c.groups.join(', ')}</span>` : ''}
         ${homeRoomNames.length ? `<span style="font-size:.72rem;color:var(--teal);margin-right:6px" title="Sale gospodarz">🏫 ${homeRoomNames.join(', ')}</span>` : ''}
+        ${(c.optionalSubjects||[]).length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Przedmioty opcjonalne">◑ ${(c.optionalSubjects||[]).map(o=>{const s=appState.subjects.find(s=>s.id===o.subjId);return s?(s.abbr||s.name)+(o.count?` (${o.count})`:''): '';}).filter(Boolean).join(', ')}</span>` : ''}
         <span style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-right:6px">${assignedTeachers.length} naucz. · ${totalHoursInClass} godz.</span>
         <button class="si-btn" onclick="event.stopPropagation();openEditClassModal('${c.id}')" style="margin-right:4px">Edytuj</button>
         <span class="tch-card-arr">▼</span>
@@ -6086,6 +6104,8 @@ function openAddClassModal() {
     cmFillHomeroom(null);
     cmRenderRooms([]);
     cmRenderTeachers(null);
+    _cmOptSubjects = [];
+    cmRenderOptSubjects();
   } catch(e) { console.error('classModal init error:', e); }
   document.getElementById('classModal').classList.add('show');
   setTimeout(()=>{ try{document.getElementById('cmName').focus();}catch(_){} }, 80);
@@ -6103,6 +6123,8 @@ function openEditClassModal(id) {
   cmFillHomeroom(c.homeroomTeacherId || null);
   cmRenderRooms(c.homeRooms || []);
   cmRenderTeachers(id);
+  _cmOptSubjects = (c.optionalSubjects || []).map(o=>({...o}));
+  cmRenderOptSubjects();
   document.getElementById('classModal').classList.add('show');
 }
 
@@ -6228,6 +6250,7 @@ function saveClassModal() {
       c.groups = _cmGroups;
       c.homeroomTeacherId = homeroomTeacherId;
       c.homeRooms = homeRooms;
+      c.optionalSubjects = _cmOptSubjects.filter(o=>o.subjId);
     }
   } else {
     appState.classes.push({
@@ -6235,7 +6258,8 @@ function saveClassModal() {
       name,
       groups: _cmGroups,
       homeroomTeacherId,
-      homeRooms
+      homeRooms,
+      optionalSubjects: _cmOptSubjects.filter(o=>o.subjId)
     });
   }
   persistAll();
@@ -6263,11 +6287,63 @@ function closeClassModal() {
   document.getElementById('classModal').classList.remove('show');
   _cmId = null;
   _cmGroups = [];
+  _cmOptSubjects = [];
 }
 
 document.getElementById('classModal').addEventListener('click', function(e) {
   if (e.target === this) closeClassModal();
 });
+
+// ── Przedmioty opcjonalne klasy ──
+let _cmOptSubjects = []; // [{subjId, count}]
+
+function cmRenderOptSubjects() {
+  const wrap = document.getElementById('cmOptSubjList');
+  if(!wrap) return;
+  const subjects = sortSubjects(appState.subjects||[]);
+  if(!subjects.length) {
+    wrap.innerHTML='<span style="font-size:.72rem;color:var(--text-d)">Brak przedmiotów — dodaj je w Ustawieniach</span>';
+    return;
+  }
+
+  const subjOpts = '<option value="">— wybierz przedmiot —</option>' +
+    subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+
+  if(!_cmOptSubjects.length) {
+    wrap.innerHTML='<span style="font-size:.72rem;color:var(--text-d)">Brak — kliknij „+ dodaj" poniżej</span>';
+    return;
+  }
+
+  wrap.innerHTML = _cmOptSubjects.map((o,i) => {
+    const subj = subjects.find(s=>s.id===o.subjId);
+    const dot  = subj ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+      background:${subj.color};flex-shrink:0"></span>` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;
+                background:var(--s2);border-radius:7px;border:1px solid var(--border)">
+      ${dot}
+      <select class="mselect" style="flex:2;padding:5px 8px;font-size:.76rem"
+        onchange="_cmOptSubjects[${i}].subjId=this.value;cmRenderOptSubjects()">
+        ${subjects.map(s=>`<option value="${s.id}" ${s.id===o.subjId?'selected':''}>${s.name}</option>`).join('')}
+      </select>
+      <span style="font-size:.72rem;color:var(--text-m);white-space:nowrap">Liczba uczniów:</span>
+      <input type="number" min="1" max="999" class="minput"
+        style="width:70px;padding:5px 8px;font-size:.78rem;text-align:center"
+        value="${o.count||''}" placeholder="np. 22"
+        onchange="_cmOptSubjects[${i}].count=parseInt(this.value)||0">
+      <button onclick="_cmOptSubjects.splice(${i},1);cmRenderOptSubjects()"
+        style="padding:4px 8px;border:none;background:none;color:var(--red);
+               cursor:pointer;font-size:1rem;flex-shrink:0">×</button>
+    </div>`;
+  }).join('');
+}
+
+function cmAddOptSubj() {
+  // Zaproponuj pierwszy przedmiot który nie jest jeszcze na liście
+  const used  = _cmOptSubjects.map(o=>o.subjId);
+  const first = (appState.subjects||[]).find(s=>!used.includes(s.id));
+  _cmOptSubjects.push({subjId: first?.id||'', count: 0});
+  cmRenderOptSubjects();
+}
 
 // ================================================================
 //  BOOT
