@@ -2649,8 +2649,7 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
       const room  = appState.rooms.find(r=>r.id===lesson.roomId);
       const color = subj?.color||'#38bdf8';
       const bg    = hexToRgba(color,.18);
-      const bord  = hexToRgba(color,.45);
-      const textC = isDarkColor(color)?'#fff':'#111';
+          const textC = isDarkColor(color)?'#fff':'#111';
       const hasC  = checkCellConflict(col.id, di, h.num, lesson);
       const bldSuffix = room ? (()=>{ const b=(appState.buildings||[]).find(b=>b.id===room.buildingId); return b?' ('+b.name+')':''; })() : '';
       return `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
@@ -2725,10 +2724,6 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   }
   html += '</thead><tbody>';
 
-  // Gdy showDayLabel: iterujemy dzień→godzina (żeby rowspan działał per dzień)
-  // W innym wypadku: godzina→dzień (oryginalny układ)
-  const iterDays   = showDayLabel ? days   : [null];
-  const iterHours  = hours;
 
   if(showDayLabel){
     days.forEach(di=>{
@@ -2740,7 +2735,6 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
         html += `<td class="hour-cell">${h.num}<br><span style="font-size:.65rem">${h.start}</span></td>`;
         columns.forEach(col=>{
         const lesson = getLesson(col.id, di, h.num);
-        const key = lessonKey(col.id, di, h.num);
         if(lesson){
           const subj = appState.subjects.find(s=>s.id===lesson.subjectId);
           const tch  = appState.teachers.find(t=>t.id===lesson.teacherId);
@@ -2749,7 +2743,6 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
           const isDark = isDarkColor(color);
           const textCol = isDark ? '#fff' : '#111';
           const bg = hexToRgba(color,.18);
-          const border = hexToRgba(color,.45);
           const hasConflict = checkCellConflict(col.id, di, h.num, lesson);
           html += `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
             draggable="false"
@@ -2788,7 +2781,6 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
       days.forEach(di=>{
         columns.forEach(col=>{
           const lesson = getLesson(col.id, di, h.num);
-          const key = lessonKey(col.id, di, h.num);
           if(lesson){
             const subj = appState.subjects.find(s=>s.id===lesson.subjectId);
             const tch  = appState.teachers.find(t=>t.id===lesson.teacherId);
@@ -2797,7 +2789,6 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
             const isDark = isDarkColor(color);
             const textCol = isDark ? '#fff' : '#111';
             const bg = hexToRgba(color,.18);
-            const border = hexToRgba(color,.45);
             const hasConflict = checkCellConflict(col.id, di, h.num, lesson);
             html += `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
               draggable="false"
@@ -2909,8 +2900,7 @@ function renderMatrixView() {
       const room  = appState.rooms.find(r=>r.id===lesson.roomId);
       const color = subj?.color||'#38bdf8';
       const bg    = hexToRgba(color,.18);
-      const bord  = hexToRgba(color,.5);
-      const textC = isDarkColor(color)?'#fff':'#111';
+          const textC = isDarkColor(color)?'#fff':'#111';
       const hasC  = checkCellConflict(clsId,di,hnum,lesson);
       // line2: zależy od trybu — w trybie klas pokaż nauczyciela, w trybie nauczycieli pokaż klasę
       const line2 = extraData.line2||'';
@@ -2946,7 +2936,6 @@ function renderMatrixView() {
 
   if(mode==='class'){
     // Wiersze = godziny (× dni jeśli cały tydzień), Kolumny = klasy
-    const noDay = dayIdx!=='all';
     let html=`<div class="grid-wrap-outer"><table class="sched-grid${dayIdx==='all'?' with-day-col':''}"><thead><tr>`;
     if(dayIdx==='all') html+=`<th class="day-label-hdr"></th>`;
     html+=`<th class="hour-header">Godz.</th>`;
@@ -2973,7 +2962,6 @@ function renderMatrixView() {
 
   } else {
     // Wiersze = godziny (× dni jeśli cały tydzień), Kolumny = nauczyciele
-    const noDay = dayIdx!=='all';
     let html=`<div class="grid-wrap-outer"><table class="sched-grid${dayIdx==='all'?' with-day-col':''}"><thead><tr>`;
     if(dayIdx==='all') html+=`<th class="day-label-hdr"></th>`;
     html+=`<th class="hour-header">Godz.</th>`;
@@ -6192,15 +6180,14 @@ function saveSubjectModal() {
   const name     = document.getElementById('smName').value.trim();
   const abbr     = document.getElementById('smAbbr').value.trim().toUpperCase();
   const duration = _smDuration || 'year';
-  const level    = '';  // zastąpione przez classes
   const classes  = _smClasses || [];
   if(!name){ notify('Podaj nazwę przedmiotu'); return; }
   if(!abbr){ notify('Podaj skrót'); return; }
   if(_smId) {
     const s = appState.subjects.find(s=>s.id===_smId);
-    if(s){ s.name=name; s.abbr=abbr; s.color=_smColor; s.level=level; s.duration=duration; s.classes=classes; }
+    if(s){ s.name=name; s.abbr=abbr; s.color=_smColor; s.duration=duration; s.classes=classes; }
   } else {
-    appState.subjects.push({ id:'subj'+Date.now(), name, abbr, color:_smColor, level, duration, classes });
+    appState.subjects.push({ id:'subj'+Date.now(), name, abbr, color:_smColor, duration, classes });
   }
   persistAll(); populateSelects(); renderSettings(); closeSubjectModal();
   notify(_smId ? 'Zaktualizowano: '+name : 'Dodano: '+name);
@@ -6607,9 +6594,6 @@ function cmRenderOptSubjects() {
     wrap.innerHTML='<span style="font-size:.72rem;color:var(--text-d)">Brak przedmiotów — dodaj je w Ustawieniach</span>';
     return;
   }
-
-  const subjOpts = '<option value="">— wybierz przedmiot —</option>' +
-    subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 
   if(!_cmOptSubjects.length) {
     wrap.innerHTML='<span style="font-size:.72rem;color:var(--text-d)">Brak — kliknij „+ dodaj" poniżej</span>';
