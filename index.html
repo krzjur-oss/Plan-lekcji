@@ -3143,14 +3143,17 @@ function renderGenerator() {
     border-radius:var(--radius-lg);margin-bottom:16px;display:flex;align-items:center;gap:12px">
     <span style="font-size:1.4rem">⚡</span>
     <div>
-      <div style="font-size:.82rem;font-weight:700;color:var(--accent)">Konfiguracja warunków generatora</div>
+      <div style="font-size:.82rem;font-weight:700;color:var(--accent)">Generator planu lekcji</div>
       <div style="font-size:.72rem;color:var(--text-m);margin-top:2px">
-        Etap 1 z 2 — ustaw ograniczenia, solver zostanie dodany w kolejnej aktualizacji.
-        Warunki są zapisywane razem z planem.
+        Ustaw warunki poniżej, zapisz i kliknij Generuj.
       </div>
     </div>
-    <button class="wbtn wbtn-primary" style="margin-left:auto;font-size:.78rem;white-space:nowrap"
-      onclick="genSaveConstraints()">💾 Zapisz warunki</button>
+    <div style="display:flex;gap:8px;margin-left:auto">
+      <button class="wbtn wbtn-ghost" style="font-size:.78rem;white-space:nowrap"
+        onclick="genSaveConstraints()">💾 Zapisz warunki</button>
+      <button class="wbtn wbtn-primary" style="font-size:.78rem;white-space:nowrap;padding:8px 18px"
+        onclick="genRun()">▶ Generuj plan</button>
+    </div>
   </div>`;
 
   // ─── SEKCJA 1: Dostępność nauczycieli ───
