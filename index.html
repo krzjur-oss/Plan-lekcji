@@ -1119,6 +1119,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbar-logo">Plan<span>Lekcji</span></div>
+    <div id="topbarSchoolInfo" style="font-size:.65rem;color:var(--text-d);display:flex;flex-direction:column;line-height:1.2;margin-left:8px;max-width:160px;overflow:hidden"></div>
     <div class="topbar-tabs" id="topbarTabs">
       <button class="ttab active" data-view="class" onclick="switchView('class',this)">📚 Klasy</button>
       <button class="ttab" data-view="teacher" onclick="switchView('teacher',this)">👩‍🏫 Nauczyciele</button>
@@ -1287,8 +1288,19 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <div class="mfield"><label>Imię</label><input class="minput" id="tmFirst" type="text" placeholder="Anna"></div>
       <div class="mfield"><label>Nazwisko</label><input class="minput" id="tmLast" type="text" placeholder="Kowalska" oninput="tmAutoAbbr()"></div>
       <div class="mfield"><label>Skrót</label><input class="minput" id="tmAbbr" type="text" placeholder="AKow" maxlength="6"></div>
-      <div class="mfield"><label>Pensum / etat (godz./tydz.)</label><input class="minput" id="tmHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
-      <div class="mfield"><label>Nadgodziny stałe (godz./tydz.)</label><input class="minput" id="tmHoursExtra" type="number" min="0" max="20" placeholder="np. 2" title="Godziny ponad pensum wynikające z przydziału rocznego"></div>
+      <div class="mfield"><label>Pensum (godz./tydz.)</label><input class="minput" id="tmHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
+      <div class="mfield"><label>Nadgodziny stałe (godz./tydz.)</label><input class="minput" id="tmHoursExtra" type="number" min="0" max="20" placeholder="np. 2"></div>
+      <div class="mfield"><label>Wymiar etatu</label>
+        <select class="mselect" id="tmEmployment">
+          <option value="full">Pełny etat (1/1)</option>
+          <option value="half">Pół etatu (1/2)</option>
+          <option value="other">Inny ułamek</option>
+        </select>
+      </div>
+      <div class="mfield" id="tmFractionWrap" style="display:none">
+        <label>Ułamek etatu (np. 0.75)</label>
+        <input class="minput" id="tmFraction" type="number" min="0.1" max="1" step="0.05" placeholder="np. 0.75">
+      </div>
     </div>
     <div class="mfield">
       <label>Nauczane przedmioty</label>
@@ -1655,6 +1667,10 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
           <option value="">— brak —</option>
         </select>
       </div>
+      <div class="mfield" style="flex:1">
+        <label>Liczba uczniów</label>
+        <input class="minput" id="cmStudentCount" type="number" min="1" max="60" placeholder="np. 28">
+      </div>
     </div>
 
     <!-- Grupy -->
@@ -1773,14 +1789,22 @@ function migrateAppState() {
     if(!t.individualTeaching) t.individualTeaching = [];
     if(t.hoursTotal === undefined) t.hoursTotal = 0;
     if(t.hoursExtra === undefined) t.hoursExtra = 0;
+    if(t.employment  === undefined) t.employment  = 'full'; // 'full'|'half'|'other'
+    if(t.employmentFraction === undefined) t.employmentFraction = 1.0;
   });
   // Zapewnij że każdy budynek ma floors
   appState.buildings.forEach(b => {
     if(!b.floors) b.floors = [];
   });
   // Zapewnij że każda sala ma type, capacity, locationStr
+  // Nowe pola szkoły
+  if(!appState.schoolYear)   appState.schoolYear   = appState.year||'';
+  if(!appState.activeSem)    appState.activeSem     = 1;
+  if(!appState.schoolWindow) appState.schoolWindow  = {mon:[null,null],tue:[null,null],wed:[null,null],thu:[null,null],fri:[null,null]};
+  // Nowe pola klas
   (appState.classes||[]).forEach(c => {
     if(!c.optionalSubjects) c.optionalSubjects = [];
+    if(!c.studentCount)     c.studentCount = 0;
     (c.optionalSubjects||[]).forEach(o => { if(!o.mergeWith) o.mergeWith = []; });
   });
   (appState.subjects||[]).forEach(s => {
@@ -1828,6 +1852,15 @@ function init() {
 function showWelcome() {
   document.getElementById('welcomeScreen').classList.add('show');
   wlInit(); // wypełnij kartę Kontynuuj i ustaw motyw
+}
+
+function updateTopbarInfo() {
+  const el = document.getElementById('topbarSchoolInfo');
+  if(!el || !appState) return;
+  el.innerHTML = appState.schoolYear||appState.year
+    ? `<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${appState.name||''}</span>
+       <span style="color:var(--accent)">${appState.schoolYear||appState.year||''} · Sem.${appState.activeSem||1}</span>`
+    : '';
 }
 
 function showApp() {
@@ -2095,6 +2128,7 @@ function wizStep4() {
       <div class="subj-name" style="flex:2">${t.first} ${t.last}</div>
       <div class="subj-abbr" style="font-family:var(--mono)">${t.abbr}</div>
       ${t.hoursTotal ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${t.hoursTotal}${t.hoursExtra?'+'+t.hoursExtra:''} godz.</span>` : ''}
+      ${t.employment&&t.employment!=='full' ? `<span style="font-size:.68rem;padding:1px 6px;border-radius:8px;background:var(--orange)22;color:var(--orange)">${t.employment==='half'?'½ etatu':Math.round((t.employmentFraction||1)*100)+'%'}</span>` : ''}
       <span class="tag-del" onclick="wRemoveTeacher(${i})">×</span>
     </div>`).join('');
   return `<div class="wcard">
@@ -3070,6 +3104,8 @@ function defaultConstraints() {
     // Max lekcji danego przedmiotu per dzień per klasa: {subjId: 1|2}
     maxPerDay: {},
     // Preferowane sale: auto (z room.preferredSubjects) — brak dodatkowego pola
+    // Max razy przedmiot pod rząd w tygodniu: {subjId: n}
+    maxConsecutive: {},
   };
 }
 
@@ -3086,6 +3122,7 @@ function getConstraints() {
 // ── Migracja ──
 function migrateConstraints() {
   if(appState && !appState.constraints) appState.constraints = defaultConstraints();
+  if(appState?.constraints && !appState.constraints.maxConsecutive) appState.constraints.maxConsecutive = {};
 }
 
 // ── Render główny ──
@@ -3161,8 +3198,35 @@ function renderGenerator() {
     </p>
     ${genMaxDayUI(C)}`);
 
+  // ─── SEKCJA 6b: Max razy pod rząd ───
+  html += genSection('consecutive', '📆 Max dni z rzędu dla przedmiotu', `
+    ${genMaxConsecutiveUI(C)}`);
+
   // ─── SEKCJA 7: Preferencje sal ───
   html += genSection('rooms', '🏫 Preferencje sal', genRoomPrefUI());
+
+  // Sprawdź czy jest zapisany wynik z poprzedniej sesji
+  const prevGen = localStorage.getItem('pl_sched_generated');
+  if(prevGen) {
+    try {
+      const {placed,failed,pct} = JSON.parse(prevGen);
+      const c = pct>=95?'var(--accent)':pct>=80?'var(--orange)':'var(--red)';
+      html += `<div style="padding:8px 14px;border-radius:8px;border:1px solid ${c}44;
+        background:${c}0d;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:.8rem;font-weight:600;color:${c}">
+          Poprzedni wynik: ${pct}% (${placed}h / ${placed+failed}h)
+        </span>
+        <div style="display:flex;gap:6px;margin-left:auto">
+          <button class="wbtn wbtn-ghost" style="font-size:.72rem;padding:4px 10px"
+            onclick="genPreview()">👁 Podgląd</button>
+          <button class="wbtn wbtn-primary" style="font-size:.72rem;padding:4px 10px"
+            onclick="genApply()">✓ Zastosuj</button>
+          <button onclick="genDiscard()"
+            style="font-size:.72rem;color:var(--red);background:none;border:none;cursor:pointer">✕</button>
+        </div>
+      </div>`;
+    } catch(e) {}
+  }
 
   // ─── SEKCJA 8: Analiza pojemności sal ───
   html += genSection('capacity', '📐 Analiza pojemności sal', genCapacityUI());
@@ -3871,16 +3935,520 @@ function genCapacityUI() {
   return html;
 }
 
+function saveSchoolSettings() {
+  if(!appState) return;
+  appState.schoolYear = document.getElementById('setSchoolYear').value.trim();
+  appState.year       = appState.schoolYear; // synchronizuj stare pole
+  appState.activeSem  = parseInt(document.getElementById('setActiveSem').value)||1;
+  const KEYS = ['mon','tue','wed','thu','fri'];
+  if(!appState.schoolWindow) appState.schoolWindow = {};
+  KEYS.forEach((k,di) => {
+    const from = parseInt(document.getElementById('swFrom_'+di).value)||null;
+    const to   = parseInt(document.getElementById('swTo_'+di).value)||null;
+    const off  = document.getElementById('swOff_'+di).checked;
+    appState.schoolWindow[k] = [from, to, off||undefined].filter((_,i)=> i<2 || off);
+    if(!from && !to && !off) appState.schoolWindow[k] = [null,null];
+    if(off) appState.schoolWindow[k] = [null,null,true];
+  });
+  persistAll();
+  renderSettings();
+  updateTopbarInfo();
+  notify('Ustawienia szkoły zapisane');
+}
+
+// ── UI: Max razy przedmiot pod rząd w tygodniu ──
+function genMaxConsecutiveUI(C) {
+  const subjects = appState.subjects||[];
+  if(!subjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów</div>';
+  const activeSubjects = sortSubjects(subjects).filter(s =>
+    !(s.classes||[]).length || (appState.classes||[]).some(c=>s.classes.includes(c.id))
+  );
+  return `<div style="font-size:.72rem;color:var(--text-m);margin-bottom:10px">
+    Ogranicz ile razy dany przedmiot może wystąpić w kolejnych dniach tygodnia (pod rząd).
+    Np. matematyka max 5 razy pod rząd = może być codziennie, ale WF max 3 = nie w każdym dniu.
+  </div>` + activeSubjects.map(s => {
+    const mx  = (C.maxConsecutive||{})[s.id]||0;
+    const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
+                  background:${s.color||'#888'};flex-shrink:0"></span>`;
+    return `<div class="gen-subj-row">
+      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${s.name}</span>
+      <div class="gen-field-row">
+        <span class="gen-label">Max dni pod rząd:</span>
+        <select class="gen-mini-select" onchange="genSetMaxConsecutive('${s.id}',+this.value)">
+          <option value="0" ${!mx?'selected':''}>Bez limitu</option>
+          <option value="1" ${mx==1?'selected':''}>1 (nigdy dwa dni z rzędu)</option>
+          <option value="2" ${mx==2?'selected':''}>2</option>
+          <option value="3" ${mx==3?'selected':''}>3</option>
+          <option value="4" ${mx==4?'selected':''}>4</option>
+          <option value="5" ${mx==5?'selected':''}>5 (codziennie)</option>
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function genSetMaxConsecutive(subjId, val) {
+  const C = getConstraints();
+  if(!C.maxConsecutive) C.maxConsecutive = {};
+  if(!val) delete C.maxConsecutive[subjId];
+  else C.maxConsecutive[subjId] = val;
+}
+
 function genSaveConstraints() {
   persistAll();
   notify('Warunki generatora zapisane');
 }
 
 // ================================================================
-//  SOLVER — zachłanny z backtrackingiem + simulated annealing
+//  SOLVER — Etap 2
+//  Zachłanny z backtrackingiem + lokalna optymalizacja (SA)
 // ================================================================
+
 function genRun() {
-  notify('Solver zostanie dodany w Etapie 2 — na razie skonfiguruj i zapisz warunki', 'warn');
+  if(!appState) { notify('Brak danych szkoły','warn'); return; }
+  const C       = getConstraints();
+  const hours   = (appState.hours||[]).slice().sort((a,b)=>a.num-b.num);
+  const classes = appState.classes||[];
+  const teachers= appState.teachers||[];
+  const subjects= appState.subjects||[];
+  const rooms   = appState.rooms||[];
+
+  if(!hours.length)   { notify('Brak godzin lekcyjnych','warn'); return; }
+  if(!classes.length) { notify('Brak klas','warn'); return; }
+  if(!teachers.length){ notify('Brak nauczycieli','warn'); return; }
+
+  // Pokaż UI postępu
+  const wrap = document.getElementById('generatorContent');
+  wrap.innerHTML = `<div style="max-width:900px">
+    <div class="gen-run-bar">
+      <div>
+        <div style="font-size:.85rem;font-weight:700">⚡ Generowanie planu…</div>
+        <div style="font-size:.72rem;color:var(--text-m);margin-top:2px" id="genStatus">Inicjalizacja…</div>
+      </div>
+      <button class="wbtn wbtn-ghost" style="margin-left:auto;font-size:.78rem"
+        onclick="renderGenerator()">✕ Anuluj</button>
+    </div>
+    <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:8px">
+      <div id="genPBar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .3s"></div>
+    </div>
+    <div class="gen-log" id="genLog" style="height:200px"></div>
+    <div id="genResultArea" style="margin-top:16px"></div>
+  </div>`;
+
+  setTimeout(() => genSolve(C, hours, classes, teachers, subjects, rooms), 80);
+}
+
+function genLog(msg) {
+  const el = document.getElementById('genLog');
+  if(el) { el.textContent += (el.textContent?'\n':'')+msg; el.scrollTop=el.scrollHeight; }
+}
+function genStatus(msg) {
+  const el = document.getElementById('genStatus'); if(el) el.textContent = msg;
+}
+function genProgress(pct) {
+  const el = document.getElementById('genPBar'); if(el) el.style.width = pct+'%';
+}
+
+function genSolve(C, hours, classes, teachers, subjects, rooms) {
+  const DAYS = [0,1,2,3,4];
+  const log  = genLog;
+  const warnings = [];
+  const newSched = {}; // clsId_di_hnum → {subjectId,teacherId,roomId,groups:[]}
+
+  // ── Struktury zajętości ──
+  const tchSlots  = {}; // tchId  → Set('di_hn')
+  const clsSlots  = {}; // clsId  → Set('di_hn')
+  const roomSlots = {}; // roomId → Set('di_hn')
+
+  const slotKey  = (di,hn) => `${di}_${hn}`;
+  const schedKey = (cid,di,hn) => `${cid}_${di}_${hn}`;
+
+  const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(slotKey(di,hn));
+  const isClsFree  = (cid,di,hn) => !clsSlots[cid]?.has(slotKey(di,hn));
+  const isRoomFree = (rid,di,hn) => !roomSlots[rid]?.has(slotKey(di,hn));
+
+  const markTch  = (tid,di,hn)  => { if(!tchSlots[tid])  tchSlots[tid] =new Set(); tchSlots[tid].add(slotKey(di,hn)); };
+  const markCls  = (cid,di,hn)  => { if(!clsSlots[cid])  clsSlots[cid] =new Set(); clsSlots[cid].add(slotKey(di,hn)); };
+  const markRoom = (rid,di,hn)  => { if(!roomSlots[rid])  roomSlots[rid]=new Set(); roomSlots[rid].add(slotKey(di,hn)); };
+  const unmarkTch  = (tid,di,hn) => tchSlots[tid]?.delete(slotKey(di,hn));
+  const unmarkCls  = (cid,di,hn) => clsSlots[cid]?.delete(slotKey(di,hn));
+  const unmarkRoom = (rid,di,hn) => roomSlots[rid]?.delete(slotKey(di,hn));
+
+  // ── Pomocniki ──
+  const tchAvail = (tid,di,hn) => {
+    const av = (C.teacherAvail||{})[tid];
+    if(!av) return true;
+    return av[slotKey(di,hn)] !== 'blocked';
+  };
+  const tchPref = (tid,di,hn) => {
+    const av = (C.teacherAvail||{})[tid];
+    return av?.[slotKey(di,hn)] === 'preferred' ? 2 : 0;
+  };
+
+  // Znajdź wolną salę dla przedmiotu
+  const findRoom = (subjId, di, hn, exclude=[]) => {
+    // 1. Preferowana i wolna
+    const pref = rooms.filter(r =>
+      !exclude.includes(r.id) && isRoomFree(r.id,di,hn) &&
+      (r.preferredSubjects||[]).includes(subjId)
+    );
+    if(pref.length) return pref[Math.floor(Math.random()*pref.length)];
+    // 2. Zwykła wolna (nie specjalistyczna lub specjalistyczna bez ograniczeń)
+    const free = rooms.filter(r =>
+      !exclude.includes(r.id) && isRoomFree(r.id,di,hn) &&
+      !(r.preferredSubjects||[]).length
+    );
+    if(free.length) return free[Math.floor(Math.random()*free.length)];
+    // 3. Jakakolwiek wolna
+    const any = rooms.filter(r => !exclude.includes(r.id) && isRoomFree(r.id,di,hn));
+    return any.length ? any[Math.floor(Math.random()*any.length)] : null;
+  };
+
+  // Czy godzina jest skrajna dla klasy w danym dniu
+  const isEdge = (cid, di, hn) => {
+    const booked = [...(clsSlots[cid]||[])].filter(k=>k.startsWith(di+'_')).map(k=>parseInt(k.split('_')[1]));
+    if(!booked.length) return true; // pierwsza godzina = zawsze skrajna
+    const hiNums = hours.map(h=>h.num);
+    const minBooked = Math.min(...booked, hn);
+    const maxBooked = Math.max(...booked, hn);
+    // Skrajna jeśli hn jest min lub max spośród wszystkich zarezerwowanych
+    return hn <= minBooked || hn >= maxBooked;
+  };
+
+  // ── Zbierz grupy łączone (opcjonalne między-klasowe) ──
+  const mergedGroups = []; // [{subjId, clsIds, tchId}]
+  const processedMerge = new Set();
+  classes.forEach(cls => {
+    (cls.optionalSubjects||[]).forEach(o => {
+      if(!o.subjId || !(o.mergeWith||[]).length) return;
+      const allCls = [cls.id,...o.mergeWith].sort();
+      const mkey   = allCls.join('|')+':'+o.subjId;
+      if(processedMerge.has(mkey)) return;
+      processedMerge.add(mkey);
+      // Znajdź nauczyciela przypisanego do tego przedmiotu w klasie bazowej
+      const tch = teachers.find(t=>(t.assignments||[]).some(a=>a.classId===cls.id&&a.subjectId===o.subjId));
+      mergedGroups.push({subjId:o.subjId, clsIds:allCls, tchId:tch?.id||null, position:o.position||'edge'});
+    });
+  });
+
+  // ── Zbierz zadania ──
+  // Zadanie: {clsId, subjId, tchId, hoursLeft, isOpt, position, blockSize, maxPerDay, noBlock}
+  log('Budowanie listy zadań…');
+  const tasks = [];
+  const addedKeys = new Set();
+
+  // Zadania z przydziałów nauczycieli
+  teachers.forEach(t => {
+    (t.assignments||[]).forEach(a => {
+      if(!a.hours || !a.classId || !a.subjectId) return;
+      const taskKey = `${a.classId}_${a.subjectId}_${t.id}`;
+      if(addedKeys.has(taskKey)) return;
+      addedKeys.add(taskKey);
+
+      const cls  = classes.find(c=>c.id===a.classId);
+      const subj = subjects.find(s=>s.id===a.subjectId);
+      if(!cls||!subj) return;
+
+      // Sprawdź czy to przedmiot opcjonalny (ma grupę łączoną)
+      const isMerged = mergedGroups.some(m=>m.subjId===a.subjectId&&m.clsIds.includes(a.classId));
+
+      // Sprawdź czy to samodzielny opcjonalny (nie łączony)
+      const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
+      const isOpt    = !!optEntry;
+
+      tasks.push({
+        clsId:    a.classId,
+        subjId:   a.subjectId,
+        tchId:    t.id,
+        hoursLeft: a.hours,
+        isOpt,
+        isMerged,
+        position: (C.subjPosition||{})[a.subjectId] || (optEntry?.position) || 'any',
+        blockSize: (C.noBlock||[]).includes(a.subjectId) ? 1 : Math.max(1,(C.lessonBlocks||{})[a.subjectId]?.blockSize||1),
+        noBlock:   (C.noBlock||[]).includes(a.subjectId),
+        maxPerDay: (C.maxPerDay||{})[a.subjectId]||0,
+        isGroup:   !!(C.groupSplit||{})[a.classId+'_'+a.subjectId] || isOpt,
+      });
+    });
+  });
+
+  // Sortuj: najpierw zadania z ograniczeniami (skrajne, bloki, opcjonalne), potem zwykłe
+  tasks.sort((a,b) => {
+    const scoreA = (a.position!=='any'?4:0) + (a.isMerged?3:0) + (a.isOpt?2:0) + (a.blockSize>1?1:0);
+    const scoreB = (b.position!=='any'?4:0) + (b.isMerged?3:0) + (b.isOpt?2:0) + (b.blockSize>1?1:0);
+    return scoreB - scoreA;
+  });
+
+  log(`Zadań do przydzielenia: ${tasks.length}, łącznie godzin: ${tasks.reduce((s,t)=>s+t.hoursLeft,0)}`);
+  log(`Grup łączonych: ${mergedGroups.length}`);
+
+  // Tracker max per day: clsId_subjId_di → count
+  const perDay = {};
+  const getPerDay = (cid,sid,di) => perDay[`${cid}_${sid}_${di}`]||0;
+  const addPerDay = (cid,sid,di) => { const k=`${cid}_${sid}_${di}`; perDay[k]=(perDay[k]||0)+1; };
+
+  // ── Funkcja przydzielania pojedynczego bloku ──
+  function placeBlock(task, di, hiStart, bs) {
+    const hnums = hours.slice(hiStart, hiStart+bs).map(h=>h.num);
+    // Znajdź salę dla całego bloku (ta sama sala)
+    const room = findRoom(task.subjId, di, hnums[0]);
+    hnums.forEach((hn,idx) => {
+      const rid = idx===0 ? room?.id : (isRoomFree(room?.id,di,hn) ? room?.id : findRoom(task.subjId,di,hn)?.id);
+      newSched[schedKey(task.clsId,di,hn)] = {
+        subjectId: task.subjId, teacherId: task.tchId,
+        roomId: rid||null, groups: task.isGroup?['gr.1','gr.2']:[]
+      };
+      markTch(task.tchId,di,hn);
+      markCls(task.clsId,di,hn);
+      if(rid) markRoom(rid,di,hn);
+      addPerDay(task.clsId,task.subjId,di);
+    });
+    return hnums.length;
+  }
+
+  function unplaceBlock(task, di, hiStart, bs) {
+    const hnums = hours.slice(hiStart, hiStart+bs).map(h=>h.num);
+    hnums.forEach(hn => {
+      const entry = newSched[schedKey(task.clsId,di,hn)];
+      if(entry) {
+        unmarkTch(task.tchId,di,hn);
+        unmarkCls(task.clsId,di,hn);
+        if(entry.roomId) unmarkRoom(entry.roomId,di,hn);
+        delete newSched[schedKey(task.clsId,di,hn)];
+      }
+    });
+  }
+
+  // ── Główna pętla przydzielania ──
+  let placed = 0, failed = 0;
+  const totalHours = tasks.reduce((s,t)=>s+t.hoursLeft,0);
+  let processed = 0;
+
+  for(const task of tasks) {
+    let remaining = task.hoursLeft;
+    let attempts  = 0;
+    const maxAttempts = 60;
+
+    while(remaining > 0 && attempts < maxAttempts) {
+      attempts++;
+      const bs = task.noBlock ? 1 : Math.min(task.blockSize, remaining);
+
+      // Zbierz kandydatów
+      const candidates = [];
+      for(const di of DAYS) {
+        for(let hi=0; hi<=hours.length-bs; hi++) {
+          const hnums = hours.slice(hi,hi+bs).map(h=>h.num);
+
+          // Sprawdź twarde warunki dla całego bloku
+          const hard = hnums.every(hn =>
+            tchAvail(task.tchId,di,hn) &&
+            isTchFree(task.tchId,di,hn) &&
+            isClsFree(task.clsId,di,hn)
+          );
+          if(!hard) continue;
+
+          // maxPerDay
+          if(task.maxPerDay && getPerDay(task.clsId,task.subjId,di)+bs > task.maxPerDay) continue;
+
+          // Pozycja
+          const pos = task.position;
+          if(pos==='first'  && hi > 1) continue;
+          if(pos==='last'   && hi < hours.length-2) continue;
+          if(pos==='edge') {
+            // Blok musi być na początku lub końcu godzin tej klasy w tym dniu
+            const booked = [...(clsSlots[task.clsId]||[])]
+              .filter(k=>k.startsWith(di+'_')).map(k=>parseInt(k.split('_')[1]));
+            if(booked.length) {
+              const mn = Math.min(...booked), mx = Math.max(...booked);
+              const blockEnd = hnums[hnums.length-1];
+              if(!(hnums[0] <= mn || blockEnd >= mx)) continue;
+            }
+          }
+
+          // Score
+          let score = hnums.reduce((s,hn)=>s+tchPref(task.tchId,di,hn),0);
+          // Preferuj równomierne rozłożenie po tygodniu (penalizuj dzień z już wieloma godz.)
+          const dayLoad = getPerDay(task.clsId,task.subjId,di);
+          score -= dayLoad * 2;
+          // Preferuj środek tygodnia (wt/śr/czw = 1,2,3)
+          score += [0,-1,1,1,-1][di]||0;
+
+          candidates.push({di, hi, bs, hnums, score});
+        }
+      }
+
+      if(!candidates.length) {
+        // Brak kandydatów — spróbuj bs=1 bez ograniczenia pozycji
+        let fallback = null;
+        outer: for(const di of DAYS) {
+          for(let hi=0; hi<hours.length; hi++) {
+            const hn = hours[hi].num;
+            if(tchAvail(task.tchId,di,hn) && isTchFree(task.tchId,di,hn) && isClsFree(task.clsId,di,hn)) {
+              fallback = {di,hi,bs:1,hnums:[hn],score:-99};
+              break outer;
+            }
+          }
+        }
+        if(fallback) candidates.push(fallback);
+      }
+
+      if(!candidates.length) break; // Nie ma gdzie
+
+      // Wybierz najlepszego kandydata (top 30% z losowością)
+      candidates.sort((a,b)=>b.score-a.score);
+      const topN  = candidates.slice(0, Math.max(1, Math.ceil(candidates.length*0.3)));
+      const chosen = topN[Math.floor(Math.random()*topN.length)];
+
+      const placed_ = placeBlock(task, chosen.di, chosen.hi, chosen.bs);
+      remaining -= placed_;
+      placed    += placed_;
+    }
+
+    if(remaining > 0) {
+      warnings.push(`Nieprzydzielone: ${classes.find(c=>c.id===task.clsId)?.name||'?'} — ${subjects.find(s=>s.id===task.subjId)?.name||'?'} (brak ${remaining}h)`);
+      failed += remaining;
+    }
+
+    processed++;
+    genProgress(Math.round(processed/tasks.length*70));
+    genStatus(`Przydzielam: ${processed}/${tasks.length} zadań…`);
+  }
+
+  log(`Przydzielono ${placed}h, nieprzydzielone: ${failed}h`);
+
+  // ── Optymalizacja lokalna: minimalizuj okienka nauczyciela ──
+  genStatus('Optymalizacja okienek nauczycieli…');
+  log('Optymalizacja lokalna (500 iteracji)…');
+
+  const schedKeys = () => Object.keys(newSched);
+  const countWindows = (tchId) => {
+    let total = 0;
+    DAYS.forEach(di => {
+      const hnums = [...(tchSlots[tchId]||[])].filter(k=>k.startsWith(di+'_'))
+        .map(k=>parseInt(k.split('_')[1])).sort((a,b)=>a-b);
+      for(let i=1;i<hnums.length;i++) {
+        const gap = hnums[i]-hnums[i-1];
+        if(gap>1) total += gap-1;
+      }
+    });
+    return total;
+  };
+
+  for(let step=0;step<500;step++) {
+    const keys = schedKeys();
+    if(keys.length<2) break;
+    const k1 = keys[Math.floor(Math.random()*keys.length)];
+    const k2 = keys[Math.floor(Math.random()*keys.length)];
+    if(k1===k2) continue;
+    const [c1,d1s,h1s] = k1.split('_'); const d1=parseInt(d1s), h1=parseInt(h1s);
+    const [c2,d2s,h2s] = k2.split('_'); const d2=parseInt(d2s), h2=parseInt(h2s);
+    if(c1!==c2 || d1!==d2) continue; // tylko w tej samej klasie i dniu
+    const l1=newSched[k1], l2=newSched[k2];
+    if(!l1||!l2||l1.teacherId===l2.teacherId) continue;
+
+    // Sprawdź czy zamiana jest możliwa
+    const t1ok = tchAvail(l2.teacherId,d1,h1) && (isTchFree(l2.teacherId,d1,h1)||l2.teacherId===l1.teacherId);
+    const t2ok = tchAvail(l1.teacherId,d2,h2) && (isTchFree(l1.teacherId,d2,h2)||l1.teacherId===l2.teacherId);
+    if(!t1ok||!t2ok) continue;
+
+    // Czy zamiana zmniejsza okienka?
+    const winBefore = countWindows(l1.teacherId) + countWindows(l2.teacherId);
+    // Zamień tymczasowo
+    newSched[k1]=l2; newSched[k2]=l1;
+    unmarkTch(l1.teacherId,d1,h1); markTch(l2.teacherId,d1,h1);
+    unmarkTch(l2.teacherId,d2,h2); markTch(l1.teacherId,d2,h2);
+    const winAfter = countWindows(l1.teacherId) + countWindows(l2.teacherId);
+    if(winAfter > winBefore) {
+      // Cofnij
+      newSched[k1]=l1; newSched[k2]=l2;
+      unmarkTch(l2.teacherId,d1,h1); markTch(l1.teacherId,d1,h1);
+      unmarkTch(l1.teacherId,d2,h2); markTch(l2.teacherId,d2,h2);
+    }
+    if(step%50===0) genProgress(70+Math.round(step/500*25));
+  }
+
+  genProgress(100);
+  genStatus('Gotowe!');
+  log(`\nPodsumowanie: ${placed}h przydzielono, ${failed}h nieprzydzielone, ${warnings.length} ostrzeżeń`);
+
+  // ── Raport i opcje zapisu ──
+  genShowResult(newSched, placed, failed, warnings, tasks.reduce((s,t)=>s+t.hoursLeft,0));
+}
+
+function genShowResult(sched, placed, failed, warnings, total) {
+  const pct     = Math.round(placed/(placed+failed)*100);
+  const color   = pct>=95?'var(--accent)':pct>=80?'var(--orange)':'var(--red)';
+  const icon    = pct>=95?'✓':pct>=80?'⚠':'✕';
+
+  // Zapisz tymczasowo
+  try { localStorage.setItem('pl_sched_generated', JSON.stringify({sched,placed,failed,total,pct})); }
+  catch(e) {}
+
+  const resArea = document.getElementById('genResultArea');
+  if(!resArea) return;
+
+  resArea.innerHTML = `
+    <div style="padding:14px 16px;border-radius:10px;border:2px solid ${color}44;background:${color}10;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-size:1.6rem">${icon}</span>
+        <div>
+          <div style="font-size:.9rem;font-weight:700;color:${color}">
+            ${pct}% planu ułożone
+          </div>
+          <div style="font-size:.73rem;color:var(--text-m);margin-top:2px">
+            ${placed}h przydzielono · ${failed}h nieprzydzielone · ${warnings.length} ostrzeżeń
+          </div>
+        </div>
+      </div>
+
+      ${warnings.length ? `<div style="font-size:.7rem;font-family:var(--mono);
+        background:var(--s1);border-radius:6px;padding:8px;max-height:120px;overflow-y:auto;
+        white-space:pre-wrap;color:var(--text-m);margin-bottom:10px">${warnings.join('\n')}</div>` : ''}
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="wbtn wbtn-primary" onclick="genApply()" style="font-size:.78rem">
+          ✓ Zastosuj jako aktywny plan
+        </button>
+        <button class="wbtn wbtn-ghost" onclick="genPreview()" style="font-size:.78rem">
+          👁 Podgląd w widoku klas
+        </button>
+        <button class="wbtn wbtn-ghost" onclick="renderGenerator()" style="font-size:.78rem">
+          ↩ Wróć do konfiguracji
+        </button>
+        <button onclick="genDiscard()"
+          style="font-size:.72rem;color:var(--red);background:none;border:none;cursor:pointer;
+                 align-self:center;margin-left:auto">✕ Odrzuć</button>
+      </div>
+    </div>`;
+}
+
+function genApply() {
+  const raw = localStorage.getItem('pl_sched_generated');
+  if(!raw) { notify('Brak wygenerowanego planu','warn'); return; }
+  if(!confirm('Zastąpić aktualny plan wygenerowanym?\n\nAktualny plan zostanie nadpisany — zapisz go najpierw przez eksport JSON jeśli chcesz go zachować.')) return;
+  const {sched} = JSON.parse(raw);
+  schedData = sched;
+  persistAll();
+  localStorage.removeItem('pl_sched_generated');
+  notify('Plan wygenerowany zastosowany!');
+  switchView('class', document.querySelector('[data-view=class]'));
+}
+
+function genPreview() {
+  const raw = localStorage.getItem('pl_sched_generated');
+  if(!raw) return;
+  const {sched} = JSON.parse(raw);
+  window._genBackupSched = schedData;
+  schedData = sched;
+  switchView('class', document.querySelector('[data-view=class]'));
+  notify('Podgląd planu — dane NIE są zapisane. Wróć do Generatora aby zastosować lub odrzucić.');
+}
+
+function genDiscard() {
+  if(window._genBackupSched) { schedData = window._genBackupSched; delete window._genBackupSched; }
+  localStorage.removeItem('pl_sched_generated');
+  renderGenerator();
+  notify('Plan odrzucony');
 }
 
 
@@ -4075,6 +4643,7 @@ function renderSettings() {
         ${c.groups&&c.groups.length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">gr: ${c.groups.join(', ')}</span>` : ''}
         ${homeRoomNames.length ? `<span style="font-size:.72rem;color:var(--teal);margin-right:6px" title="Sale gospodarz">🏫 ${homeRoomNames.join(', ')}</span>` : ''}
         ${(c.optionalSubjects||[]).length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Przedmioty opcjonalne">◑ ${(c.optionalSubjects||[]).map(o=>{const s=appState.subjects.find(s=>s.id===o.subjId);return s?(s.abbr||s.name)+(o.count?` (${o.count})`:'')+(o.position==='edge'?' ⇔':''):'';}).filter(Boolean).join(', ')}</span>` : ''}
+        ${c.studentCount ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">👤 ${c.studentCount} ucz.</span>` : ''}
         <span style="font-size:.72rem;color:var(--accent);font-family:var(--mono);margin-right:6px">${assignedTeachers.length} naucz. · ${totalHoursInClass} godz.</span>
         <button class="si-btn" onclick="event.stopPropagation();openEditClassModal('${c.id}')" style="margin-right:4px">Edytuj</button>
         <span class="tch-card-arr">▼</span>
@@ -4322,6 +4891,73 @@ function renderSettings() {
   }
   html+=`</div>`; // koniec wrappera Godziny+Dyżury
   // Danger zone
+  // ── Karta: Szkoła — rok szkolny, semestr, okno czasowe ──
+  html+=`<div class="settings-card" style="grid-column:1/-1">
+    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Szkoła — rok szkolny i harmonogram</span>
+      <button class="si-btn" onclick="saveSchoolSettings()">Zapisz</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="mfield">
+        <label>Rok szkolny</label>
+        <input class="minput" id="setSchoolYear" value="${appState.schoolYear||appState.year||''}" placeholder="2025/2026">
+      </div>
+      <div class="mfield">
+        <label>Aktywny semestr</label>
+        <select class="mselect" id="setActiveSem">
+          <option value="1" ${(appState.activeSem||1)===1?'selected':''}>Semestr 1</option>
+          <option value="2" ${(appState.activeSem||1)===2?'selected':''}>Semestr 2</option>
+        </select>
+      </div>
+      <div class="mfield">
+        <label style="font-size:.7rem;color:var(--text-m)">
+          Semestr określa które przedmioty (sem.1 / sem.2) są aktywne w planie.
+        </label>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:.73rem;font-weight:700;color:var(--text-m);text-transform:uppercase;
+        letter-spacing:.04em;margin-bottom:8px">Okno czasowe szkoły (godziny lekcji per dzień)</div>
+      <div style="font-size:.72rem;color:var(--text-m);margin-bottom:8px">
+        Ustaw od której do której godziny (numer) mogą odbywać się lekcje.
+        Puste = bez ograniczeń (wszystkie godziny z harmonogramu).
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:.75rem">
+        <thead><tr>
+          <th style="text-align:left;padding:4px 8px;color:var(--text-m);font-weight:600">Dzień</th>
+          <th style="padding:4px 8px;color:var(--text-m);font-weight:600;text-align:center">Od godz.</th>
+          <th style="padding:4px 8px;color:var(--text-m);font-weight:600;text-align:center">Do godz.</th>
+          <th style="padding:4px 8px;color:var(--text-m);font-weight:600;text-align:center">Dzień wolny</th>
+        </tr></thead>
+        <tbody>
+          ${['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'].map((day,di)=>{
+            const w  = (appState.schoolWindow||{})[['mon','tue','wed','thu','fri'][di]]||[null,null];
+            const off = w[2]===true;
+            return `<tr style="border-top:1px solid var(--border)">
+              <td style="padding:5px 8px;font-weight:600">${day}</td>
+              <td style="padding:3px 6px;text-align:center">
+                <input class="minput" id="swFrom_${di}" type="number" min="0" max="20" style="width:60px;text-align:center;padding:4px"
+                  value="${w[0]??''}" placeholder="—" ${off?'disabled':''}>
+              </td>
+              <td style="padding:3px 6px;text-align:center">
+                <input class="minput" id="swTo_${di}" type="number" min="0" max="20" style="width:60px;text-align:center;padding:4px"
+                  value="${w[1]??''}" placeholder="—" ${off?'disabled':''}>
+              </td>
+              <td style="padding:3px 6px;text-align:center">
+                <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+                  <input type="checkbox" id="swOff_${di}" ${off?'checked':''}
+                    onchange="document.getElementById('swFrom_${di}').disabled=this.checked;document.getElementById('swTo_${di}').disabled=this.checked"
+                    style="accent-color:var(--accent);width:15px;height:15px">
+                  <span style="font-size:.7rem;color:var(--text-d)">wolny</span>
+                </label>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
   html+=`<div class="settings-card" style="grid-column:1/-1">`;
   html+=`<div class="settings-card-title" style="color:var(--red)">Strefa niebezpieczna</div>`;
   html+=`<div style="font-size:.82rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">Operacje, których nie można cofnąć.</div>`;
@@ -4940,6 +5576,9 @@ function openAddTeacherModal() {
   document.getElementById('tmAbbr').value = '';
   document.getElementById('tmHoursTotal').value = '';
   document.getElementById('tmHoursExtra').value = '';
+  document.getElementById('tmEmployment').value = 'full';
+  document.getElementById('tmFraction').value = '';
+  document.getElementById('tmFractionWrap').style.display='none';
   _tmIndiv = [];
   tmRenderIndiv();
   tmFillIndivSubject();
@@ -4961,6 +5600,9 @@ function openEditTeacherModal(id) {
   document.getElementById('tmAbbr').value = t.abbr || '';
   document.getElementById('tmHoursTotal').value = t.hoursTotal || '';
   document.getElementById('tmHoursExtra').value = t.hoursExtra || '';
+  document.getElementById('tmEmployment').value = t.employment || 'full';
+  document.getElementById('tmFraction').value = t.employmentFraction!==undefined&&t.employment==='other' ? t.employmentFraction : '';
+  document.getElementById('tmFractionWrap').style.display = t.employment==='other' ? '' : 'none';
   document.getElementById('tmDeleteBtn').style.display = '';
   _tmIndiv = JSON.parse(JSON.stringify(t.individualTeaching || []));
   tmRenderSubjects(t.subjects || []);
@@ -6389,6 +7031,7 @@ function openAddClassModal() {
     document.getElementById('classModalTitle').innerHTML = 'Dodaj <span>klasę</span>';
     document.getElementById('cmName').value = '';
     document.getElementById('cmDeleteBtn').style.display = 'none';
+    document.getElementById('cmStudentCount').value = '';
     cmRenderGroups();
     cmFillHomeroom(null);
     cmRenderRooms([]);
@@ -6407,6 +7050,7 @@ function openEditClassModal(id) {
   _cmGroups = [...(c.groups || [])];
   document.getElementById('classModalTitle').innerHTML = `Edytuj klasę <span>${c.name}</span>`;
   document.getElementById('cmName').value = c.name || '';
+  document.getElementById('cmStudentCount').value = c.studentCount || '';
   document.getElementById('cmDeleteBtn').style.display = '';
   cmRenderGroups();
   cmFillHomeroom(c.homeroomTeacherId || null);
@@ -6529,6 +7173,7 @@ function cmRenderTeachers(clsId) {
 function saveClassModal() {
   const name = document.getElementById('cmName').value.trim();
   if (!name) { notify('Podaj nazwę klasy'); return; }
+  const studentCount = parseInt(document.getElementById('cmStudentCount').value)||0;
   const homeroomTeacherId = document.getElementById('cmHomeroom').value || null;
   const homeRooms = [...document.querySelectorAll('#cmRoomList input:checked')].map(i => i.value);
 
@@ -6536,6 +7181,7 @@ function saveClassModal() {
     const c = appState.classes.find(c => c.id === _cmId);
     if (c) {
       c.name = name;
+      c.studentCount = studentCount;
       c.groups = _cmGroups;
       c.homeroomTeacherId = homeroomTeacherId;
       c.homeRooms = homeRooms;
@@ -6545,6 +7191,7 @@ function saveClassModal() {
     appState.classes.push({
       id: 'cls' + Date.now(),
       name,
+      studentCount,
       groups: _cmGroups,
       homeroomTeacherId,
       homeRooms,
