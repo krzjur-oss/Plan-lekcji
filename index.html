@@ -3163,39 +3163,95 @@ function genTeacherAvailUI(C) {
   const DSHORT = ['Pon','Wt','Śr','Czw','Pt'];
 
   return sortTeachers(appState.teachers).map(t => {
-    const avail = (C.teacherAvail||{})[t.id] || {};
+    const avail   = (C.teacherAvail||{})[t.id] || {};
+    const nBlk    = Object.values(avail).filter(v=>v==='blocked').length;
+    const nWin    = Object.values(avail).filter(v=>v==='window').length;
+    const nPref   = Object.values(avail).filter(v=>v==='preferred').length;
+    const hasAny  = nBlk||nWin||nPref;
+    const isOpen  = localStorage.getItem('gen_tch_'+t.id) === 'open';
 
-    let cols = '';
-    for(let di=0; di<5; di++) {
-      let cells = `<div class="gen-avail-day">${DSHORT[di]}</div>`;
-      hours.forEach(h => {
-        const k   = `${di}_${h.num}`;
-        const st  = avail[k]||'';
-        const cls = st==='blocked'?'blocked':st==='preferred'?'preferred':st==='window'?'window':'';
-        const lbl = st==='blocked'?'✕':st==='preferred'?'★':st==='window'?'◐':h.num;
-        const ttl = st==='blocked'?'Zablokowana':st==='preferred'?'Preferowana':st==='window'?'Przymusowe okienko':'Dostępna';
-        cells += `<div class="gen-avail-cell ${cls}" title="${DSHORT[di]} godz.${h.num} — ${ttl} (kliknij aby zmienić)"
-          onclick="genCycleAvail('${t.id}','${k}')">${lbl}</div>`;
-      });
-      cols += `<div class="gen-avail-col">${cells}</div>`;
+    // Mini-podgląd tygodnia (5×hours kolorowe kwadraty) gdy zwinięty
+    const miniDots = DSHORT.map((_,di) =>
+      hours.map(h => {
+        const st = avail[`${di}_${h.num}`]||'';
+        const bg = st==='blocked'?'var(--red)':st==='window'?'#f59e0b':st==='preferred'?'var(--accent)':'var(--s3)';
+        return `<span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${bg}"></span>`;
+      }).join('')
+    ).map(row=>`<span style="display:flex;gap:1px">${row}</span>`).join('');
+
+    // Buduj siatkę (tylko gdy rozwinięty)
+    let grid = '';
+    if(isOpen) {
+      let cols = '';
+      for(let di=0; di<5; di++) {
+        let cells = `<div class="gen-avail-day">${DSHORT[di]}</div>`;
+        hours.forEach(h => {
+          const k   = `${di}_${h.num}`;
+          const st  = avail[k]||'';
+          const cls = st==='blocked'?'blocked':st==='preferred'?'preferred':st==='window'?'window':'';
+          const lbl = st==='blocked'?'✕':st==='preferred'?'★':st==='window'?'◐':h.num;
+          const ttl = st==='blocked'?'Zablokowana':st==='preferred'?'Preferowana':st==='window'?'Przymusowe okienko':'Dostępna';
+          cells += `<div class="gen-avail-cell ${cls}" title="${DSHORT[di]} godz.${h.num} — ${ttl}"
+            onclick="genCycleAvail('${t.id}','${k}')">${lbl}</div>`;
+        });
+        cols += `<div class="gen-avail-col">${cols.length?'':''}"${cells}</div>`;
+        cols = cols.replace(`"${cells}`, `>${cells}`);
+      }
+      // Przepisz czysto
+      cols = '';
+      for(let di=0; di<5; di++) {
+        let cells = `<div class="gen-avail-day">${DSHORT[di]}</div>`;
+        hours.forEach(h => {
+          const k   = `${di}_${h.num}`;
+          const st  = avail[k]||'';
+          const cls = st==='blocked'?'blocked':st==='preferred'?'preferred':st==='window'?'window':'';
+          const lbl = st==='blocked'?'✕':st==='preferred'?'★':st==='window'?'◐':h.num;
+          const ttl = st==='blocked'?'Zablokowana':st==='preferred'?'Preferowana':st==='window'?'Przymusowe okienko':'Dostępna';
+          cells += `<div class="gen-avail-cell ${cls}" title="${DSHORT[di]} godz.${h.num} — ${ttl}"
+            onclick="genCycleAvail('${t.id}','${k}')">${lbl}</div>`;
+        });
+        cols += `<div class="gen-avail-col">${cells}</div>`;
+      }
+      grid = `<div class="gen-avail-grid" style="grid-template-columns:repeat(5,1fr);margin-top:10px">${cols}</div>`;
     }
 
-    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <span style="font-size:.8rem;font-weight:700;min-width:160px">${t.last} ${t.first}</span>
-        <span style="font-size:.68rem;color:var(--text-d);font-family:var(--mono)">${t.abbr}</span>
-        <span style="font-size:.68rem;color:var(--text-d)">
-          ${Object.values(avail).filter(v=>v==='blocked').length} zablokowanych,
-          ${Object.values(avail).filter(v=>v==='window').length} okienek,
-          ${Object.values(avail).filter(v=>v==='preferred').length} preferowanych
+    const summary = hasAny
+      ? [nBlk?`<span style="color:var(--red)">${nBlk}✕</span>`:'',
+         nWin?`<span style="color:#f59e0b">${nWin}◐</span>`:'',
+         nPref?`<span style="color:var(--accent)">${nPref}★</span>`:'']
+        .filter(Boolean).join(' ')
+      : '<span style="color:var(--text-d)">brak ograniczeń</span>';
+
+    return `<div style="border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer"
+        onclick="genToggleTch('${t.id}')">
+        <span style="font-size:.78rem;font-weight:700;min-width:170px">${t.last} ${t.first}
+          <span style="font-weight:400;color:var(--text-d);font-family:var(--mono);font-size:.68rem"> ${t.abbr}</span>
         </span>
-        <button onclick="genClearAvail('${t.id}')"
-          style="font-size:.65rem;color:var(--text-d);background:none;border:1px solid var(--border);
-                 border-radius:4px;padding:1px 6px;cursor:pointer;margin-left:auto">wyczyść</button>
+        <span style="font-size:.72rem;display:flex;gap:4px">${summary}</span>
+        ${hasAny ? `<div style="display:flex;flex-direction:column;gap:1px;margin-left:4px">${miniDots}</div>` : ''}
+        <span style="margin-left:auto;color:var(--text-d);font-size:.8rem;transition:transform .2s;
+          transform:${isOpen?'':'rotate(-90deg)'}" id="genTchArr_${t.id}">▼</span>
       </div>
-      <div class="gen-avail-grid" style="grid-template-columns:repeat(5,1fr)">${cols}</div>
+      ${isOpen ? `<div style="padding-bottom:10px">
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <button onclick="event.stopPropagation();genClearAvail('${t.id}')"
+            style="font-size:.65rem;color:var(--text-d);background:none;border:1px solid var(--border);
+                   border-radius:4px;padding:2px 8px;cursor:pointer">Wyczyść</button>
+          <button onclick="event.stopPropagation();genBlockAllDay('${t.id}')"
+            style="font-size:.65rem;color:var(--red);background:none;border:1px solid var(--red);
+                   border-radius:4px;padding:2px 8px;cursor:pointer">Zablokuj cały tydzień</button>
+        </div>
+        ${grid}
+      </div>` : ''}
     </div>`;
-  }).join('') + '<div style="height:4px"></div>';
+  }).join('');
+}
+
+function genToggleTch(tchId) {
+  const cur = localStorage.getItem('gen_tch_'+tchId);
+  localStorage.setItem('gen_tch_'+tchId, cur==='open' ? 'closed' : 'open');
+  renderGenerator();
 }
 
 function genCycleAvail(tchId, key) {
@@ -3205,14 +3261,31 @@ function genCycleAvail(tchId, key) {
   const nxt = cur===''?'blocked':cur==='blocked'?'window':cur==='window'?'preferred':'';
   if(!nxt) delete C.teacherAvail[tchId][key];
   else C.teacherAvail[tchId][key] = nxt;
-  // Odśwież tylko siatkę tego nauczyciela zamiast całego widoku
-  renderGenerator();
+  genRefreshTch(tchId);
+}
+
+function genRefreshTch(tchId) {
+  // Odśwież tylko sekcję dostępności bez przeładowania całego widoku
+  const C = getConstraints();
+  const wrap = document.getElementById('genSec_avail');
+  if(!wrap) { renderGenerator(); return; }
+  wrap.innerHTML = genTeacherAvailUI(C);
 }
 
 function genClearAvail(tchId) {
   const C = getConstraints();
   C.teacherAvail[tchId] = {};
-  renderGenerator();
+  genRefreshTch(tchId);
+}
+
+function genBlockAllDay(tchId) {
+  const C = getConstraints();
+  if(!C.teacherAvail[tchId]) C.teacherAvail[tchId] = {};
+  const hours = (appState.hours||[]);
+  for(let di=0;di<5;di++) hours.forEach(h => {
+    C.teacherAvail[tchId][`${di}_${h.num}`] = 'blocked';
+  });
+  genRefreshTch(tchId);
 }
 
 // ── UI: Przydział godzin (podsumowanie assignments) ──
