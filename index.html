@@ -3436,30 +3436,41 @@ function genPositionUI(C) {
   });
 
   const POS = [
-    ['any',   'Dowolna', ''],
-    ['first', 'Na początku', '🌅'],
-    ['last',  'Na końcu',   '🌇'],
+    ['any',   'Dowolna',      ''],
+    ['edge',  'Skrajne',      '⇔'],
+    ['first', 'Na początku',  '🌅'],
+    ['last',  'Na końcu',     '🌇'],
   ];
 
   return activeSubjects.map(s => {
-    const pos = (C.subjPosition||{})[s.id]||'any';
-    const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
-                  background:${s.color||'#888'};flex-shrink:0"></span>`;
-    const autoPosSet = autoPositions[s.id];
-    const autoInfo = autoPosSet?.size ? (() => {
-      const vals = [...autoPosSet];
-      const lbl  = vals.includes('edge') ? 'skrajne' : '';
-      return lbl ? `<span style="font-size:.66rem;padding:1px 7px;border-radius:10px;
-        background:var(--accent-g);color:var(--accent);border:1px solid var(--accent)44">
-        ◑ auto: ${lbl} (z opcjonalnych)</span>` : '';
-    })() : '';
+    const pos        = (C.subjPosition||{})[s.id]||'any';
+    const isAutoEdge = autoPositions[s.id]?.has('edge');
+    const dot        = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
+                         background:${s.color||'#888'};flex-shrink:0"></span>`;
+
+    // Przedmiot opcjonalny — pozycja narzucona automatycznie, nie pokazuj przycisków
+    if(isAutoEdge) {
+      return `<div class="gen-subj-row">
+        <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">
+          ${dot}${s.name}
+          <span style="font-size:.66rem;padding:2px 8px;border-radius:10px;
+            background:var(--accent-g);color:var(--accent);border:1px solid var(--accent)44">
+            ◑ auto: skrajne (z opcjonalnych)
+          </span>
+        </span>
+        <span style="font-size:.7rem;color:var(--text-d);font-style:italic">— ustawione automatycznie</span>
+      </div>`;
+    }
+
+    // Pozostałe — pełny wybór z opcją Skrajne
     const pills = POS.map(([v,l,ic]) =>
-      `<div class="gen-pill ${pos===v?'active':''}" onclick="genSetPosition('${s.id}','${v}')">
+      `<div class="gen-pill ${pos===v?'active':''}" onclick="genSetPosition('${s.id}','${v}')"
+        title="${v==='edge'?'Pierwsza lub ostatnia godzina (bez preferencji)':''}">
         ${ic} ${l}
       </div>`
     ).join('');
     return `<div class="gen-subj-row">
-      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${s.name}${autoInfo}</span>
+      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${s.name}</span>
       <div class="gen-field-row">${pills}</div>
     </div>`;
   }).join('');
