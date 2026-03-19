@@ -1532,6 +1532,30 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <span class="subj-preview-name" id="smPreviewName">Matematyka</span>
     </div>
 
+    <div class="mfield">
+      <label>Klasy realizujące przedmiot</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <button onclick="smSelectAllClasses(true)"
+          style="font-size:.68rem;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--text-m)">
+          Zaznacz wszystkie
+        </button>
+        <button onclick="smSelectAllClasses(false)"
+          style="font-size:.68rem;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--text-m)">
+          Odznacz wszystkie
+        </button>
+      </div>
+      <div id="smClassesWrap" style="display:flex;flex-wrap:wrap;gap:5px;min-height:28px"></div>
+    </div>
+
+    <div class="mfield">
+      <label>Czas realizacji</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <div class="gen-pill active" id="smDurYear"  onclick="smSetDuration('year')">📅 Cały rok</div>
+        <div class="gen-pill"        id="smDurSem1"  onclick="smSetDuration('sem1')">① Semestr 1</div>
+        <div class="gen-pill"        id="smDurSem2"  onclick="smSetDuration('sem2')">② Semestr 2</div>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="mbtn mbtn-danger" id="smDeleteBtn" onclick="smDelete()" style="display:none;margin-right:auto">Usuń przedmiot</button>
       <button class="mbtn mbtn-ghost" onclick="closeSubjectModal()">Anuluj</button>
@@ -1741,6 +1765,11 @@ function migrateAppState() {
     if(!b.floors) b.floors = [];
   });
   // Zapewnij że każda sala ma type, capacity, locationStr
+  (appState.subjects||[]).forEach(s => {
+    if(s.level    === undefined) s.level    = '';
+    if(s.duration === undefined) s.duration = 'year';
+    if(!s.classes) s.classes = [];
+  });
   appState.rooms.forEach(r => {
     if(!r.type)     r.type     = 'full';
     if(r.capacity === undefined) r.capacity = 0;
@@ -3801,10 +3830,17 @@ function renderSettings() {
     const isDark = isDarkColor(s.color);
     const textC  = isDark ? '#fff' : '#111';
     const bg     = hexToRgba(s.color, .18);
+    const durLabel   = s.duration==='sem1'?'Sem.1':s.duration==='sem2'?'Sem.2':'';
+    const clsNames   = (s.classes||[]).map(id=>(appState.classes||[]).find(c=>c.id===id)?.name).filter(Boolean);
+    const clsLabel   = clsNames.length ? clsNames.join(', ') : '';
     html+=`<div class="subj-tile" style="background:${bg};border-color:${hexToRgba(s.color,.4)}"
         onclick="openEditSubjectModal('${s.id}')">
       <div class="subj-tile-abbr" style="color:${s.color}">${s.abbr}</div>
       <div class="subj-tile-name" style="color:var(--text)">${s.name}</div>
+      ${durLabel||clsLabel ? `<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">
+        ${durLabel?`<span style="font-size:.58rem;padding:1px 5px;border-radius:8px;background:${hexToRgba(s.color,.25)};color:${s.color}">${durLabel}</span>`:''}
+        ${clsLabel?`<span style="font-size:.58rem;color:${s.color};opacity:.8">${clsLabel}</span>`:''}
+      </div>` : ''}
       <div class="subj-tile-edit" onclick="event.stopPropagation();openEditSubjectModal('${s.id}')">✎</div>
     </div>`;
   });
@@ -5704,6 +5740,10 @@ function openAddSubjectModal() {
   document.getElementById('smName').value  = '';
   document.getElementById('smAbbr').value  = '';
   document.getElementById('smDeleteBtn').style.display = 'none';
+  _smDuration = 'year';
+  _smClasses  = [];
+  smFillClasses([]);
+  smSetDuration('year');
   smBuildPalette();
   smUpdatePreview();
   document.getElementById('subjectModal').classList.add('show');
@@ -5720,9 +5760,51 @@ function openEditSubjectModal(id) {
   document.getElementById('smName').value  = s.name || '';
   document.getElementById('smAbbr').value  = s.abbr || '';
   document.getElementById('smDeleteBtn').style.display = '';
+  _smDuration = s.duration || 'year';
+  _smClasses  = s.classes  || [];
+  smFillClasses(_smClasses);
+  smSetDuration(_smDuration);
   smBuildPalette();
   smUpdatePreview();
   document.getElementById('subjectModal').classList.add('show');
+}
+
+// ── Stan klas i czasu realizacji w modalu przedmiotu ──
+let _smDuration = 'year';
+let _smClasses  = [];
+
+function smFillClasses(selected) {
+  const wrap = document.getElementById('smClassesWrap');
+  if(!wrap) return;
+  const classes = sortByName(appState.classes||[]);
+  if(!classes.length) {
+    wrap.innerHTML='<span style="font-size:.72rem;color:var(--text-d)">Brak klas — dodaj klasy w Ustawieniach</span>';
+    return;
+  }
+  wrap.innerHTML = classes.map(c => {
+    const on = (selected||[]).includes(c.id);
+    return `<div class="gen-pill ${on?'active':''}" style="cursor:pointer"
+      onclick="smToggleClass('${c.id}')">${c.name}</div>`;
+  }).join('');
+}
+
+function smToggleClass(clsId) {
+  const i = _smClasses.indexOf(clsId);
+  if(i>=0) _smClasses.splice(i,1); else _smClasses.push(clsId);
+  smFillClasses(_smClasses);
+}
+
+function smSelectAllClasses(all) {
+  _smClasses = all ? (appState.classes||[]).map(c=>c.id) : [];
+  smFillClasses(_smClasses);
+}
+
+function smSetDuration(val) {
+  _smDuration = val;
+  ['year','sem1','sem2'].forEach(v => {
+    const el = document.getElementById('smDur'+v.charAt(0).toUpperCase()+v.slice(1));
+    if(el) el.classList.toggle('active', v===val);
+  });
 }
 
 function smBuildPalette() {
@@ -5772,15 +5854,18 @@ document.getElementById('smAbbr').addEventListener('input', function() {
 });
 
 function saveSubjectModal() {
-  const name = document.getElementById('smName').value.trim();
-  const abbr = document.getElementById('smAbbr').value.trim().toUpperCase();
+  const name     = document.getElementById('smName').value.trim();
+  const abbr     = document.getElementById('smAbbr').value.trim().toUpperCase();
+  const duration = _smDuration || 'year';
+  const level    = '';  // zastąpione przez classes
+  const classes  = _smClasses || [];
   if(!name){ notify('Podaj nazwę przedmiotu'); return; }
   if(!abbr){ notify('Podaj skrót'); return; }
   if(_smId) {
     const s = appState.subjects.find(s=>s.id===_smId);
-    if(s){ s.name=name; s.abbr=abbr; s.color=_smColor; }
+    if(s){ s.name=name; s.abbr=abbr; s.color=_smColor; s.level=level; s.duration=duration; s.classes=classes; }
   } else {
-    appState.subjects.push({ id:'subj'+Date.now(), name, abbr, color:_smColor });
+    appState.subjects.push({ id:'subj'+Date.now(), name, abbr, color:_smColor, level, duration, classes });
   }
   persistAll(); populateSelects(); renderSettings(); closeSubjectModal();
   notify(_smId ? 'Zaktualizowano: '+name : 'Dodano: '+name);
