@@ -8706,76 +8706,80 @@ function openWizHelp(step) {
 //  DRUKOWANIE
 // ================================================================
 function openPrintPanel() {
-  if(!appState) { notify('Brak planu do drukowania','warn'); return; }
-  const classes   = appState.classes||[];
-  const teachers  = appState.teachers||[];
+  if(!appState) { notify('Brak planu do drukowania'); return; }
+  const classes  = sortClasses(appState.classes||[]);
+  const teachers = sortTeachers(appState.teachers||[]);
+  const niStuds  = appState.niStudents||[];
+
+  // Helper: sekcja z przełącznikiem pojedynczy/płachta
+  const section = (icon, label, id, itemsHtml, sheetFn) => `
+    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em">
+          ${icon} ${label}
+        </div>
+        ${sheetFn ? `<button onclick="${sheetFn}"
+          style="font-size:.68rem;padding:3px 10px;border-radius:5px;border:1px solid var(--border);
+                 background:var(--s2);color:var(--text-m);cursor:pointer;white-space:nowrap"
+          title="Drukuj wszystkie na jednej płachcie (A3 landscape)">
+          📄 Płachta wszystkich
+        </button>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${itemsHtml}
+      </div>
+    </div>`;
+
+  const btnRow = (onclick, label) =>
+    `<button class="wbtn wbtn-ghost" style="text-align:left;padding:6px 12px;font-size:.78rem"
+      onclick="${onclick}">${label}</button>`;
 
   let html = `
-    <div style="margin-bottom:14px">
+    <div style="margin-bottom:12px">
       <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Widok aktualny</div>
-      <button class="wbtn wbtn-primary" style="width:100%;margin-bottom:6px" onclick="doPrint('current')">
-        🖨️ Drukuj aktualny widok
-      </button>
-      <div style="font-size:.7rem;color:var(--text-d)">Drukuje to co widać na ekranie (aktualny widok i wybrana klasa/nauczyciel)</div>
-    </div>
-
-    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Plan klasy</div>
-      <div style="display:flex;flex-direction:column;gap:5px">
-        ${classes.map(c=>`
-          <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px"
-            onclick="doPrint('class','${c.id}')">
-            📚 ${c.name}
-          </button>`).join('')}
-        <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px;border-style:dashed"
-          onclick="doPrintAll('class')">
-          📚 Wszystkie klasy (po kolei)
-        </button>
-      </div>
-    </div>
-
-    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Plan nauczyciela</div>
-      <div style="display:flex;flex-direction:column;gap:5px">
-        ${sortTeachers(teachers).map(t=>`
-          <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px"
-            onclick="doPrint('teacher','${t.id}')">
-            👩‍🏫 ${t.last} ${t.first} <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">(${t.abbr})</span>
-          </button>`).join('')}
-        <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px;border-style:dashed"
-          onclick="doPrintAll('teacher')">
-          👩‍🏫 Wszyscy nauczyciele (po kolei)
-        </button>
-      </div>
-    </div>
-
-    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">👤 Plan ucznia NI</div>
-      <div style="font-size:.7rem;color:var(--text-d);margin-bottom:8px">
-        Indywidualny plan pokazujący kiedy uczeń ma zajęcia NI a kiedy jest z klasą
-      </div>
-      <div style="display:flex;flex-direction:column;gap:5px">
-        ${(appState.niStudents||[]).length ? (appState.niStudents||[]).map(s=>`
-          <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px"
-            onclick="doPrintNI('${s.id}')">
-            👤 ${s.name}${s.classId ? ' ('+((appState.classes||[]).find(c=>c.id===s.classId)?.name||'')+ ')' : ''}
-          </button>`).join('') :
-          `<div style="font-size:.75rem;color:var(--text-d);padding:8px">Brak uczniów NI</div>`
-        }
-      </div>
-    </div>
-
-    <div style="border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Inne</div>
-      <button class="wbtn wbtn-ghost" style="width:100%;margin-bottom:6px;text-align:left;padding:7px 12px"
-        onclick="doPrint('matrix')">
-        🔲 Macierz szkoły
-      </button>
-      <button class="wbtn wbtn-ghost" style="width:100%;text-align:left;padding:7px 12px"
-        onclick="doPrint('stats')">
-        📊 Statystyki i obciążenie nauczycieli
+      <button class="wbtn wbtn-primary" style="width:100%;padding:8px" onclick="doPrint('current')">
+        🖨️ Drukuj aktualny widok aplikacji
       </button>
     </div>`;
+
+  // ── Klasy ──
+  html += section('📚', 'Plany klas',
+    'class',
+    classes.map(c => btnRow(`doPrint('class','${c.id}')`, `📚 Klasa ${c.name}`)).join(''),
+    classes.length > 1 ? `doPrint('class',null,'sheet')` : null
+  );
+
+  // ── Nauczyciele ──
+  html += section('👩‍🏫', 'Plany nauczycieli',
+    'teacher',
+    teachers.map(t => btnRow(
+      `doPrint('teacher','${t.id}')`,
+      `👩‍🏫 ${t.last} ${t.first} <span style="font-family:var(--mono);color:var(--text-d)">(${t.abbr})</span>`
+    )).join(''),
+    teachers.length > 1 ? `doPrint('teacher',null,'sheet')` : null
+  );
+
+  // ── Uczniowie NI ──
+  html += section('👤', 'Plany uczniów NI',
+    'ni',
+    niStuds.length
+      ? niStuds.map(s => {
+          const cls = classes.find(c=>c.id===s.classId);
+          return btnRow(
+            `doPrintNI('${s.id}')`,
+            `👤 ${s.name}${cls?' ('+cls.name+')':''}`
+          );
+        }).join('')
+      : `<div style="font-size:.75rem;color:var(--text-d);padding:6px">Brak uczniów NI w systemie</div>`,
+    null
+  );
+
+  // ── Inne ──
+  html += `<div style="border-top:1px solid var(--border);padding-top:12px">
+    <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Inne</div>
+    ${btnRow("doPrint('matrix')", '🔲 Macierz szkoły')}
+    ${btnRow("doPrint('stats')", '📊 Statystyki obciążenia')}
+  </div>`;
 
   document.getElementById('printContent').innerHTML = html;
   document.getElementById('printOverlay').classList.add('show');
@@ -8785,65 +8789,233 @@ function closePrintPanel() {
   document.getElementById('printOverlay').classList.remove('show');
 }
 
-function doPrint(type, id) {
+// ================================================================
+//  SYSTEM DRUKOWANIA — nowe okno z dedykowanym HTML
+// ================================================================
+
+// ── Główna funkcja — otwiera dedykowane okno druku ──
+function doPrint(type, id, mode) {
+  // mode: 'single' (domyślny) | 'sheet' (płachta wszystkich)
   closePrintPanel();
-  // Przełącz na właściwy widok przed drukowaniem
-  if(type==='current') {
+  if(!appState) return;
+
+  if(type === 'current') {
+    // Stary tryb — drukuj aktualny widok aplikacji
     addPrintHeader();
     window.print();
     return;
   }
-  if(type==='class' && id) {
-    switchView('class', document.querySelector('[data-view=class]'));
-    document.getElementById('classSelect').value = id;
-    document.getElementById('classDaySelect').value = 'all';
-    renderClassView();
-  } else if(type==='teacher' && id) {
-    switchView('teacher', document.querySelector('[data-view=teacher]'));
-    document.getElementById('teacherSelect').value = id;
-    document.getElementById('teacherDaySelect').value = 'all';
-    renderTeacherView();
-  } else if(type==='matrix') {
-    switchView('matrix', document.querySelector('[data-view=matrix]'));
-    renderMatrixView();
-  } else if(type==='stats') {
-    switchView('stats', document.querySelector('[data-view=stats]'));
-    renderStats();
-  }
-  // Odczekaj chwilę na render, potem drukuj
-  setTimeout(() => { addPrintHeader(); window.print(); }, 200);
-}
 
-async function doPrintAll(type) {
-  closePrintPanel();
-  const items = type==='class'
-    ? (appState.classes||[]).map(c=>({id:c.id,label:c.name}))
-    : sortTeachers(appState.teachers||[]).map(t=>({id:t.id,label:t.last+' '+t.first}));
+  if(type === 'ni' && id) {
+    doPrintNI(id);
+    return;
+  }
+
+  // Zbierz dane do druku
+  let items = [];
+  if(type === 'class') {
+    items = id
+      ? [(appState.classes||[]).find(c=>c.id===id)].filter(Boolean)
+      : sortClasses(appState.classes||[]);
+  } else if(type === 'teacher') {
+    items = id
+      ? [(appState.teachers||[]).find(t=>t.id===id)].filter(Boolean)
+      : sortTeachers(appState.teachers||[]);
+  }
 
   if(!items.length) return;
 
-  // Drukuj wszystkie jeden po drugim
-  for(let i=0; i<items.length; i++) {
-    if(type==='class') {
-      switchView('class', document.querySelector('[data-view=class]'));
-      document.getElementById('classSelect').value = items[i].id;
-      document.getElementById('classDaySelect').value = 'all';
-      renderClassView();
-    } else {
-      switchView('teacher', document.querySelector('[data-view=teacher]'));
-      document.getElementById('teacherSelect').value = items[i].id;
-      document.getElementById('teacherDaySelect').value = 'all';
-      renderTeacherView();
+  const isSheet  = mode === 'sheet'; // płachta = wszystko na raz
+  const html     = buildPrintHTML(type, items, isSheet);
+  openPrintWindow(html);
+}
+
+async function doPrintAll(type) {
+  // Legacy — teraz wywołuje doPrint z sheet
+  doPrint(type, null, 'sheet');
+}
+
+// ── Buduj HTML do druku ──
+function buildPrintHTML(type, items, isSheet) {
+  const school = appState.name||'';
+  const year   = appState.schoolYear||appState.year||'';
+  const hours  = appState.hours||[];
+  const DAYS   = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
+
+  const css = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #111; background: #fff; }
+    .page { padding: 10mm; }
+    .page-header { margin-bottom: 6px; border-bottom: 2px solid #333; padding-bottom: 4px; }
+    .page-title { font-size: 13px; font-weight: bold; }
+    .page-sub   { font-size: 9px; color: #555; margin-top: 2px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th, td { border: 1px solid #ccc; padding: 2px 3px; vertical-align: top; font-size: 9px; }
+    th { background: #f0f0f0; font-weight: bold; text-align: center; }
+    .hour-cell { background: #f8f8f8; text-align: center; width: 38px; color: #555; }
+    .lesson { border-radius: 2px; padding: 1px 3px; }
+    .subj-name { font-weight: bold; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .subj-meta { font-size: 8px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty-cell { background: #fafafa; }
+    .page-break { page-break-after: always; }
+    .sheet-label { font-size: 8px; font-weight: bold; text-align: center;
+                   background: #e8e8e8; padding: 2px; border-bottom: 1px solid #ccc; }
+    @page { margin: 8mm; }
+    @media print {
+      body { font-size: 9px; }
+      .page { padding: 0; }
     }
-    await new Promise(r=>setTimeout(r,150));
-    addPrintHeader(items[i].label);
-    window.print();
-    await new Promise(r=>setTimeout(r,300));
+  `;
+
+  // Jeśli płachta — dodaj CSS dla układu boku do boku
+  const sheetCss = isSheet ? `
+    .sheet-wrap { display: grid; gap: 6mm; }
+    @media print {
+      @page { size: A3 landscape; margin: 6mm; }
+      .sheet-wrap { grid-template-columns: repeat(auto-fill, minmax(180mm, 1fr)); }
+    }
+    @media screen {
+      .sheet-wrap { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); max-width: 100%; }
+    }
+  ` : `
+    @media print {
+      @page { size: A4 landscape; margin: 8mm; }
+    }
+  `;
+
+  // Nagłówek dokumentu
+  const header = `<!DOCTYPE html><html lang="pl"><head>
+    <meta charset="UTF-8">
+    <title>${school} — Plan ${type==='class'?'klas':'nauczycieli'} ${year}</title>
+    <style>${css}${sheetCss}</style>
+  </head><body>`;
+
+  // Buduj siatki
+  let body = '';
+
+  if(isSheet) {
+    // PŁACHTA — wszystkie plany obok siebie
+    body += `<div class="page">
+      <div class="page-header">
+        <div class="page-title">${school}</div>
+        <div class="page-sub">${year} · ${type==='class'?'Plany wszystkich klas':'Plany wszystkich nauczycieli'} · Rok szkolny ${appState.activeSem===1?'sem. 1':'sem. 2'}</div>
+      </div>
+      <div class="sheet-wrap">`;
+
+    items.forEach(item => {
+      body += `<div>
+        <div class="sheet-label">${type==='class'?item.name:item.last+' '+item.first+' ('+item.abbr+')'}</div>
+        ${buildGrid(type, item, hours, DAYS, true)}
+      </div>`;
+    });
+
+    body += `</div></div>`;
+
+  } else {
+    // INDYWIDUALNIE — każdy plan na osobnej stronie
+    items.forEach((item, idx) => {
+      const label = type==='class'
+        ? item.name
+        : item.last+' '+item.first+' ('+item.abbr+')';
+      const subLabel = type==='class'
+        ? `Wychowawca: ${getHomeroomName(item)}`
+        : `Pensum: ${item.hoursTotal||'—'} godz./tydz.`;
+
+      body += `<div class="page${idx < items.length-1 ? ' page-break' : ''}">
+        <div class="page-header">
+          <div class="page-title">${school} · ${year} · ${type==='class'?'Klasa':'Nauczyciel'}: ${label}</div>
+          <div class="page-sub">${subLabel}</div>
+        </div>
+        ${buildGrid(type, item, hours, DAYS, false)}
+      </div>`;
+    });
   }
+
+  return header + body + '</body></html>';
+}
+
+// ── Buduj siatkę godzinową dla jednej klasy/nauczyciela ──
+function buildGrid(type, item, hours, DAYS, compact) {
+  const subjects = appState.subjects||[];
+  const teachers = appState.teachers||[];
+  const rooms    = appState.rooms||[];
+  const fsize    = compact ? '8px' : '9px';
+
+  let html = `<table style="font-size:${fsize}">
+    <thead><tr>
+      <th class="hour-cell">Nr</th>
+      ${DAYS.map(d=>`<th>${d}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+  hours.forEach(h => {
+    html += `<tr>
+      <td class="hour-cell">${h.num}<br><span style="font-size:7px;color:#888">${h.start}</span></td>`;
+
+    for(let di=0; di<5; di++) {
+      let lesson = null;
+
+      if(type === 'class') {
+        lesson = getLesson(item.id, di, h.num);
+      } else {
+        // Nauczyciel — znajdź lekcję gdzie jest prowadzącym lub wspomagającym
+        const entry = Object.entries(schedData).find(([k,v]) => {
+          const p = k.split('_');
+          return parseInt(p[1])===di && parseInt(p[2])===h.num && v.teacherId===item.id;
+        });
+        if(entry) {
+          const clsId = entry[0].split('_')[0];
+          lesson = {...entry[1], _clsId: clsId};
+        }
+      }
+
+      if(lesson) {
+        const subj = lesson.subjectId ? subjects.find(s=>s.id===lesson.subjectId) : null;
+        const tch  = lesson.teacherId ? teachers.find(t=>t.id===lesson.teacherId) : null;
+        const room = lesson.roomId    ? rooms.find(r=>r.id===lesson.roomId)       : null;
+        const cls  = lesson._clsId   ? appState.classes.find(c=>c.id===lesson._clsId) : null;
+        const color = subj?.color ? hexToRgba(subj.color, 0.15) : '#f5f5f5';
+        const bcolor = subj?.color || '#ccc';
+
+        const line1 = subj?.abbr || '?';
+        const line2 = type==='class'
+          ? [tch?.abbr, room?.name].filter(Boolean).join(' · ')
+          : [cls?.name, room?.name].filter(Boolean).join(' · ');
+        const groups = lesson.groups?.length ? '('+lesson.groups.join('/')+')' : '';
+
+        html += `<td style="padding:1px 2px">
+          <div class="lesson" style="background:${color};border-left:2px solid ${bcolor}">
+            <div class="subj-name" style="color:${bcolor}">${line1}${groups?' <span style="font-size:7px">'+groups+'</span>':''}</div>
+            ${line2?`<div class="subj-meta">${line2}</div>`:''}
+          </div>
+        </td>`;
+      } else {
+        html += `<td class="empty-cell"></td>`;
+      }
+    }
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  return html;
+}
+
+// ── Pomocnicza: wychowawca klasy ──
+function getHomeroomName(cls) {
+  if(!cls.homeroomTeacherId) return '—';
+  const t = (appState.teachers||[]).find(t=>t.id===cls.homeroomTeacherId);
+  return t ? t.last+' '+t.first : '—';
+}
+
+// ── Otwórz okno druku ──
+function openPrintWindow(html) {
+  const win = window.open('', '_blank');
+  if(!win) { notify('Zablokowano otwieranie okna — zezwól na pop-upy'); return; }
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 500);
 }
 
 function addPrintHeader(label) {
-  // Usuń stary nagłówek jeśli istnieje
   document.querySelectorAll('.print-header').forEach(el=>el.remove());
   const h = document.createElement('div');
   h.className = 'print-header';
@@ -8853,6 +9025,7 @@ function addPrintHeader(label) {
   const main = document.querySelector('.main-content');
   if(main) main.insertBefore(h, main.firstChild);
 }
+
 
 
 // ================================================================
