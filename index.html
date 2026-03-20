@@ -1151,6 +1151,14 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
     </div>
 
     <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(this.files[0])">
+    <div style="margin-top:24px;font-size:.68rem;color:var(--text-d)">
+      Dane przechowywane lokalnie w przeglądarce · Brak cookies · Brak telemetrii ·
+      <button onclick="showPrivacyModal()"
+        style="background:none;border:none;cursor:pointer;color:var(--accent);
+               font-size:.68rem;font-family:var(--font);text-decoration:underline">
+        Informacja o danych
+      </button>
+    </div>
   </div>
 </div>
 
@@ -1787,6 +1795,122 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 <!-- NOTIFY TOAST -->
 <div id="notify"></div>
 
+<!-- BANER INFORMACJI O DANYCH -->
+<div id="lsBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:800;
+  background:var(--s2);border-top:1px solid var(--border);padding:12px 20px;
+  display:none;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 -4px 20px rgba(0,0,0,.3)">
+  <span style="font-size:.8rem;flex:1;min-width:200px;color:var(--text-m)">
+    🍪 Ta aplikacja przechowuje dane planu lekcji <strong>wyłącznie lokalnie</strong>
+    w Twojej przeglądarce (localStorage). Żadne dane nie są wysyłane na serwery.
+  </span>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <button onclick="showPrivacyModal()"
+      style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+             background:transparent;color:var(--text-m);font-family:var(--font);
+             font-size:.78rem;cursor:pointer">Szczegóły</button>
+    <button onclick="acceptConsent()"
+      style="padding:6px 14px;border-radius:6px;border:none;
+             background:var(--accent);color:#fff;font-family:var(--font);
+             font-size:.78rem;font-weight:700;cursor:pointer">Rozumiem</button>
+  </div>
+</div>
+
+<!-- MODAL SZCZEGÓŁÓW PRYWATNOŚCI -->
+<div id="privacyOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+  z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
+  onclick="if(event.target===this)closePrivacyModal()">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);
+    padding:28px;width:520px;max-width:95vw;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg)">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-size:1.05rem;font-weight:800">
+        🍪 Informacja o przechowywaniu danych
+      </div>
+      <button onclick="closePrivacyModal()"
+        style="background:none;border:none;cursor:pointer;font-size:1.1rem;
+               color:var(--text-m);padding:4px 8px">✕</button>
+    </div>
+
+    <div style="font-size:.82rem;color:var(--text-m);line-height:1.7;display:flex;flex-direction:column;gap:14px">
+
+      <div style="padding:12px 16px;background:var(--accent-g);border:1px solid var(--accent)44;border-radius:var(--radius)">
+        <strong style="color:var(--accent)">✓ Brak ciasteczek (cookies)</strong><br>
+        PlanLekcji nie używa plików cookies. Nie wysyła żadnych danych do serwerów,
+        nie profiluje użytkowników i nie korzysta z zewnętrznych usług analitycznych.
+      </div>
+
+      <div>
+        <strong>Co jest przechowywane?</strong><br>
+        Aplikacja używa mechanizmu <code style="background:var(--s3);padding:1px 5px;border-radius:4px">localStorage</code>
+        wbudowanego w przeglądarkę — działa jak lokalny plik na Twoim komputerze:
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;color:var(--text-m)">Klucz</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text-m)">Zawartość</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text-m)">Kiedy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px;font-family:var(--mono);font-size:.72rem;color:var(--accent)">pl_state</td>
+            <td style="padding:6px 8px">Konfiguracja szkoły (klasy, nauczyciele, sale, przedmioty)</td>
+            <td style="padding:6px 8px;color:var(--text-d)">Po każdej zmianie</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px;font-family:var(--mono);font-size:.72rem;color:var(--accent)">pl_sched</td>
+            <td style="padding:6px 8px">Ułożony plan lekcji (przypisania lekcji do slotów)</td>
+            <td style="padding:6px 8px;color:var(--text-d)">Po każdej zmianie</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px;font-family:var(--mono);font-size:.72rem;color:var(--accent)">pl_wiz</td>
+            <td style="padding:6px 8px">Autozapis kreatora (dane wpisane w trakcie konfiguracji)</td>
+            <td style="padding:6px 8px;color:var(--text-d)">W kreatorze</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px;font-family:var(--mono);font-size:.72rem;color:var(--accent)">pl_theme</td>
+            <td style="padding:6px 8px">Wybór motywu (ciemny/jasny)</td>
+            <td style="padding:6px 8px;color:var(--text-d)">Po zmianie motywu</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;font-family:var(--mono);font-size:.72rem;color:var(--accent)">pl_consent</td>
+            <td style="padding:6px 8px">Potwierdzenie że widziałeś tę informację</td>
+            <td style="padding:6px 8px;color:var(--text-d)">Po kliknięciu "Rozumiem"</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div>
+        <strong>Gdzie są te dane?</strong><br>
+        Wyłącznie w Twojej przeglądarce, na Twoim urządzeniu. Możesz je w każdej chwili
+        usunąć przez: Ustawienia przeglądarki → Historia / Dane witryn → usuń dane
+        dla tej strony. Lub użyj przycisku „Resetuj całą aplikację" w Ustawieniach.
+      </div>
+
+      <div style="padding:10px 14px;background:var(--s2);border-radius:var(--radius);font-size:.75rem">
+        <strong>Dane wrażliwe?</strong><br>
+        Plan lekcji zawiera imiona i nazwiska nauczycieli. Zgodnie z RODO są to dane osobowe.
+        Ponieważ dane nie opuszczają Twojego urządzenia i nie są przetwarzane przez
+        żadną zewnętrzną usługę, aplikacja nie wymaga zgody na przetwarzanie danych osobowych
+        w rozumieniu art. 6 RODO (przetwarzanie wyłącznie przez osobę fizyczną, w celach
+        czysto osobistych lub domowych — art. 2 ust. 2 lit. c RODO).
+      </div>
+
+    </div>
+
+    <div style="margin-top:20px;display:flex;justify-content:flex-end">
+      <button onclick="acceptConsent();closePrivacyModal()"
+        style="padding:9px 22px;border-radius:var(--radius);border:none;
+               background:var(--accent);color:#fff;font-family:var(--font);
+               font-size:.85rem;font-weight:700;cursor:pointer">
+        Rozumiem i akceptuję
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- PANEL POMOCY -->
 <div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)closeHelp()">
   <div class="help-panel" id="helpPanel">
@@ -1830,7 +1954,8 @@ const LS = {
   STATE:    'pl_state',
   SCHED:    'pl_sched',
   THEME:    'pl_theme',
-  WIZ:      'pl_wiz',   // autozapis kreatora
+  WIZ:      'pl_wiz',      // autozapis kreatora
+  CONSENT:  'pl_consent',  // akceptacja informacji o localStorage
 };
 
 // ================================================================
@@ -1935,6 +2060,7 @@ function persistAll() {
 function init() {
   loadAll();
   applyTheme();
+  initConsent();
   if(appState) {
     showApp();
   } else {
@@ -8002,6 +8128,31 @@ function addPrintHeader(label) {
   h.innerHTML = `<strong>${schoolName}</strong>${year?' · '+year:''} ${label?' · '+label:''}`;
   const main = document.querySelector('.main-content');
   if(main) main.insertBefore(h, main.firstChild);
+}
+
+
+// ================================================================
+//  INFORMACJA O DANYCH / CONSENT
+// ================================================================
+function initConsent() {
+  if(!localStorage.getItem(LS.CONSENT)) {
+    const banner = document.getElementById('lsBanner');
+    if(banner) banner.style.display = 'flex';
+  }
+}
+
+function acceptConsent() {
+  localStorage.setItem(LS.CONSENT, '1');
+  const banner = document.getElementById('lsBanner');
+  if(banner) banner.style.display = 'none';
+}
+
+function showPrivacyModal() {
+  document.getElementById('privacyOverlay').style.display = 'flex';
+}
+
+function closePrivacyModal() {
+  document.getElementById('privacyOverlay').style.display = 'none';
 }
 
 // ================================================================
