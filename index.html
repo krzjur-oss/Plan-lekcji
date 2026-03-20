@@ -2336,17 +2336,77 @@ function wAddSubjBulk() {
 function wRemoveSubj(i){wData.subjects.splice(i,1);renderWizStep();}
 function wSetSubjColor(i,c){wData.subjects[i].color=c;renderWizStep();}
 
+
+// ================================================================
+//  GENEROWANIE SKRÓTÓW NAUCZYCIELI (jak w SalePlan)
+//  Format: pierwsza litera imienia (duża) + 3 pierwsze litery nazwiska
+//  Np. Anna Kowalska → AKow, Jan Nowak → JNow
+//  Gdy duplikat: AKow → AKow2 → AKow3 itd.
+// ================================================================
+function buildAbbr(first, last) {
+  const f = (first||'').trim();
+  const l = (last||'').trim();
+
+  const normalize = s => s
+    .replace(/\u0141/g,'L').replace(/\u0142/g,'l')
+    .replace(/\u00d3/g,'O').replace(/\u00f3/g,'o')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+
+  // Pierwsze imię
+  const fi = (normalize(f.split(/\s+/)[0]||'')[0]||'').toUpperCase();
+
+  // Przedrostki do pominięcia
+  const PREFIXES = new Set(['de','van','von','di','le','la','du','den','der','des','el','al','te','ten']);
+
+  // Podziel nazwisko po myślniku lub spacji
+  const parts = normalize(l).split(/[-\s]+/).filter(Boolean);
+
+  // Odfiltruj przedrostki — tylko gdy zostają jeszcze jakieś człony
+  const meaningful = parts.filter(p => !PREFIXES.has(p.toLowerCase()));
+  const useParts = meaningful.length > 0 ? meaningful : parts;
+
+  let ls = '';
+  if(!useParts.length) {
+    ls = '';
+  } else if(useParts.length === 1) {
+    // Jedno nazwisko — pierwsze 3 litery z formatowaniem
+    ls = useParts[0].slice(0,3);
+    ls = ls ? ls[0].toUpperCase() + ls.slice(1).toLowerCase() : '';
+  } else {
+    // Dwu- lub więcej-członowe — pierwsza litera każdego członu (max 3)
+    ls = useParts.slice(0,3).map((p,i) =>
+      i===0 ? p[0].toUpperCase() : p[0].toLowerCase()
+    ).join('');
+  }
+
+  return fi + ls;
+}
+
+function uniqueAbbr(first, last, existingAbbrs) {
+  const base = buildAbbr(first, last);
+  if(!existingAbbrs || !existingAbbrs.includes(base)) return base;
+  for(let i=2; i<=99; i++) {
+    const candidate = base + i;
+    if(!existingAbbrs.includes(candidate)) return candidate;
+  }
+  return base + Date.now().toString().slice(-3);
+}
+
 function wAutoAbbr() {
-  const f=(document.getElementById('wTFirst')||{}).value||'';
-  const l=(document.getElementById('wTLast')||{}).value||'';
-  const abbr = (f[0]||'').toUpperCase() + l.slice(0,3);
+  const f = (document.getElementById('wTFirst')||{}).value||'';
+  const l = (document.getElementById('wTLast')||{}).value||'';
   const el = document.getElementById('wTAbbr');
-  if(el) el.value = abbr;
+  if(el && !el._userEdited) {
+    const existing = (wData.teachers||[]).map(t=>t.abbr);
+    el.value = uniqueAbbr(f, l, existing);
+  }
 }
 function wAddTeacher() {
   const f=document.getElementById('wTFirst').value.trim();
   const l=document.getElementById('wTLast').value.trim();
-  const a=document.getElementById('wTAbbr').value.trim()||((f[0]||'').toUpperCase()+l.slice(0,3));
+  const rawAbbr=document.getElementById('wTAbbr').value.trim();
+  const existing=(wData.teachers||[]).map(t=>t.abbr);
+  const a = rawAbbr || uniqueAbbr(f, l, existing);
   if(!f&&!l) return;
   const hoursTotal=parseInt(document.getElementById('wTHoursTotal')?.value)||0;
   const hoursExtra=parseInt(document.getElementById('wTHoursExtra')?.value)||0;
@@ -2363,12 +2423,16 @@ function wAddTeacherBulk() {
   if(!raw) return;
   raw.split('\n').forEach(line=>{
     const [f,l,a,ht,he]=(line||'').split(';').map(x=>x.trim());
-    if(f||l) wData.teachers.push({
-      first:f||'',last:l||'',
-      abbr:a||(f?f[0]:'')+(l?l.slice(0,3):''),
-      hoursTotal:parseInt(ht)||0,
-      hoursExtra:parseInt(he)||0
-    });
+    if(f||l) {
+      const existing=(wData.teachers||[]).map(t=>t.abbr);
+      const computedAbbr = a || uniqueAbbr(f||'', l||'', existing);
+      wData.teachers.push({
+        first:f||'',last:l||'',
+        abbr:computedAbbr,
+        hoursTotal:parseInt(ht)||0,
+        hoursExtra:parseInt(he)||0
+      });
+    }
   });
   renderWizStep();
 }
@@ -5684,6 +5748,7 @@ function openAddTeacherModal() {
   document.getElementById('tmHoursTotal').value = '';
   document.getElementById('tmHoursExtra').value = '';
   document.getElementById('tmEmployment').value = 'full';
+  document.getElementById('tmAbbr')._userEdited = false;
   document.getElementById('tmFraction').value = '';
   document.getElementById('tmFractionWrap').style.display='none';
   _tmIndiv = [];
@@ -5704,7 +5769,9 @@ function openEditTeacherModal(id) {
   document.getElementById('teacherModalTitle').innerHTML = `Edytuj: <span>${t.first} ${t.last}</span>`;
   document.getElementById('tmFirst').value = t.first || '';
   document.getElementById('tmLast').value = t.last || '';
-  document.getElementById('tmAbbr').value = t.abbr || '';
+  const tmAbbrEl = document.getElementById('tmAbbr');
+  tmAbbrEl.value = t.abbr || '';
+  tmAbbrEl._userEdited = !!(t.abbr);
   document.getElementById('tmHoursTotal').value = t.hoursTotal || '';
   document.getElementById('tmHoursExtra').value = t.hoursExtra || '';
   document.getElementById('tmEmployment').value = t.employment || 'full';
@@ -5723,7 +5790,14 @@ function openEditTeacherModal(id) {
 function tmAutoAbbr() {
   const f = document.getElementById('tmFirst').value || '';
   const l = document.getElementById('tmLast').value || '';
-  document.getElementById('tmAbbr').value = (f[0] || '').toUpperCase() + l.slice(0, 3);
+  const el = document.getElementById('tmAbbr');
+  if(el && !el._userEdited) {
+    // Zbierz istniejące skróty z wyjątkiem edytowanego nauczyciela
+    const existing = (appState?.teachers||[])
+      .filter(t=>t.id!==_tmId)
+      .map(t=>t.abbr);
+    el.value = uniqueAbbr(f, l, existing);
+  }
 }
 
 function tmRenderSubjects(selected) {
@@ -5916,6 +5990,15 @@ function closeTeacherModal() {
 
 document.getElementById('teacherModal').addEventListener('click', function(e) {
   if (e.target === this) closeTeacherModal();
+});
+
+// Skróty nauczycieli — obsługa ręcznej edycji i auto-generowania
+document.getElementById('tmAbbr').addEventListener('input', function() {
+  this._userEdited = !!this.value;
+});
+document.getElementById('tmFirst').addEventListener('input', tmAutoAbbr);
+document.getElementById('tmEmployment').addEventListener('change', function() {
+  document.getElementById('tmFractionWrap').style.display = this.value==='other' ? '' : 'none';
 });
 
 
