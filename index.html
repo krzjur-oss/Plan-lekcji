@@ -5584,6 +5584,7 @@ function renderStats() {
 const sortByName    = arr => [...arr].sort((a,b)=>a.name.localeCompare(b.name,'pl'));
 const sortTeachers  = arr => [...arr].sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first,'pl'));
 const sortSubjects  = arr => [...arr].sort((a,b)=>a.name.localeCompare(b.name,'pl'));
+const sortClasses   = arr => [...arr].sort((a,b)=>a.name.localeCompare(b.name,'pl'));
 
 // ================================================================
 //  SETTINGS VIEW
@@ -8828,7 +8829,9 @@ let _niSubjRows = [];    // [{subjId, mode, teacherId, hours}] - stan edycji
 
 // ── Inicjalizacja stanu ──
 function niEnsureState() {
+  if(!appState) return false;
   if(!appState.niStudents) appState.niStudents = [];
+  return true;
 }
 
 // ── Migracja ze starych struktur ──
@@ -8995,13 +8998,15 @@ function niRender() {
 
 // ── Dodaj nowego ucznia ──
 function niAddStudent() {
+  if(!appState) { notify('Najpierw utwórz lub załaduj plan'); return; }
   const clsFilter = document.getElementById('niClassFilter')?.value || '';
   niOpenEdit(null, clsFilter);
 }
 
 // ── Otwórz edycję ucznia ──
 function niOpenEdit(studId, prefClsId) {
-  niEnsureState();
+  if(!appState) { notify('Najpierw utwórz lub załaduj plan'); return; }
+  if(!niEnsureState()) return;
   _niEditId = studId || null;
 
   const stud = studId ? appState.niStudents.find(s=>s.id===studId) : null;
@@ -9281,6 +9286,7 @@ function niUpdateTeacherBadge(tchId) {
 //  NI — SEKCJA W USTAWIENIACH
 // ================================================================
 function niSettingsSection() {
+  if(!appState) return '';
   niEnsureState();
   const students  = appState.niStudents||[];
   const classes   = appState.classes||[];
