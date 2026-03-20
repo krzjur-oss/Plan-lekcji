@@ -1033,6 +1033,39 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .empty-state-title{font-size:1rem;font-weight:700;margin-bottom:6px;color:var(--text)}
 .empty-state-sub{font-size:.82rem;line-height:1.5}
 
+/* ── POMOC ── */
+.help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;align-items:flex-end;justify-content:flex-end;backdrop-filter:blur(2px)}
+.help-overlay.show{display:flex}
+.help-panel{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg) 0 0 var(--radius-lg);width:360px;max-width:92vw;height:100vh;overflow-y:auto;padding:24px 20px;box-shadow:var(--shadow-lg);animation:slide-in-r .2s ease}
+@keyframes slide-in-r{from{transform:translateX(100%)}to{transform:none}}
+.help-title{font-size:1rem;font-weight:800;margin-bottom:4px}
+.help-sub{font-size:.72rem;color:var(--text-m);margin-bottom:18px}
+.help-section{margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:14px}
+.help-section:last-child{border-bottom:none}
+.help-section-title{font-size:.72rem;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px}
+.help-item{font-size:.78rem;color:var(--text-m);line-height:1.55;margin-bottom:5px;padding-left:10px;border-left:2px solid var(--border)}
+.help-item strong{color:var(--text)}
+.help-tip{font-size:.72rem;background:var(--accent-g);border:1px solid var(--accent)33;border-radius:7px;padding:7px 10px;color:var(--text-m);margin-top:8px;line-height:1.5}
+
+/* ── DRUKOWANIE ── */
+@media print {
+  body{background:#fff!important;color:#000!important}
+  .topbar,.view-selector,.conflict-bar,.conflict-list,
+  .topbar-actions,.no-print,#notify,
+  .lesson-chip-del,.add-cell-btn,.m-add-btn,
+  .conflict-dot{display:none!important}
+  .main-content{padding:0!important;overflow:visible!important}
+  .view-panel{display:block!important}
+  .view-panel:not(.active){display:none!important}
+  .sched-grid,.matrix-table{border-collapse:collapse!important;width:100%!important}
+  .sched-grid td,.sched-grid th,.matrix-table td,.matrix-table th{border:1px solid #ccc!important;padding:3px 5px!important}
+  .lesson-chip,.m-chip{border-radius:3px!important;padding:2px 4px!important;min-height:unset!important;height:auto!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .grid-wrap-outer,.grid-wrap{overflow:visible!important;border:none!important}
+  .print-header{display:block!important}
+  @page{margin:1cm;size:A4 landscape}
+}
+.print-header{display:none;margin-bottom:8px;font-size:.8rem;color:#555}
+
 /* ── RESPONSIVE ── */
 @media(max-width:640px){
   .topbar{padding:0 12px}
@@ -1059,6 +1092,27 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 
     <div class="wl-logo">Plan<span>Lekcji</span></div>
     <div class="wl-tagline">Inteligentne układanie planów lekcji dla szkół</div>
+
+    <!-- Opis programu -->
+    <div style="max-width:680px;width:100%;margin-bottom:32px;text-align:left">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px">
+          <div style="font-size:1.4rem;margin-bottom:8px">📅</div>
+          <div style="font-size:.82rem;font-weight:700;margin-bottom:4px">Ułóż plan lekcji</div>
+          <div style="font-size:.72rem;color:var(--text-m);line-height:1.5">Ręcznie przeciągając lekcje lub automatycznie generatorem z warunkami</div>
+        </div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px">
+          <div style="font-size:1.4rem;margin-bottom:8px">⚡</div>
+          <div style="font-size:.82rem;font-weight:700;margin-bottom:4px">Generator z AI</div>
+          <div style="font-size:.72rem;color:var(--text-m);line-height:1.5">Ustaw ograniczenia — dostępność nauczycieli, bloki, sale — i wygeneruj plan automatycznie</div>
+        </div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px">
+          <div style="font-size:1.4rem;margin-bottom:8px">🖨️</div>
+          <div style="font-size:.82rem;font-weight:700;margin-bottom:4px">Drukuj i eksportuj</div>
+          <div style="font-size:.72rem;color:var(--text-m);line-height:1.5">Drukuj plan klasy, nauczyciela lub całą szkołę. Eksportuj do JSON</div>
+        </div>
+      </div>
+    </div>
 
     <!-- Kontynuuj — widoczna tylko gdy istnieje plan -->
     <div class="wl-continue-section" id="wlContinueSection" style="display:none" onclick="wlContinue()">
@@ -1138,6 +1192,8 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="ttab" data-view="generator" onclick="switchView('generator',this)">⚡ Generator</button>
     </div>
     <div class="topbar-actions">
+      <button class="icon-btn no-print" title="Drukuj plan" onclick="openPrintPanel()">🖨️</button>
+      <button class="icon-btn no-print" title="Pomoc" onclick="openHelp()">❓</button>
       <button class="icon-btn" title="Eksportuj JSON" onclick="exportJSON()">💾</button>
       <button class="icon-btn" title="Motyw" onclick="toggleTheme()" id="themeBtn">☀️</button>
       <button class="icon-btn" title="Ustawienia" onclick="switchView('settings',document.querySelector('[data-view=settings]'))">⚙️</button>
@@ -1731,6 +1787,34 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 <!-- NOTIFY TOAST -->
 <div id="notify"></div>
 
+<!-- PANEL POMOCY -->
+<div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)closeHelp()">
+  <div class="help-panel" id="helpPanel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div class="help-title" id="helpTitle">Pomoc</div>
+        <div class="help-sub" id="helpSub"></div>
+      </div>
+      <button onclick="closeHelp()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-m);padding:4px 8px">✕</button>
+    </div>
+    <div id="helpContent"></div>
+  </div>
+</div>
+
+<!-- PANEL DRUKOWANIA -->
+<div class="help-overlay" id="printOverlay" onclick="if(event.target===this)closePrintPanel()">
+  <div class="help-panel" id="printPanel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div class="help-title">🖨️ Drukowanie planu</div>
+        <div class="help-sub">Wybierz co chcesz wydrukować</div>
+      </div>
+      <button onclick="closePrintPanel()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-m);padding:4px 8px">✕</button>
+    </div>
+    <div id="printContent"></div>
+  </div>
+</div>
+
 <script>
 // ================================================================
 //  CONSTANTS & PALETTE
@@ -2019,6 +2103,15 @@ function renderWizStepsIndicator() {
 
 function renderWizStep() {
   renderWizStepsIndicator();
+  // Przycisk pomocy w headerze kreatora
+  const autoSaveEl = document.getElementById('wizAutoSaveInfo');
+  if(autoSaveEl) {
+    autoSaveEl.innerHTML = `<button onclick="openWizHelp(${0}+wStep)"
+      style="background:none;border:1px solid var(--border);border-radius:6px;
+             padding:2px 8px;font-size:.7rem;cursor:pointer;color:var(--text-m)">
+      ❓ Pomoc
+    </button>`;
+  }
   const body = document.getElementById('wizBody');
   switch(wStep) {
     case 0: body.innerHTML = wizStep0(); break;
@@ -2734,6 +2827,21 @@ function renderCurrentView() {
     case 'generator':renderGenerator(); break;
     case 'settings':renderSettings();    break;
   }
+  updateHelpBtn();
+}
+
+function updateHelpBtn() {
+  document.querySelectorAll('.view-help-btn').forEach(el=>el.remove());
+  const activePanel = document.querySelector('.view-panel.active');
+  if(!activePanel) return;
+  const sel = activePanel.querySelector('.view-selector');
+  if(!sel || !HELP[_currentView]) return;
+  const btn = document.createElement('button');
+  btn.className = 'wbtn wbtn-ghost view-help-btn no-print';
+  btn.style.cssText = 'padding:4px 10px;font-size:.72rem;margin-left:auto';
+  btn.innerHTML = '❓ Pomoc';
+  btn.onclick = () => openHelp(_currentView);
+  sel.appendChild(btn);
 }
 
 // ================================================================
@@ -7592,6 +7700,308 @@ function cmAddOptSubj() {
   const first = (appState.subjects||[]).find(s=>!used.includes(s.id));
   _cmOptSubjects.push({subjId: first?.id||'', count: 0, position: 'edge'});
   cmRenderOptSubjects();
+}
+
+
+// ================================================================
+//  SYSTEM POMOCY
+// ================================================================
+const HELP = {
+  class: {
+    title:'📚 Widok klas',
+    sub:'Plan lekcji dla wybranej klasy',
+    sections:[
+      {t:'Jak korzystać', items:[
+        '<strong>Wybierz klasę</strong> z listy rozwijanej, potem dzień (lub cały tydzień)',
+        '<strong>Kliknij pustą komórkę</strong> aby dodać lekcję — wybierz przedmiot, nauczyciela i salę',
+        '<strong>Przeciągnij lekcję</strong> żeby przenieść ją na inną godzinę lub dzień',
+        '<strong>Kliknij lekcję</strong> aby edytować lub usunąć',
+      ]},
+      {t:'Konflikty', items:[
+        'Czerwona ramka = nauczyciel ma jednocześnie dwie lekcje lub sala jest podwójnie zajęta',
+        'Pasek konfliktów na górze pokazuje wszystkie konflikty z przyciskiem "Przejdź →"',
+      ]},
+      {t:'Wskazówka', tip:'Najpierw skonfiguruj nauczycieli (przydziel im klasy i godziny) w Ustawieniach — wtedy dodawanie lekcji będzie znacznie szybsze.'},
+    ]
+  },
+  teacher: {
+    title:'👩‍🏫 Widok nauczycieli',
+    sub:'Plan lekcji dla wybranego nauczyciela',
+    sections:[
+      {t:'Jak korzystać', items:[
+        'Wybierz nauczyciela z listy — widoczne są wszystkie jego klasy',
+        'Szare (przyciemnione) komórki to lekcje innych nauczycieli w tej klasie',
+        'Kliknij pustą komórkę żeby dodać lekcję — nauczyciel będzie pre-wybrany',
+      ]},
+      {t:'Wskazówka', tip:'Widok nauczyciela dobrze pokazuje okienka (wolne godziny między lekcjami). Minimalizuj okienka — nauczyciel nie powinien czekać bez lekcji.'},
+    ]
+  },
+  room: {
+    title:'🏫 Widok sal',
+    sub:'Obłożenie wybranej sali w ciągu tygodnia',
+    sections:[
+      {t:'Jak korzystać', items:[
+        'Wybierz salę — widzisz które klasy i kiedy z niej korzystają',
+        'Kliknij pustą komórkę aby dodać lekcję z pre-wybraną salą',
+      ]},
+      {t:'Wskazówka', tip:'Ustaw "Preferowane przedmioty" sali w Ustawieniach → Sale — generator będzie przydzielać salę komputerową tylko do informatyki.'},
+    ]
+  },
+  matrix: {
+    title:'🔲 Macierz szkoły',
+    sub:'Przegląd całego planu szkoły w jednym widoku',
+    sections:[
+      {t:'Tryby wyświetlania', items:[
+        '<strong>Klasy × Godziny</strong> — kolumny to klasy, wiersze to godziny. Idealny do sprawdzenia kolizji sal',
+        '<strong>Nauczyciele × Godziny</strong> — kolumny to nauczyciele. Widać kto kiedy ma lekcje i kto ma okienka',
+      ]},
+      {t:'Wskazówka', tip:'Macierz jest tylko do przeglądania i edycji. Drukuj ją jako "Przegląd szkoły".'},
+    ]
+  },
+  duty: {
+    title:'🚨 Dyżury',
+    sub:'Zarządzanie dyżurami nauczycieli',
+    sections:[
+      {t:'Jak działa', items:[
+        'Dyżury przerywowe są generowane automatycznie na podstawie godzin lekcyjnych',
+        'Kliknij komórkę w tabeli aby przypisać nauczyciela do miejsca dyżuru',
+        'Użyj "Kopiuj z poniedziałku" aby powielić układ na cały tydzień',
+      ]},
+      {t:'Dodawanie dyżurów', items:[
+        'W Ustawieniach → Dyżury dodajesz dyżury niestandardowe (przed lekcjami, po lekcjach)',
+        'Każdy dyżur ma miejsce (korytarz, brama) i możesz przypisać kilku nauczycieli',
+      ]},
+    ]
+  },
+  stats: {
+    title:'📊 Statystyki',
+    sub:'Podsumowanie planu i obciążenia nauczycieli',
+    sections:[
+      {t:'Co pokazuje', items:[
+        '<strong>Realizacja etatu</strong> — porównuje przydzielone godziny do pensum każdego nauczyciela',
+        '<strong>Rozkład przedmiotów</strong> — ile godzin każdego przedmiotu jest w planie',
+        'Kolor paska: zielony = OK, żółty = za mało, czerwony = przekroczone pensum',
+      ]},
+    ]
+  },
+  generator: {
+    title:'⚡ Generator planu',
+    sub:'Automatyczne układanie planu z warunkami',
+    sections:[
+      {t:'Jak działa', items:[
+        '<strong>Krok 1:</strong> Skonfiguruj warunki — dostępność nauczycieli, bloki, pozycje przedmiotów',
+        '<strong>Krok 2:</strong> Kliknij "Generuj plan" — solver działa w tle (Web Worker)',
+        '<strong>Krok 3:</strong> Sprawdź raport — ile lekcji ułożono, co nie pasuje',
+        '<strong>Krok 4:</strong> Zastosuj lub wróć do warunków i generuj ponownie',
+      ]},
+      {t:'Warunki', items:[
+        '<strong>Dostępność nauczycieli</strong> — zablokuj godziny gdy nauczyciel nie może mieć lekcji',
+        '<strong>Bloki</strong> — ustaw czy przedmiot może mieć podwójne lekcje (2h z rzędu)',
+        '<strong>Pozycja</strong> — WF na końcu dnia, religia na początku lub końcu',
+        '<strong>Grupy</strong> — podział klasy na grupy (np. języki obce)',
+      ]},
+      {t:'Wskazówka', tip:'Zanim użyjesz generatora: upewnij się że nauczyciele mają przypisane klasy i godziny w Ustawieniach → Nauczyciele. Bez przydziałów generator nie ma co układać.'},
+    ]
+  },
+  settings: {
+    title:'⚙️ Ustawienia',
+    sub:'Konfiguracja szkoły, nauczycieli, sal i godzin',
+    sections:[
+      {t:'Kolejność konfiguracji', items:[
+        '1. <strong>Klasy</strong> — dodaj klasy, grupy, liczbę uczniów',
+        '2. <strong>Przedmioty</strong> — nadaj kolory, skróty, przypisz do klas',
+        '3. <strong>Nauczyciele</strong> — dodaj pensum, przydziel klasy i godziny',
+        '4. <strong>Sale</strong> — pojemność, typ, preferowane przedmioty',
+        '5. <strong>Godziny lekcyjne</strong> — harmonogram godzin',
+        '6. <strong>Dyżury</strong> — przypisz nauczycieli do miejsc dyżurów',
+      ]},
+      {t:'Wskazówka', tip:'Wypełnij "Przydział godzin" w karcie każdego nauczyciela — to jest podstawa dla generatora. Bez przydziałów generator nie wie ile lekcji dać nauczycielowi.'},
+    ]
+  },
+};
+
+// Pomoc w kreatorze
+const WIZ_HELP = [
+  {t:'Szkoła', items:['Podaj nazwę i rok szkolny — pojawią się w nagłówku wydruku','Rok szkolny ustaw też w Ustawieniach → Szkoła po zakończeniu kreatora']},
+  {t:'Budynki', items:['Budynki są opcjonalne — pomiń jeśli szkoła jest w jednym budynku','Dodaj budynki jeśli chcesz przypisywać sale do konkretnych lokalizacji']},
+  {t:'Klasy', items:['Wpisz nazwy klas jak: 1a, 1b, 2a... lub importuj listą: 1a;1b;2a;2b','Grupy dodaj teraz lub później w Ustawieniach → Klasy','Liczbę uczniów i wychowawcę ustaw w Ustawieniach po zakończeniu']},
+  {t:'Przedmioty', items:['Każdy przedmiot dostaje unikalny kolor — ułatwia czytanie planu','Skrót (np. MAT, POL) pojawia się w komórkach planu','Religia, etyka i inne opcjonalne dodaj tutaj — szczegóły (które klasy) ustaw później']},
+  {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny','Skrót generuje się automatycznie (np. AKow dla Anna Kowalska)','Przydział godzin (kto uczy co w której klasie) ustaw po zakończeniu kreatora w kartach nauczycieli']},
+  {t:'Sale', items:['Możesz dodać sale teraz i uzupełnić szczegóły (pojemność, typ) później w Ustawieniach','Sale specjalistyczne (komputerowa, gimnastyczna) oznacz odpowiednim typem']},
+  {t:'Godziny', items:['Użyj "Generuj godziny" wpisując godzinę startu, czas lekcji i przerwy','Typowo: lekcja 45 min, przerwa 10 min, 8 lekcji od 8:00']},
+];
+
+function openHelp(view) {
+  const v = view || _currentView || 'class';
+  const data = HELP[v];
+  if(!data) return;
+  document.getElementById('helpTitle').textContent = data.title;
+  document.getElementById('helpSub').textContent = data.sub||'';
+  let html = '';
+  (data.sections||[]).forEach(sec => {
+    html += `<div class="help-section">`;
+    if(sec.t) html += `<div class="help-section-title">${sec.t}</div>`;
+    if(sec.items) sec.items.forEach(item => {
+      html += `<div class="help-item">${item}</div>`;
+    });
+    if(sec.tip) html += `<div class="help-tip">💡 ${sec.tip}</div>`;
+    html += `</div>`;
+  });
+  document.getElementById('helpContent').innerHTML = html;
+  document.getElementById('helpOverlay').classList.add('show');
+}
+
+function closeHelp() {
+  document.getElementById('helpOverlay').classList.remove('show');
+}
+
+function openWizHelp(step) {
+  const data = WIZ_HELP[step];
+  if(!data) return;
+  document.getElementById('helpTitle').textContent = '❓ Pomoc — '+data.t;
+  document.getElementById('helpSub').textContent = 'Kreator — krok '+(step+1);
+  let html = `<div class="help-section"><div class="help-section-title">Wskazówki</div>`;
+  (data.items||[]).forEach(item => { html += `<div class="help-item">${item}</div>`; });
+  html += '</div>';
+  document.getElementById('helpContent').innerHTML = html;
+  document.getElementById('helpOverlay').classList.add('show');
+}
+
+
+// ================================================================
+//  DRUKOWANIE
+// ================================================================
+function openPrintPanel() {
+  if(!appState) { notify('Brak planu do drukowania','warn'); return; }
+  const classes   = appState.classes||[];
+  const teachers  = appState.teachers||[];
+
+  let html = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Widok aktualny</div>
+      <button class="wbtn wbtn-primary" style="width:100%;margin-bottom:6px" onclick="doPrint('current')">
+        🖨️ Drukuj aktualny widok
+      </button>
+      <div style="font-size:.7rem;color:var(--text-d)">Drukuje to co widać na ekranie (aktualny widok i wybrana klasa/nauczyciel)</div>
+    </div>
+
+    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Plan klasy</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${classes.map(c=>`
+          <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px"
+            onclick="doPrint('class','${c.id}')">
+            📚 ${c.name}
+          </button>`).join('')}
+        <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px;border-style:dashed"
+          onclick="doPrintAll('class')">
+          📚 Wszystkie klasy (po kolei)
+        </button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Plan nauczyciela</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${sortTeachers(teachers).map(t=>`
+          <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px"
+            onclick="doPrint('teacher','${t.id}')">
+            👩‍🏫 ${t.last} ${t.first} <span style="font-family:var(--mono);font-size:.72rem;color:var(--text-m)">(${t.abbr})</span>
+          </button>`).join('')}
+        <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px;border-style:dashed"
+          onclick="doPrintAll('teacher')">
+          👩‍🏫 Wszyscy nauczyciele (po kolei)
+        </button>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Inne</div>
+      <button class="wbtn wbtn-ghost" style="width:100%;margin-bottom:6px;text-align:left;padding:7px 12px"
+        onclick="doPrint('matrix')">
+        🔲 Macierz szkoły
+      </button>
+      <button class="wbtn wbtn-ghost" style="width:100%;text-align:left;padding:7px 12px"
+        onclick="doPrint('stats')">
+        📊 Statystyki i obciążenie nauczycieli
+      </button>
+    </div>`;
+
+  document.getElementById('printContent').innerHTML = html;
+  document.getElementById('printOverlay').classList.add('show');
+}
+
+function closePrintPanel() {
+  document.getElementById('printOverlay').classList.remove('show');
+}
+
+function doPrint(type, id) {
+  closePrintPanel();
+  // Przełącz na właściwy widok przed drukowaniem
+  if(type==='current') {
+    addPrintHeader();
+    window.print();
+    return;
+  }
+  if(type==='class' && id) {
+    switchView('class', document.querySelector('[data-view=class]'));
+    document.getElementById('classSelect').value = id;
+    document.getElementById('classDaySelect').value = 'all';
+    renderClassView();
+  } else if(type==='teacher' && id) {
+    switchView('teacher', document.querySelector('[data-view=teacher]'));
+    document.getElementById('teacherSelect').value = id;
+    document.getElementById('teacherDaySelect').value = 'all';
+    renderTeacherView();
+  } else if(type==='matrix') {
+    switchView('matrix', document.querySelector('[data-view=matrix]'));
+    renderMatrixView();
+  } else if(type==='stats') {
+    switchView('stats', document.querySelector('[data-view=stats]'));
+    renderStats();
+  }
+  // Odczekaj chwilę na render, potem drukuj
+  setTimeout(() => { addPrintHeader(); window.print(); }, 200);
+}
+
+async function doPrintAll(type) {
+  closePrintPanel();
+  const items = type==='class'
+    ? (appState.classes||[]).map(c=>({id:c.id,label:c.name}))
+    : sortTeachers(appState.teachers||[]).map(t=>({id:t.id,label:t.last+' '+t.first}));
+
+  if(!items.length) return;
+
+  // Drukuj wszystkie jeden po drugim
+  for(let i=0; i<items.length; i++) {
+    if(type==='class') {
+      switchView('class', document.querySelector('[data-view=class]'));
+      document.getElementById('classSelect').value = items[i].id;
+      document.getElementById('classDaySelect').value = 'all';
+      renderClassView();
+    } else {
+      switchView('teacher', document.querySelector('[data-view=teacher]'));
+      document.getElementById('teacherSelect').value = items[i].id;
+      document.getElementById('teacherDaySelect').value = 'all';
+      renderTeacherView();
+    }
+    await new Promise(r=>setTimeout(r,150));
+    addPrintHeader(items[i].label);
+    window.print();
+    await new Promise(r=>setTimeout(r,300));
+  }
+}
+
+function addPrintHeader(label) {
+  // Usuń stary nagłówek jeśli istnieje
+  document.querySelectorAll('.print-header').forEach(el=>el.remove());
+  const h = document.createElement('div');
+  h.className = 'print-header';
+  const schoolName = appState?.name||'';
+  const year = appState?.schoolYear||appState?.year||'';
+  h.innerHTML = `<strong>${schoolName}</strong>${year?' · '+year:''} ${label?' · '+label:''}`;
+  const main = document.querySelector('.main-content');
+  if(main) main.insertBefore(h, main.firstChild);
 }
 
 // ================================================================
