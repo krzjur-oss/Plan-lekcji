@@ -5063,15 +5063,18 @@ function genWorkerFn() {
       niStudentSlots[k].add(`${di}_${hn}`);
     };
 
-    // Zbuduj mapę: które przedmioty uczeń NI realizuje z klasą
-    // niPartial[clsId][niStudId] = Set(subjId NI) — przedmioty w NI (z klasą = pozostałe)
+    // Zbuduj mapę: które przedmioty uczeń realizuje WYŁĄCZNIE w NI (nie z klasą)
+    // niPartial[clsId][niStudId] = Set(subjId) — przedmioty tylko NI
+    // Split: uczeń bywa i na NI i z klasą → nie blokujemy pełnie slotów klasy
     const niPartial = {};
     (P.niStudents||[]).forEach(stud => {
       if(!stud.classId) return;
-      const niSubjIds = (stud.subjects||[]).filter(r=>r.mode==='indiv').map(r=>r.subjId);
-      if(!niSubjIds.length) return;
+      // Tylko 'indiv' całkowicie wyklucza obecność z klasą
+      const niOnlyIds = (stud.subjects||[])
+        .filter(r=>r.mode==='indiv').map(r=>r.subjId);
+      if(!niOnlyIds.length) return;
       if(!niPartial[stud.classId]) niPartial[stud.classId] = {};
-      niPartial[stud.classId][stud.id] = new Set(niSubjIds);
+      niPartial[stud.classId][stud.id] = new Set(niOnlyIds);
     });
 
     const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(`${di}_${hn}`);
@@ -5186,29 +5189,34 @@ function genWorkerFn() {
 
     // ── Dodaj zadania NI z appState.niStudents ──
     (P.niStudents||[]).forEach(stud => {
-      const cls = stud.classId ? classes.find(c=>c.id===stud.classId) : null;
-      const indivRows = (stud.subjects||[]).filter(r=>r.mode==='indiv'&&r.teacherId&&r.hours>0);
-      indivRows.forEach(r => {
-        const tch  = teachers.find(t=>t.id===r.teacherId);
+      (stud.subjects||[]).forEach(r => {
         const subj = subjects.find(s=>s.id===r.subjId);
-        if(!tch) return;
-        const virtualClsId = 'ni_' + stud.id + '_' + r.subjId;
-        tasks.push({
-          clsId: virtualClsId,
-          clsName: stud.name + ' (NI: ' + (subj?.abbr||r.subjId) + ')',
-          tchId: tch.id, tchAbbr: tch.abbr,
-          subjId: r.subjId, subjName: subj?.name||'NI',
-          hoursLeft: r.hours,
-          blkSz: 1, pos: 'any',
-          maxPD: 0, maxCon: 0,
-          isOptional: false, mergeClsIds: null,
-          isIndiv: true, isGroup: stud.studentCount>1,
-          students: stud.studentCount||1,
-          priority: 22,
-          parentClsId: stud.classId||null,
-          niStudId: stud.id,
-          niSubjId: r.subjId,
-        });
+        const mode = r.mode || 'class';
+
+        // Godziny NI (indiv lub część split)
+        if((mode==='indiv'||mode==='split') && r.teacherId && (r.hours||0)>0) {
+          const tch = teachers.find(t=>t.id===r.teacherId);
+          if(tch) {
+            const virtualClsId = 'ni_' + stud.id + '_' + r.subjId;
+            tasks.push({
+              clsId: virtualClsId,
+              clsName: stud.name + ' (NI: ' + (subj?.abbr||r.subjId) + ')',
+              tchId: tch.id, tchAbbr: tch.abbr,
+              subjId: r.subjId, subjName: subj?.name||'NI',
+              hoursLeft: r.hours,
+              blkSz: 1, pos: 'any', maxPD: 0, maxCon: 0,
+              isOptional: false, mergeClsIds: null,
+              isIndiv: true, isGroup: stud.studentCount>1,
+              students: stud.studentCount||1,
+              priority: 22,
+              parentClsId: stud.classId||null,
+              niStudId: stud.id, niSubjId: r.subjId,
+            });
+          }
+        }
+        // Godziny z klasą (class lub część split) — solver nie tworzy osobnego zadania,
+        // uczeń jest po prostu razem z klasą; odnotowujemy nauczyciela wspomagającego
+        // w uwadze do zadania klasy (obsługa informacyjna)
       });
     });
 
@@ -8818,9 +8826,14 @@ function closePrivacyModal() {
 //   id, name, classId, form, studentCount,
 //   subjects: [{
 //     subjId,
-//     mode: 'indiv' | 'class',  // indywidualnie lub z klasą
-//     teacherId: null | id,      // nauczyciel NI (tylko dla mode='indiv')
-//     hours: number              // godz./tydz. (tylko dla mode='indiv')
+//     mode: 'indiv' | 'class' | 'split',
+//       indiv  = wszystkie godziny indywidualnie
+//       class  = wszystkie godziny z klasą
+//       split  = część indywidualnie, część z klasą (np. EW)
+//     teacherId: null | id,        // nauczyciel NI (indiv/split)
+//     hours: number,               // godz. NI tygodniowo (indiv/split)
+//     hoursClass: number,          // godz. z klasą (tylko split)
+//     supportTeacherId: null | id  // nauczyciel wspomagający (class/split)
 //   }]
 // }]
 
@@ -8858,7 +8871,9 @@ function niMigrate() {
           subjId: item.subjectId,
           mode: 'indiv',
           teacherId: t.id,
-          hours: item.hours || 1
+          hours: item.hours || 1,
+          hoursClass: 0,
+          supportTeacherId: null
         }] : []
       };
       appState.niStudents.push(newStud);
@@ -8939,28 +8954,33 @@ function niRender() {
 
   list.innerHTML = students.map(stud => {
     const cls  = classes.find(c => c.id === stud.classId);
-    const indivSubjs = (stud.subjects||[]).filter(s => s.mode === 'indiv');
-    const classSubjs = (stud.subjects||[]).filter(s => s.mode === 'class');
-    const totalHours = indivSubjs.reduce((s,r) => s+(r.hours||0), 0);
+    const indivSubjs = (stud.subjects||[]).filter(s=>s.mode==='indiv');
+    const splitSubjs = (stud.subjects||[]).filter(s=>s.mode==='split');
+    const classSubjs = (stud.subjects||[]).filter(s=>s.mode==='class');
+    const totalHours = [...indivSubjs,...splitSubjs].reduce((s,r)=>s+(r.hours||0),0);
 
-    const indivChips = indivSubjs.map(r => {
+    const makeChip = (r, badge) => {
       const subj = subjects.find(s=>s.id===r.subjId);
       const tch  = r.teacherId ? teachers.find(t=>t.id===r.teacherId) : null;
-      return `<div style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;
+      const supp = r.supportTeacherId ? teachers.find(t=>t.id===r.supportTeacherId) : null;
+      return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;
         border-radius:10px;background:${subj?.color||'#888'}22;
-        border:1px solid ${subj?.color||'#888'}44;font-size:.68rem;margin:1px">
-        <span style="width:7px;height:7px;border-radius:50%;
-          background:${subj?.color||'#888'};flex-shrink:0;display:inline-block"></span>
-        ${subj?.abbr||'?'}
-        ${tch?`<span style="color:var(--text-d)">${tch.abbr}</span>`:''}
-        <span style="color:var(--text-d)">${r.hours||1}h</span>
-      </div>`;
-    }).join('');
+        border:1px solid ${subj?.color||'#888'}44;font-size:.67rem;margin:1px">
+        <span style="width:6px;height:6px;border-radius:50%;background:${subj?.color||'#888'};display:inline-block"></span>
+        ${subj?.abbr||'?'}${badge?`<span style="color:var(--yellow);font-size:.6rem">${badge}</span>`:''}
+        ${tch?`<span style="color:var(--text-d)">(${tch.abbr})</span>`:''}
+        ${r.hours?`<span style="color:var(--text-d)">${r.hours}h</span>`:''}
+        ${supp?`<span style="color:var(--teal)">+${supp.abbr}</span>`:''}
+      </span>`;
+    };
 
+    const indivChips = indivSubjs.map(r=>makeChip(r,'')).join('');
+    const splitChips = splitSubjs.map(r=>makeChip(r,'½')).join('');
     const classChips = classSubjs.map(r => {
       const subj = subjects.find(s=>s.id===r.subjId);
+      const supp = r.supportTeacherId ? teachers.find(t=>t.id===r.supportTeacherId) : null;
       return `<span style="font-size:.65rem;color:var(--text-d);padding:1px 5px;
-        border-radius:8px;background:var(--s3)">${subj?.abbr||'?'}</span>`;
+        border-radius:8px;background:var(--s3)">${subj?.abbr||'?'}${supp?` <span style="color:var(--teal)">+${supp.abbr}</span>`:''}</span>`;
     }).join(' ');
 
     const formBadge = stud.form ? `<span style="font-size:.65rem;padding:1px 7px;border-radius:8px;
@@ -8977,13 +8997,10 @@ function niRender() {
             ${stud.studentCount>1?`<span style="font-size:.65rem;color:var(--text-d)">${stud.studentCount} ucz.</span>`:''}
             ${totalHours?`<span style="font-family:var(--mono);font-size:.72rem;color:var(--accent)">${totalHours}h NI/tydz.</span>`:''}
           </div>
-          ${indivChips?`<div style="margin-bottom:4px">
-            <span style="font-size:.62rem;color:var(--text-d);margin-right:4px">NI:</span>${indivChips}
-          </div>`:''}
-          ${classChips?`<div>
-            <span style="font-size:.62rem;color:var(--text-d);margin-right:4px">Z klasą:</span>${classChips}
-          </div>`:''}
-          ${!indivChips&&!classChips?`<span style="font-size:.72rem;color:var(--text-d)">Brak przypisanych przedmiotów</span>`:''}
+          ${indivChips?`<div style="margin-bottom:3px"><span style="font-size:.6rem;color:var(--text-d)">NI: </span>${indivChips}</div>`:''}
+          ${splitChips?`<div style="margin-bottom:3px"><span style="font-size:.6rem;color:var(--yellow)">½ </span>${splitChips}</div>`:''}
+          ${classChips?`<div><span style="font-size:.6rem;color:var(--text-d)">Z klasą: </span>${classChips}</div>`:''}
+          ${!indivChips&&!splitChips&&!classChips?`<span style="font-size:.72rem;color:var(--text-d)">Brak przypisanych przedmiotów</span>`:''}
         </div>
         <button onclick="niOpenEdit('${stud.id}')"
           style="flex-shrink:0;padding:5px 12px;border-radius:6px;
@@ -9077,83 +9094,160 @@ function renderNISubjTable(clsSubjs, teachers) {
     return;
   }
 
-  container.innerHTML = clsSubjs.map((subj,i) => {
-    const row = _niSubjRows.find(r=>r.subjId===subj.id) ||
-      { subjId:subj.id, mode:'class', teacherId:null, hours:1 };
-    const isIndiv = row.mode === 'indiv';
+  const clsId = document.getElementById('niStudClass').value;
+  const allTchs = teachers;
 
-    // Opcje nauczycieli przypisanych do tej klasy z tego przedmiotu
-    const clsId = document.getElementById('niStudClass').value;
-    const relevantTchs = clsId
+  // Nauczyciele przypisani do tej klasy (ogólnie)
+  const clsTchs = clsId
+    ? teachers.filter(t=>(t.assignments||[]).some(a=>a.classId===clsId))
+    : teachers;
+
+  container.innerHTML = clsSubjs.map((subj) => {
+    const row = _niSubjRows.find(r=>r.subjId===subj.id) ||
+      { subjId:subj.id, mode:'class', teacherId:null, hours:1, hoursClass:0, supportTeacherId:null };
+    const mode = row.mode || 'class';
+    const isIndiv = mode === 'indiv';
+    const isSplit = mode === 'split';
+    const isClass = mode === 'class';
+
+    // Nauczyciele prowadzący ten przedmiot w tej klasie
+    const subjTchs = clsId
       ? teachers.filter(t=>(t.assignments||[]).some(a=>a.classId===clsId&&a.subjectId===subj.id))
       : teachers;
 
-    const tchOptions = `<option value="">— brak —</option>` +
-      relevantTchs.map(t=>`<option value="${t.id}" ${row.teacherId===t.id?'selected':''}>
-        ${t.last} ${t.first} (${t.abbr})</option>`).join('') +
-      (relevantTchs.length < teachers.length
-        ? `<optgroup label="— inni nauczyciele —">` +
-          teachers.filter(t=>!relevantTchs.includes(t)).map(t=>
-            `<option value="${t.id}" ${row.teacherId===t.id?'selected':''}>${t.last} ${t.first} (${t.abbr})</option>`
-          ).join('') + `</optgroup>`
-        : '');
+    // Helper: buduj select nauczyciela
+    const tchSelect = (fieldName, selected, label, small=false) => {
+      const relevant = subjTchs.length ? subjTchs : clsTchs;
+      const others   = allTchs.filter(t=>!relevant.includes(t));
+      return `<select class="mselect"
+        style="font-size:.7rem;padding:3px 6px;${small?'min-width:110px':'min-width:130px'}"
+        onchange="niSetField('${subj.id}','${fieldName}',this.value)"
+        title="${label}">
+        <option value="">— ${label} —</option>
+        ${relevant.map(t=>`<option value="${t.id}" ${selected===t.id?'selected':''}>${t.last} ${t.first} (${t.abbr})</option>`).join('')}
+        ${others.length?`<optgroup label="Inni nauczyciele">
+          ${others.map(t=>`<option value="${t.id}" ${selected===t.id?'selected':''}>${t.last} ${t.first} (${t.abbr})</option>`).join('')}
+        </optgroup>`:''}
+      </select>`;
+    };
 
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;
-      background:${isIndiv?'var(--accent-g2)':'var(--s2)'};
-      border:1px solid ${isIndiv?'var(--accent)33':'var(--border)'};
-      border-radius:8px;flex-wrap:wrap" id="nirow_${subj.id}">
+    // Helper: input godzin
+    const hrsInput = (fieldName, val, title) =>
+      `<input type="number" min="0" max="30" value="${val||0}"
+        style="width:40px;padding:3px 4px;border:1px solid var(--border);
+               border-radius:5px;background:var(--s2);color:var(--text);
+               font-size:.72rem;text-align:center"
+        onchange="niSetField('${subj.id}','${fieldName}',parseInt(this.value)||0)"
+        title="${title}">`;
 
-      <!-- Kolor + nazwa przedmiotu -->
-      <div style="display:flex;align-items:center;gap:6px;min-width:130px;flex:1">
-        <span style="width:9px;height:9px;border-radius:50%;background:${subj.color||'#888'};flex-shrink:0"></span>
-        <span style="font-size:.8rem;font-weight:600">${subj.name}</span>
-        <span style="font-size:.68rem;color:var(--text-d);font-family:var(--mono)">${subj.abbr||''}</span>
-      </div>
+    // Kolorystyka wiersza
+    const bg = isIndiv ? 'var(--accent-g2)' : isSplit ? 'rgba(251,191,36,.06)' : 'var(--s2)';
+    const border = isIndiv ? 'var(--accent)33' : isSplit ? 'rgba(251,191,36,.3)' : 'var(--border)';
 
-      <!-- Przełącznik Indywidualnie / Z klasą -->
-      <div style="display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;flex-shrink:0">
-        <button data-mode="class" onclick="niSetMode('${subj.id}','class')"
-          style="padding:4px 10px;font-size:.72rem;font-weight:600;cursor:pointer;border:none;
-                 background:${!isIndiv?'var(--accent)':'var(--s3)'};
-                 color:${!isIndiv?'#fff':'var(--text-m)'}">
-          🏫 Z klasą
-        </button>
-        <button data-mode="indiv" onclick="niSetMode('${subj.id}','indiv')"
-          style="padding:4px 10px;font-size:.72rem;font-weight:600;cursor:pointer;border:none;
-                 background:${isIndiv?'var(--accent)':'var(--s3)'};
-                 color:${isIndiv?'#fff':'var(--text-m)'}">
-          👤 Indywidualnie
-        </button>
-      </div>
+    return `<div style="padding:8px 10px;background:${bg};
+      border:1px solid ${border};border-radius:8px;margin-bottom:4px">
 
-      <!-- Nauczyciel i godziny (tylko gdy indiv) -->
-      <div style="display:${isIndiv?'flex':'none'};gap:6px;align-items:center;flex-wrap:wrap"
-        id="niindiv_${subj.id}">
-        <select class="mselect" style="font-size:.72rem;padding:4px 8px;min-width:140px"
-          onchange="niSetTeacher('${subj.id}',this.value)">
-          ${tchOptions}
-        </select>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" min="1" max="20" value="${row.hours||1}"
-            style="width:48px;padding:4px 6px;border:1px solid var(--border);
-                   border-radius:6px;background:var(--s2);color:var(--text);
-                   font-family:var(--font);font-size:.72rem;text-align:center"
-            onchange="niSetHours('${subj.id}',this.value)"
-            title="Godziny NI tygodniowo">
-          <span style="font-size:.65rem;color:var(--text-d)">h/tydz.</span>
+      <!-- Wiersz 1: przedmiot + przełącznik trybu -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:5px;min-width:120px;flex:1">
+          <span style="width:8px;height:8px;border-radius:50%;
+            background:${subj.color||'#888'};flex-shrink:0"></span>
+          <span style="font-size:.8rem;font-weight:600">${subj.name}</span>
+          <span style="font-size:.65rem;color:var(--text-d);font-family:var(--mono)">${subj.abbr||''}</span>
         </div>
+
+        <!-- Trzyprzyciskowy przełącznik -->
+        <div style="display:flex;border:1px solid var(--border);border-radius:7px;
+          overflow:hidden;flex-shrink:0;font-size:.7rem">
+          <button onclick="niSetMode('${subj.id}','class')"
+            style="padding:4px 8px;border:none;cursor:pointer;font-weight:600;
+                   background:${isClass?'var(--accent)':'var(--s3)'};
+                   color:${isClass?'#fff':'var(--text-m)'}">
+            🏫 Z klasą
+          </button>
+          <button onclick="niSetMode('${subj.id}','split')"
+            style="padding:4px 8px;border:none;cursor:pointer;font-weight:600;
+                   border-left:1px solid var(--border);border-right:1px solid var(--border);
+                   background:${isSplit?'var(--yellow)':'var(--s3)'};
+                   color:${isSplit?'#000':'var(--text-m)'}">
+            ½ Podzielone
+          </button>
+          <button onclick="niSetMode('${subj.id}','indiv')"
+            style="padding:4px 8px;border:none;cursor:pointer;font-weight:600;
+                   background:${isIndiv?'var(--accent)':'var(--s3)'};
+                   color:${isIndiv?'#fff':'var(--text-m)'}">
+            👤 NI
+          </button>
+        </div>
+      </div>
+
+      <!-- Wiersz 2: szczegóły (zależne od trybu) -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding-top:6px;
+        border-top:1px solid ${border};align-items:center;font-size:.7rem">
+
+        ${isIndiv ? `
+          <span style="color:var(--text-m)">Nauczyciel NI:</span>
+          ${tchSelect('teacherId', row.teacherId, 'nauczyciel NI')}
+          ${hrsInput('hours', row.hours||1, 'Godziny NI/tydz.')}
+          <span style="color:var(--text-d)">h NI/tydz.</span>
+        ` : ''}
+
+        ${isSplit ? `
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+            <span style="color:var(--accent);font-weight:600">NI:</span>
+            ${tchSelect('teacherId', row.teacherId, 'nauczyciel NI', true)}
+            ${hrsInput('hours', row.hours||1, 'Godziny NI/tydz.')}
+            <span style="color:var(--text-d)">h</span>
+          </div>
+          <span style="color:var(--text-d)">+</span>
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+            <span style="color:var(--text-m);font-weight:600">Z klasą:</span>
+            ${hrsInput('hoursClass', row.hoursClass||1, 'Godziny z klasą/tydz.')}
+            <span style="color:var(--text-d)">h</span>
+          </div>
+        ` : ''}
+
+        ${isClass || isSplit ? `
+          <div style="display:flex;align-items:center;gap:4px;margin-left:${isClass?0:8}px;
+            padding-left:${isClass?0:8}px;${isSplit?'border-left:1px solid '+border:''}">
+            <span style="color:var(--text-m)">Wspomagający:</span>
+            ${tchSelect('supportTeacherId', row.supportTeacherId, 'naucz. wspomagający', true)}
+            <span style="font-size:.62rem;color:var(--text-d)">(opcjonalnie)</span>
+          </div>
+        ` : ''}
+
       </div>
     </div>`;
   }).join('');
 }
 
+
 // ── Zmiana trybu przedmiotu ──
 function niSetMode(subjId, mode) {
-  const row = _niSubjRows.find(r=>r.subjId===subjId);
-  if(row) row.mode = mode;
-  else _niSubjRows.push({subjId, mode, teacherId:null, hours:1});
+  let row = _niSubjRows.find(r=>r.subjId===subjId);
+  if(!row) {
+    row = {subjId, mode:'class', teacherId:null, hours:1, hoursClass:1, supportTeacherId:null};
+    _niSubjRows.push(row);
+  }
+  row.mode = mode;
+  // Defaults przy zmianie trybu
+  if(mode==='indiv' && !row.hours) row.hours = 1;
+  if(mode==='split' && !row.hours) row.hours = 1;
+  if(mode==='split' && !row.hoursClass) row.hoursClass = 1;
+  niReloadSubjTable();
+  niEditSummary();
+}
 
-  // Przerenderuj tylko ten wiersz
+// Ustaw dowolne pole wiersza
+function niSetField(subjId, field, value) {
+  let row = _niSubjRows.find(r=>r.subjId===subjId);
+  if(!row) { row = {subjId,mode:'class',teacherId:null,hours:1,hoursClass:0,supportTeacherId:null}; _niSubjRows.push(row); }
+  row[field] = value || null;
+  niEditSummary();
+}
+
+// Przeładuj tabelę (zachowaj select klasy)
+function niReloadSubjTable() {
   const clsId   = document.getElementById('niStudClass').value;
   const cls      = clsId ? (appState.classes||[]).find(c=>c.id===clsId) : null;
   const subjects = sortSubjects(appState.subjects||[]);
@@ -9162,35 +9256,31 @@ function niSetMode(subjId, mode) {
     ? subjects.filter(s => !(s.classes||[]).length || (s.classes||[]).includes(clsId))
     : subjects;
   renderNISubjTable(clsSubjs, teachers);
-  niEditSummary();
-}
-
-function niSetTeacher(subjId, tchId) {
-  const row = _niSubjRows.find(r=>r.subjId===subjId);
-  if(row) row.teacherId = tchId || null;
-  niEditSummary();
-}
-
-function niSetHours(subjId, val) {
-  const row = _niSubjRows.find(r=>r.subjId===subjId);
-  if(row) row.hours = parseInt(val)||1;
-  niEditSummary();
 }
 
 // ── Podsumowanie edycji ──
 function niEditSummary() {
   const el = document.getElementById('niEditSummary');
   if(!el) return;
-  const indiv = _niSubjRows.filter(r=>r.mode==='indiv');
-  const cls   = _niSubjRows.filter(r=>r.mode==='class');
-  const hours = indiv.reduce((s,r)=>s+(r.hours||0),0);
-  const noTch = indiv.filter(r=>!r.teacherId);
+  const indiv  = _niSubjRows.filter(r=>r.mode==='indiv');
+  const split  = _niSubjRows.filter(r=>r.mode==='split');
+  const cls    = _niSubjRows.filter(r=>r.mode==='class');
+  const support= _niSubjRows.filter(r=>r.supportTeacherId);
+  const hNI    = indiv.reduce((s,r)=>s+(r.hours||0),0)
+               + split.reduce((s,r)=>s+(r.hours||0),0);
+  const hCls   = split.reduce((s,r)=>s+(r.hoursClass||0),0);
+  const noTch  = [...indiv,...split].filter(r=>!r.teacherId);
+
+  const parts = [];
+  if(indiv.length)   parts.push(`<span>👤 NI: <strong style="color:var(--accent)">${indiv.length}</strong> przedm. · ${hNI}h/tydz.</span>`);
+  if(split.length)   parts.push(`<span>½ Podzielone: <strong style="color:var(--yellow)">${split.length}</strong> przedm. (${hNI}h NI + ${hCls}h z klasą)</span>`);
+  if(cls.length)     parts.push(`<span>🏫 Z klasą: <strong>${cls.length}</strong> przedm.</span>`);
+  if(support.length) parts.push(`<span style="color:var(--teal)">👥 Wspomagający: ${support.length} przedm.</span>`);
+  if(noTch.length)   parts.push(`<span style="color:var(--red)">⚠ ${noTch.length} bez nauczyciela NI</span>`);
 
   el.innerHTML = `<div style="padding:8px 12px;background:var(--s2);border-radius:8px;
-    font-size:.72rem;color:var(--text-m);display:flex;gap:16px;flex-wrap:wrap">
-    <span>👤 NI: <strong style="color:var(--accent)">${indiv.length}</strong> przedm. · ${hours}h/tydz.</span>
-    <span>🏫 Z klasą: <strong>${cls.length}</strong> przedm.</span>
-    ${noTch.length?`<span style="color:var(--red)">⚠ ${noTch.length} bez nauczyciela NI</span>`:''}
+    font-size:.72rem;color:var(--text-m);display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+    ${parts.join('')}
   </div>`;
 }
 
@@ -9205,7 +9295,14 @@ function niSaveStudent() {
     classId:      document.getElementById('niStudClass').value || null,
     form:         document.getElementById('niStudForm').value,
     studentCount: parseInt(document.getElementById('niStudCount').value)||1,
-    subjects:     _niSubjRows.filter(r=>r.mode==='indiv'||r.mode==='class')
+    subjects:     _niSubjRows.map(r=>({
+      subjId:           r.subjId,
+      mode:             r.mode||'class',
+      teacherId:        r.teacherId||null,
+      hours:            r.hours||0,
+      hoursClass:       r.hoursClass||0,
+      supportTeacherId: r.supportTeacherId||null
+    }))
   };
 
   niEnsureState();
