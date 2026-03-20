@@ -2072,8 +2072,8 @@ function migrateAppState() {
     if(Array.isArray(c.groups)) {
       c.groups = c.groups.map(g =>
         typeof g === 'string'
-          ? {id:'grp'+Math.random().toString(36).slice(2,9), name:g, type:'group', studentCount:0, teacherId:null}
-          : g
+          ? {id:'grp'+Math.random().toString(36).slice(2,9), name:g, type:'group', studentCount:0, teacherId:null, subjects:[]}
+          : {...g, subjects: g.subjects||[]}
       );
     }
     if(!c.studentCount)     c.studentCount = 0;
@@ -4510,6 +4510,44 @@ function genIndivTeachUI() {
     }).join('');
   }
 
+  // ── Uczniowie z częściowym NI (z grup klas) ──
+  const partialNI = [];
+  (appState.classes||[]).forEach(cls => {
+    (cls.groups||[]).filter(g=>g.type==='indiv' && (g.subjects||[]).length).forEach(g => {
+      const tch = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
+      const subjNames = (g.subjects||[]).map(sid => {
+        const s = (appState.subjects||[]).find(s=>s.id===sid);
+        return s ? `<span style="font-size:.68rem;padding:1px 5px;border-radius:6px;
+          background:${s.color}22;color:${s.color};border:1px solid ${s.color}44">${s.abbr||s.name}</span>` : '';
+      }).join(' ');
+      partialNI.push({cls, g, tch, subjNames});
+    });
+  });
+
+  if(partialNI.length) {
+    html += `<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+      <div style="font-size:.73rem;font-weight:700;color:var(--orange);text-transform:uppercase;
+        letter-spacing:.04em;margin-bottom:8px">⚠ Uczniowie z częściowym NI (z klasą na część lekcji)</div>`;
+    html += partialNI.map(({cls,g,tch,subjNames}) =>
+      `<div class="gen-subj-row" style="border-left:3px solid var(--orange)">
+        <span class="gen-subj-name" style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-weight:700">👤 ${g.name}
+            <span style="font-size:.65rem;color:var(--text-m)">z klasy ${cls.name}</span>
+          </span>
+          <span style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:.65rem;color:var(--orange)">NI z:</span> ${subjNames}
+            <span style="font-size:.65rem;color:var(--text-d)">· reszta z klasą</span>
+          </span>
+        </span>
+        <div class="gen-field-row" style="flex-direction:column;align-items:flex-end;gap:2px">
+          ${tch ? `<span style="font-size:.7rem;font-family:var(--mono);color:var(--text-m)">${tch.abbr}</span>` : '<span style="font-size:.65rem;color:var(--red)">⚠ brak nauczyciela</span>'}
+          <span style="font-size:.62rem;color:var(--text-d)">solver pilnuje konfliktu</span>
+        </div>
+      </div>`
+    ).join('');
+    html += '</div>';
+  }
+
   // Podsumowanie
   const totalHours = allItems.reduce((s,{item})=>s+item.hours,0);
   const totalStudents = allItems.reduce((s,{item})=>s+(item.students||1),0);
@@ -4517,6 +4555,7 @@ function genIndivTeachUI() {
     font-size:.72rem;color:var(--text-m)">
     Łącznie: <strong>${totalHours} godz./tydz.</strong> dla ${totalStudents} uczniów
     w ${allItems.length} zajęciach — solver zarezerwuje osobne sloty.
+    ${partialNI.length ? '<br>⚠ '+partialNI.length+' uczeń/uczniów z częściowym NI — solver pilnuje by nie nakładały się z lekcjami klasy.' : ''}
   </div>`;
 
   return html;
@@ -4581,7 +4620,16 @@ function genRun() {
     classes:  classes.map(c=>({
       id:c.id, name:c.name, studentCount:c.studentCount||0,
       optionalSubjects:(c.optionalSubjects||[]),
-      homeRooms:(c.homeRooms||[])
+      homeRooms:(c.homeRooms||[]),
+      // Grupy NI — uczniowie realizujący tylko część przedmiotów poza klasą
+      niGroups:(c.groups||[])
+        .filter(g=>(typeof g==='object') && g.type==='indiv')
+        .map(g=>({
+          id:g.id||g.name, name:g.name,
+          teacherId:g.teacherId||null,
+          // Które przedmioty są w NI (pusta tablica = wszystkie)
+          niSubjects: g.subjects||[]
+        }))
     })),
     teachers: teachers.map(t=>({
       id:t.id, abbr:t.abbr, first:t.first, last:t.last,
@@ -4801,15 +4849,55 @@ function genWorkerFn() {
     const tchSlots  = {}; // tchId  → Set('di_hn')
     const clsSlots  = {}; // clsId  → Set('di_hn')
     const roomSlots = {}; // roomId → Set('di_hn')
+    // Mapa uczniów NI: niStudentId → Set('di_hn') — kiedy uczeń jest zajęty (na lekcji z klasą)
+    const niStudentSlots = {}; // `${clsId}_${niGroupId}` → Set('di_hn')
+
+    // Zbuduj mapę: które przedmioty uczeń NI realizuje z klasą
+    // niPartial[clsId][niGroupId] = Set(subjId) — przedmioty z klasą (nie NI)
+    const niPartial = {};
+    classes.forEach(cls => {
+      (cls.niGroups||[]).forEach(ni => {
+        if(!ni.niSubjects || !ni.niSubjects.length) return; // wszystkie w NI - brak konfliktu z klasą
+        const key = cls.id;
+        if(!niPartial[key]) niPartial[key] = {};
+        // niSubjects to te przedmioty które SĄ w NI - z klasą chodzi na POZOSTAŁE
+        // Zbierzemy wszystkie predmioty klasy i odejmiemy niSubjects
+        niPartial[key][ni.id] = new Set(ni.niSubjects); // to są NI-przedmioty
+      });
+    });
 
     const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(`${di}_${hn}`);
     const isClsFree  = (cid,di,hn) => !clsSlots[cid]?.has(`${di}_${hn}`);
     const isRoomFree = (rid,di,hn) => !roomSlots[rid]?.has(`${di}_${hn}`);
 
-    const occupy = (tid,cid,rid,di,hn) => {
+    // Czy uczeń NI jest wolny w tym slocie (nie jest wtedy na lekcji z klasą)
+    const isNIStudentFree = (clsId, niId, di, hn) => {
+      const k = `${clsId}_${niId}`;
+      return !niStudentSlots[k]?.has(`${di}_${hn}`);
+    };
+
+    // Gdy kładziemy lekcję klasy - sprawdzamy czy uczeń NI jest na niej z klasą
+    // i jeśli tak, zajmujemy jego slot (nie może mieć NI w tym czasie)
+    const occupyNIStudentIfNeeded = (clsId, subjId, di, hn) => {
+      const cls = classes.find(c=>c.id===clsId);
+      if(!cls || !niPartial[clsId]) return;
+      Object.entries(niPartial[clsId]).forEach(([niId, niSubjSet]) => {
+        // niSubjSet = przedmioty realizowane w NI
+        // Jeśli subjId NIE jest w niSubjSet → uczeń jest z klasą → zajmij slot
+        if(!niSubjSet.has(subjId)) {
+          const k = `${clsId}_${niId}`;
+          if(!niStudentSlots[k]) niStudentSlots[k] = new Set();
+          niStudentSlots[k].add(`${di}_${hn}`);
+        }
+      });
+    };
+
+    const occupy = (tid,cid,rid,di,hn,subjId) => {
       if(tid) { if(!tchSlots[tid])  tchSlots[tid] =new Set(); tchSlots[tid].add(`${di}_${hn}`); }
       if(cid) { if(!clsSlots[cid])  clsSlots[cid] =new Set(); clsSlots[cid].add(`${di}_${hn}`); }
       if(rid) { if(!roomSlots[rid]) roomSlots[rid]=new Set(); roomSlots[rid].add(`${di}_${hn}`); }
+      // Zajmij slot ucznia NI jeśli ta lekcja jest "z klasą" dla niego
+      if(cid && subjId) occupyNIStudentIfNeeded(cid, subjId, di, hn);
     };
     const vacate = (tid,cid,rid,di,hn) => {
       tchSlots[tid]?.delete(`${di}_${hn}`);
@@ -4891,7 +4979,39 @@ function genWorkerFn() {
       });
     });
 
-    // ── Dodaj zadania NI i grupowe ──
+    // ── Dodaj zadania NI z grup klas (uczniowie z częściowym NI) ──
+    classes.forEach(cls => {
+      (cls.niGroups||[]).forEach(ni => {
+        if(!ni.niSubjects || !ni.niSubjects.length) return; // obsługiwane przez indivTeaching
+        // Uczeń ma NI z konkretnych przedmiotów - znajdź nauczyciela z assignments
+        const tch = ni.teacherId ? teachers.find(t=>t.id===ni.teacherId) : null;
+        if(!tch) return;
+        // Dla każdego przedmiotu NI tego ucznia - ile godzin ma mieć?
+        ni.niSubjects.forEach(subjId => {
+          // Znajdź godziny z assignments nauczyciela dla tej klasy i przedmiotu
+          const assignment = (tch.assignments||[]).find(a=>a.classId===cls.id && a.subjectId===subjId);
+          if(!assignment || !assignment.hours) return;
+          const subj = subjects.find(s=>s.id===subjId);
+          const virtualClsId = `ni_cls_${cls.id}_${ni.id}_${subjId}`;
+          tasks.push({
+            clsId: virtualClsId,
+            clsName: `${ni.name} / ${cls.name} (NI: ${subj?.abbr||subjId})`,
+            tchId: tch.id, tchAbbr: tch.abbr,
+            subjId, subjName: subj?.name||'NI',
+            hoursLeft: assignment.hours,
+            blkSz: 1, pos: 'any',
+            maxPD: 0, maxCon: 0,
+            isOptional: false, mergeClsIds: null,
+            isIndiv: true, isGroup: false, students: 1,
+            priority: 22, // najwyższy - najtrudniejsze ograniczenia
+            parentClsId: cls.id,  // klasa macierzysta
+            niGroupId: ni.id,     // ID ucznia NI
+          });
+        });
+      });
+    });
+
+    // ── Dodaj zadania NI i grupowe z indivTeaching nauczycieli ──
     teachers.forEach(t => {
       (t.individualTeaching||[]).forEach((item,idx) => {
         if(!item.hours) return;
@@ -4905,14 +5025,17 @@ function genWorkerFn() {
           subjId: item.subjectId||null,
           subjName: item.form||'NI',
           hoursLeft: item.hours,
-          blkSz: 1,             // NI zawsze pojedyncze godziny
+          blkSz: 1,
           pos: 'any',
           maxPD: 0, maxCon: 0,
           isOptional: false, mergeClsIds: null,
           isIndiv: !isGroup,
           isGroup: isGroup,
           students: item.students||1,
-          priority: isGroup ? 15 : 20, // wysoki priorytet - trudniejsze do ułożenia
+          priority: isGroup ? 15 : 20,
+          // Dla ucznia z częściowym NI: parentClsId + niGroupId do sprawdzenia kolizji
+          parentClsId: item.parentClsId || null,
+          niGroupId:   item.niGroupId   || null,
         });
       });
     });
@@ -4968,8 +5091,12 @@ function genWorkerFn() {
           if(task.pos==='first' && hi>1) continue;
           if(task.pos==='last'  && hi<hours.length-2) continue;
           if(task.pos==='edge'  && hi>0 && hi<hours.length-task.blkSz) continue;
-          // Wolność nauczyciela i klasy
+          // Wolność nauczyciela i wirtualnej klasy
           if(!block.every(hn=>isTchFree(task.tchId,di,hn) && isClsFree(task.clsId,di,hn))) continue;
+          // Dla ucznia NI z częściowym NI: sprawdź czy nie jest w tym czasie na lekcji z klasą
+          if(task.parentClsId && task.niGroupId) {
+            if(!block.every(hn=>isNIStudentFree(task.parentClsId, task.niGroupId, di, hn))) continue;
+          }
           // Dostępność nauczyciela (nie zablokowany)
           if(!block.every(hn=>tchAvail(task.tchId,di,hn))) continue;
           // Dla połączonych klas — wszystkie muszą być wolne
@@ -5008,13 +5135,13 @@ function genWorkerFn() {
           const entry = {subjectId:task.subjId, teacherId:task.tchId,
                          roomId:room?.id||null, groups:[]};
           newSched[key(task.clsId,chosen.di,hn)] = entry;
-          occupy(task.tchId, task.clsId, room?.id, chosen.di, hn);
+          occupy(task.tchId, task.clsId, room?.id, chosen.di, hn, task.subjId);
           incrPD(task.clsId, task.subjId, chosen.di);
           // Połączone klasy
           if(task.mergeClsIds) {
             task.mergeClsIds.filter(cid=>cid!==task.clsId).forEach(cid => {
               newSched[key(cid,chosen.di,hn)] = {...entry};
-              occupy(null, cid, null, chosen.di, hn);
+              occupy(null, cid, null, chosen.di, hn, task.subjId);
             });
           }
         });
@@ -5302,9 +5429,11 @@ function renderSettings() {
         ${(c.groups||[]).length ? (() => {
           const grps = c.groups.map(g => {
             const tch = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
-            const icons = {group:'👥',small:'👤',indiv:'👤'};
+            const icons = {group:'👥',small:'👤👤',indiv:'👤'};
             const icon = icons[g.type||'group']||'👥';
-            return icon + (g.name||g) + (tch?' ('+tch.abbr+')':'');
+            const subjNote = g.type==='indiv' && (g.subjects||[]).length
+              ? ' ['+g.subjects.length+'p.NI]' : '';
+            return icon + (g.name||g) + subjNote + (tch?' ('+tch.abbr+')':'');
           });
           return `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">${grps.join(' · ')}</span>`;
         })() : ''}
@@ -7770,8 +7899,8 @@ function openEditClassModal(id) {
   // Migruj stare grupy (string) do nowego formatu (obiekt)
   _cmGroups = (c.groups || []).map(g =>
     typeof g === 'string'
-      ? { id:'grp'+Date.now()+Math.random().toString(36).slice(2,5), name:g, type:'group', studentCount:0, teacherId:null }
-      : g
+      ? { id:'grp'+Date.now()+Math.random().toString(36).slice(2,5), name:g, type:'group', studentCount:0, teacherId:null, subjects:[] }
+      : {...g, subjects: g.subjects||[]}
   );
   document.getElementById('classModalTitle').innerHTML = `Edytuj klasę <span>${c.name}</span>`;
   document.getElementById('cmName').value = c.name || '';
@@ -7827,37 +7956,142 @@ function cmRenderGroups() {
     el.innerHTML = '<span style="font-size:.75rem;color:var(--text-d)">Brak grup — dodaj poniżej</span>';
     return;
   }
-  const ICONS = {group:'👥', small:'👤👤', indiv:'👤'};
+  const ICONS  = {group:'👥', small:'👤👤', indiv:'👤'};
   const LABELS = {group:'Podgrupa', small:'Mała grupa', indiv:'NI'};
+  const subjects = appState.subjects||[];
+
   el.innerHTML = _cmGroups.map((g, i) => {
-    const tch = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
-    const icon = ICONS[g.type||'group'];
-    const badge = LABELS[g.type||'group'];
+    const tch       = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
+    const icon      = ICONS[g.type||'group'];
+    const badge     = LABELS[g.type||'group'];
     const isSpecial = g.type === 'small' || g.type === 'indiv';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;
-      background:var(--s2);border-radius:7px;
+    const isNI      = g.type === 'indiv';
+
+    // Przedmioty przypisane do tej grupy/NI
+    const grpSubjects = (g.subjects||[]).map(sid => subjects.find(s=>s.id===sid)).filter(Boolean);
+    const hasPartialSubjects = isNI && grpSubjects.length > 0;
+    const subjChips = grpSubjects.map(s =>
+      `<span style="font-size:.6rem;padding:1px 5px;border-radius:8px;
+        background:${s.color}22;color:${s.color};border:1px solid ${s.color}44">${s.abbr||s.name}</span>`
+    ).join('');
+
+    // Info o trybie uczestnictwa
+    const modeLabel = isNI && grpSubjects.length > 0
+      ? `<span style="font-size:.62rem;color:var(--orange);padding:1px 5px;border-radius:6px;
+           background:var(--orange)15">NI tylko: ${subjChips}</span>
+         <span style="font-size:.62rem;color:var(--text-d)">· reszta z klasą</span>`
+      : isNI
+        ? `<span style="font-size:.62rem;color:var(--text-d)">wszystkie przedmioty NI</span>`
+        : '';
+
+    return `<div style="display:flex;flex-direction:column;gap:5px;padding:8px 10px;
+      background:var(--s2);border-radius:8px;
       border:1px solid ${isSpecial?'var(--accent)33':'var(--border)'}">
-      <span style="font-size:.85rem">${icon}</span>
-      <span style="font-weight:600;font-size:.8rem">${g.name}</span>
-      <span style="font-size:.65rem;padding:1px 6px;border-radius:8px;
-        background:${isSpecial?'var(--accent-g)':'var(--s3)'};
-        color:${isSpecial?'var(--accent)':'var(--text-m)'}">
-        ${badge}${g.studentCount&&g.studentCount>1?' ('+g.studentCount+' ucz.)':''}
-      </span>
-      ${tch ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${tch.abbr}</span>` : ''}
-      <button onclick="_cmGroups.splice(${i},1);cmRenderGroups()"
-        style="margin-left:auto;background:none;border:none;cursor:pointer;
-               color:var(--text-d);font-size:.9rem;padding:0 4px">×</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:.85rem">${icon}</span>
+        <span style="font-weight:600;font-size:.8rem">${g.name}</span>
+        <span style="font-size:.65rem;padding:1px 6px;border-radius:8px;
+          background:${isSpecial?'var(--accent-g)':'var(--s3)'};
+          color:${isSpecial?'var(--accent)':'var(--text-m)'}">
+          ${badge}${g.studentCount&&g.studentCount>1?' ('+g.studentCount+' ucz.)':''}
+        </span>
+        ${tch ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${tch.abbr}</span>` : ''}
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          ${isNI ? `<button onclick="cmEditGroupSubjects(${i})"
+            style="font-size:.62rem;padding:1px 7px;border-radius:5px;
+                   background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-m)"
+            title="Wybierz które przedmioty uczeń realizuje w trybie NI">
+            📚 Przedmioty NI
+          </button>` : ''}
+          <button onclick="_cmGroups.splice(${i},1);cmRenderGroups()"
+            style="background:none;border:none;cursor:pointer;color:var(--text-d);font-size:.9rem;padding:0 4px">×</button>
+        </div>
+      </div>
+      ${modeLabel ? `<div style="display:flex;align-items:center;gap:5px;padding-left:28px;flex-wrap:wrap">
+        ${modeLabel}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
 
+// Edytuj które przedmioty uczeń z NI realizuje indywidualnie
+function cmEditGroupSubjects(grpIdx) {
+  const g = _cmGroups[grpIdx];
+  if(!g) return;
+  const subjects = sortSubjects(appState.subjects||[]);
+  const selected = g.subjects||[];
+
+  // Prosty overlay z checkboxami
+  const existing = document.getElementById('cmGrpSubjOverlay');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'cmGrpSubjOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;width:420px;max-width:95vw;max-height:80vh;overflow-y:auto;box-shadow:var(--shadow-lg)';
+
+  box.innerHTML = `
+    <div style="font-size:.95rem;font-weight:800;margin-bottom:4px">📚 Przedmioty NI — ${g.name}</div>
+    <div style="font-size:.72rem;color:var(--text-m);margin-bottom:16px;line-height:1.5">
+      Zaznacz <strong>tylko te przedmioty</strong>, które uczeń realizuje w trybie nauczania indywidualnego
+      (z osobnym nauczycielem, poza klasą).<br>
+      <span style="color:var(--orange)">Niezaznaczone</span> = uczeń uczęszcza na te lekcje razem z klasą.
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button onclick="document.querySelectorAll('#cmGrpSubjOverlay input').forEach(el=>el.checked=true)"
+        style="font-size:.7rem;padding:3px 10px;border-radius:5px;background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-m)">
+        Zaznacz wszystkie
+      </button>
+      <button onclick="document.querySelectorAll('#cmGrpSubjOverlay input').forEach(el=>el.checked=false)"
+        style="font-size:.7rem;padding:3px 10px;border-radius:5px;background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-m)">
+        Odznacz wszystkie
+      </button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px" id="cmGrpSubjList">
+      ${subjects.map(s => `
+        <label style="display:flex;align-items:center;gap:10px;padding:7px 10px;
+          border-radius:7px;background:var(--s2);cursor:pointer;border:1px solid var(--border)">
+          <input type="checkbox" value="${s.id}" ${selected.includes(s.id)?'checked':''}
+            style="accent-color:${s.color};width:16px;height:16px">
+          <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.color};flex-shrink:0"></span>
+          <span style="font-size:.8rem;font-weight:600">${s.name}</span>
+          <span style="font-size:.7rem;color:var(--text-d);font-family:var(--mono)">${s.abbr||''}</span>
+        </label>`).join('')}
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('cmGrpSubjOverlay').remove()"
+        style="padding:8px 16px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--text-m);font-family:var(--font);cursor:pointer">
+        Anuluj
+      </button>
+      <button onclick="cmSaveGroupSubjects(${grpIdx})"
+        style="padding:8px 18px;border-radius:var(--radius);border:none;background:var(--accent);color:#fff;font-family:var(--font);font-weight:700;cursor:pointer">
+        Zapisz
+      </button>
+    </div>`;
+
+  overlay.appendChild(box);
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+function cmSaveGroupSubjects(grpIdx) {
+  const g = _cmGroups[grpIdx];
+  if(!g) return;
+  const checked = [...document.querySelectorAll('#cmGrpSubjOverlay input:checked')].map(el=>el.value);
+  g.subjects = checked;
+  document.getElementById('cmGrpSubjOverlay').remove();
+  cmRenderGroups();
+  notify(checked.length ? `Zapisano: ${checked.length} przedmiotów NI` : 'Wszystkie przedmioty w trybie NI');
+}
+
 function cmAddGroup() {
-  const inp     = document.getElementById('cmGroupInput');
-  const type    = document.getElementById('cmGroupType').value;
-  const count   = parseInt(document.getElementById('cmGroupCount').value)||1;
-  const tchId   = document.getElementById('cmGroupTeacher').value||null;
-  const val     = inp.value.trim();
+  const inp   = document.getElementById('cmGroupInput');
+  const type  = document.getElementById('cmGroupType').value;
+  const count = parseInt(document.getElementById('cmGroupCount').value)||1;
+  const tchId = document.getElementById('cmGroupTeacher').value||null;
+  const val   = inp.value.trim();
   if (!val) return;
 
   val.split(',').map(v => v.trim()).filter(Boolean).forEach(name => {
@@ -7868,6 +8102,7 @@ function cmAddGroup() {
         type,
         studentCount: type==='indiv' ? 1 : (type==='small' ? Math.min(count,5) : 0),
         teacherId: tchId || null,
+        subjects: [],  // puste = wszystkie w NI; niepuste = tylko wybrane w NI, reszta z klasą
       });
     }
   });
