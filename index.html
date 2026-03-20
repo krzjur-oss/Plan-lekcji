@@ -1079,6 +1079,11 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <div class="wl-card-title">Nowy plan</div>
         <div class="wl-card-desc">Skonfiguruj nowy rok szkolny krok po kroku</div>
       </div>
+      <div class="wl-card" id="wlResumeCard" onclick="wlResume()" style="display:none">
+        <div class="wl-card-icon">🔄</div>
+        <div class="wl-card-title">Wróć do kreatora</div>
+        <div class="wl-card-desc" id="wlResumeDesc">Kontynuuj konfigurację</div>
+      </div>
       <div class="wl-card" onclick="wlImport()">
         <div class="wl-card-icon">📂</div>
         <div class="wl-card-title">Importuj</div>
@@ -1102,7 +1107,10 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
   <div class="wiz-wrap">
     <div class="wizard">
       <div class="wiz-header">
-        <div class="wiz-badge">⚙ Konfiguracja</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="wiz-badge">⚙ Konfiguracja</div>
+      <div id="wizAutoSaveInfo" style="font-size:.68rem;color:var(--text-d)"></div>
+    </div>
         <div class="wiz-title">Nowy <span>plan lekcji</span></div>
         <div class="wiz-sub">Uzupełnij dane szkoły, aby zacząć układać plan</div>
       </div>
@@ -1738,6 +1746,7 @@ const LS = {
   STATE:    'pl_state',
   SCHED:    'pl_sched',
   THEME:    'pl_theme',
+  WIZ:      'pl_wiz',   // autozapis kreatora
 };
 
 // ================================================================
@@ -1915,6 +1924,24 @@ function wlInit() {
       }
     }
   } catch(e) {}
+
+  // Sprawdź autozapis kreatora
+  try {
+    const w = JSON.parse(localStorage.getItem(LS.WIZ)||'null');
+    const rezCard = document.getElementById('wlResumeCard');
+    const rezDesc = document.getElementById('wlResumeDesc');
+    if(w && rezCard) {
+      const STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny'];
+      const stepName = STEPS[w.step]||'';
+      rezCard.style.display='';
+      if(rezDesc) rezDesc.textContent = 'Krok '+(w.step+1)+': '+stepName+(w.data?.name?' — '+w.data.name:'');
+    }
+  } catch(e) {}
+}
+
+function wlResume() {
+  document.getElementById('welcomeScreen').classList.remove('show');
+  startWizard(true);
 }
 
 function wlStartNew() {
@@ -1952,11 +1979,31 @@ function openSettings() {
 let wStep = 0;
 let wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
 
-function startWizard() {
-  wStep = 0;
-  wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+function startWizard(resume=false) {
+  if(resume) {
+    // Przywróć zapisany stan
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS.WIZ)||'null');
+      if(saved) { wStep=saved.step||0; wData=saved.data; }
+    } catch(_) { wStep=0; }
+  } else {
+    wStep = 0;
+    wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+    localStorage.removeItem(LS.WIZ);
+  }
   document.getElementById('wizardOverlay').classList.add('show');
   renderWizStep();
+}
+
+function wizSave() {
+  try {
+    localStorage.setItem(LS.WIZ, JSON.stringify({step:wStep, data:wData, ts:Date.now()}));
+    const el = document.getElementById('wizAutoSaveInfo');
+    if(el) {
+      const now = new Date();
+      el.textContent = '💾 Autozapis ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    }
+  } catch(_) {}
 }
 
 function renderWizStepsIndicator() {
@@ -2244,10 +2291,13 @@ function wizStep6() {
 function wizNext() {
   if(!wizCollectStep()) return;
   wStep = Math.min(wStep+1, WIZ_STEPS.length-1);
+  wizSave();
   renderWizStep();
 }
 function wizPrev() {
+  wizCollectStep(); // zbierz dane aktualnego kroku przed cofnięciem
   wStep = Math.max(wStep-1, 0);
+  wizSave();
   renderWizStep();
 }
 
@@ -2283,14 +2333,35 @@ function wizFinish() {
     year: wData.year,
     mainAddress: wData.mainAddress||'',
     buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||'', floors:b.floors||[]})),
-    classes: wData.classes.map((c,i)=>({id:'cls'+i, name:c.name, groups:c.groups||[]})),
-    subjects: wData.subjects.map((s,i)=>({id:'subj'+i, name:s.name, abbr:s.abbr, color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length]})),
-    teachers: wData.teachers.map((t,i)=>({id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr, hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0, subjects:[], assignments:[]})),
-    rooms: wData.rooms.map((r,i)=>({id:'room'+i, name:r.name, type:r.type||'full', capacity:r.capacity||0, buildingId:r.buildingId!=null?'bld'+parseInt(r.buildingId):null})),
+    classes: wData.classes.map((c,i)=>({
+      id:'cls'+i, name:c.name, groups:c.groups||[],
+      studentCount:c.studentCount||0,
+      homeroomTeacherId:null, homeRooms:[],
+      optionalSubjects:[]
+    })),
+    subjects: wData.subjects.map((s,i)=>({
+      id:'subj'+i, name:s.name, abbr:s.abbr,
+      color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length],
+      duration:'year', classes:[], level:''
+    })),
+    teachers: wData.teachers.map((t,i)=>({
+      id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr,
+      hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0,
+      employment:t.employment||'full',
+      employmentFraction:t.employmentFraction||1,
+      subjects:[], assignments:[], individualTeaching:[]
+    })),
+    rooms: wData.rooms.map((r,i)=>({
+      id:'room'+i, name:r.name, type:r.type||'full',
+      capacity:r.capacity||0, note:r.note||'',
+      buildingId:r.buildingId!=null?'bld'+parseInt(r.buildingId):null,
+      custodians:[], preferredSubjects:[]
+    })),
     hours: wData.hours.sort((a,b)=>a.num-b.num),
   };
   schedData = {};
   _demoMode = false;
+  localStorage.removeItem(LS.WIZ); // wyczyść autozapis
   persistAll();
   showApp();
   notify('Plan został utworzony!');
