@@ -1151,13 +1151,16 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
     </div>
 
     <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(this.files[0])">
-    <div style="margin-top:24px;font-size:.68rem;color:var(--text-d)">
-      Dane przechowywane lokalnie w przeglądarce · Brak cookies · Brak telemetrii ·
+    <div style="margin-top:24px;font-size:.68rem;color:var(--text-d);text-align:center">
+      Dane przechowywane lokalnie w przeglądarce · Brak cookies · Brak telemetrii<br>
       <button onclick="showPrivacyModal()"
         style="background:none;border:none;cursor:pointer;color:var(--accent);
                font-size:.68rem;font-family:var(--font);text-decoration:underline">
         Informacja o danych
-      </button>
+      </button> ·
+      <a href="REGULAMIN.md" target="_blank" style="color:var(--accent);font-size:.68rem;text-decoration:underline">Regulamin</a> ·
+      <a href="LICENSE" target="_blank" style="color:var(--accent);font-size:.68rem;text-decoration:underline">Licencja</a> ·
+      <a href="README.md" target="_blank" style="color:var(--accent);font-size:.68rem;text-decoration:underline">Dokumentacja</a>
     </div>
   </div>
 </div>
@@ -1900,7 +1903,12 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 
     </div>
 
-    <div style="margin-top:20px;display:flex;justify-content:flex-end">
+    <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:.7rem;color:var(--text-d)">
+        <a href="REGULAMIN.md" target="_blank" style="color:var(--accent)">Regulamin</a> ·
+        <a href="LICENSE" target="_blank" style="color:var(--accent)">Licencja</a> ·
+        <a href="README.md" target="_blank" style="color:var(--accent)">Dokumentacja</a>
+      </div>
       <button onclick="acceptConsent();closePrivacyModal()"
         style="padding:9px 22px;border-radius:var(--radius);border:none;
                background:var(--accent);color:#fff;font-family:var(--font);
