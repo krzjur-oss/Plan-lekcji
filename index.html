@@ -1201,6 +1201,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="ttab" data-view="duty" onclick="switchView('duty',this)">🚨 Dyżury</button>
       <button class="ttab" data-view="stats" onclick="switchView('stats',this)">📊 Statystyki</button>
       <button class="ttab" data-view="generator" onclick="switchView('generator',this)">⚡ Generator</button>
+      <button class="ttab no-print" onclick="openNIModal()" title="Nauczanie indywidualne i zajęcia w małych grupach">👤 NI / Grupy</button>
     </div>
     <div class="topbar-actions">
       <button class="icon-btn no-print" title="Drukuj plan" onclick="openPrintPanel()">🖨️</button>
@@ -1394,48 +1395,22 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap" onclick="tmAddAssignment()">+ Dodaj</button>
       </div>
     </div>
-    <!-- Nauczanie indywidualne i grupowe -->
+    <!-- Nauczanie indywidualne — link do dedykowanego modalu -->
     <div class="mfield" style="margin-top:4px">
-      <label>Nauczanie indywidualne i zajęcia w małych grupach
-        <span style="font-size:.7rem;font-weight:400;color:var(--text-m);margin-left:6px">
-          — odrębne formy organizacyjne z własnym pensum, traktowane jak osobne klasy
-        </span>
-      </label>
-      <table class="indiv-table">
-        <thead><tr>
-          <th>Uczeń / grupa / opis</th><th>Przedmiot</th><th>Forma</th>
-          <th style="width:52px" title="Liczba uczniów">Ucz.</th>
-          <th style="width:60px">Godz./tydz.</th>
-          <th style="width:36px"></th>
-        </tr></thead>
-        <tbody id="tmIndivBody"></tbody>
-      </table>
-      <div class="indiv-add-row">
-        <input class="minput" id="tmIndivName" placeholder="Imię Nazwisko / nazwa grupy" style="flex:2;min-width:120px">
-        <select class="mselect" id="tmIndivSubject" style="flex:1;min-width:100px">
-          <option value="">— przedmiot —</option>
-        </select>
-        <select class="mselect" id="tmIndivForm" style="flex:1;min-width:120px"
-          onchange="tmIndivFormChange()">
-          <option value="indywidualne">Indywidualne (1 uczeń)</option>
-          <option value="grupowe-2-5">Grupowe 2–5 uczniów</option>
-          <option value="rewalidacja">Rewalidacja</option>
-          <option value="rewalidacja-grupowa">Rewalidacja grupowa</option>
-          <option value="zajęcia wyrównawcze">Wyrównawcze</option>
-          <option value="zajęcia rozwijające">Rozwijające</option>
-          <option value="logopedia">Logopedia</option>
-          <option value="inne">Inne</option>
-        </select>
-        <input class="indiv-num" id="tmIndivStudents" type="number" min="1" max="5"
-          value="1" placeholder="ucz." title="Liczba uczniów (max 5 dla zajęć grupowych)"
-          style="width:52px">
-        <input class="indiv-num" id="tmIndivHours" type="number" min="1" max="20" value="1" placeholder="h">
-        <button class="mbtn mbtn-primary" style="padding:8px 12px;white-space:nowrap" onclick="tmAddIndiv()">+ Dodaj</button>
+      <div id="tmIndivSummaryBox" style="display:none;padding:8px 12px;background:var(--accent-g);
+        border:1px solid var(--accent)44;border-radius:8px;font-size:.78rem;margin-bottom:8px">
       </div>
-      <div style="font-size:.7rem;color:var(--text-d);margin-top:4px">
-        💡 Zajęcia indywidualne i grupowe (do 5 osób) są traktowane jak osobne klasy — solver przydzieli im osobne sloty i sale. Liczą się osobno w pensum nauczyciela.
+      <button onclick="openNIModal(_tmId)"
+        style="width:100%;padding:9px 16px;border-radius:var(--radius);
+               border:1px dashed var(--accent);background:transparent;
+               color:var(--accent);font-family:var(--font);font-size:.82rem;
+               font-weight:600;cursor:pointer;display:flex;align-items:center;
+               justify-content:center;gap:8px">
+        👤 Zarządzaj nauczaniem indywidualnym i grupowym
+      </button>
+      <div style="font-size:.68rem;color:var(--text-d);margin-top:5px;text-align:center">
+        Dedykowany widok uczniów NI — które przedmioty indywidualnie, które z klasą
       </div>
-      <div id="tmIndivSummary"></div>
     </div>
 
     <div class="modal-actions">
@@ -1764,8 +1739,13 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
     <div class="mfield">
       <label>Grupy, nauczanie indywidualne i zajęcia w małych grupach</label>
       <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px;line-height:1.5">
-        Dodaj podgrupy klasy (np. do podziału na j. obcy), uczniów z NI lub grupy do 5 osób.
-        Każdej możesz przypisać nauczyciela — będzie podpowiadany przy dodawaniu lekcji.
+        Podgrupy klasy (np. do podziału na j. obcy) lub małe grupy zajęciowe (do 5 os.).
+        Uczniów z <strong>nauczaniem indywidualnym</strong> dodaj przez zakładkę
+        <button onclick="closeClassModal();openNIModal(null,'${_cmId}')"
+          style="background:none;border:none;color:var(--accent);cursor:pointer;
+                 font-size:.72rem;font-family:var(--font);text-decoration:underline;padding:0">
+          👤 NI / Grupy
+        </button> w ustawieniach.
       </p>
       <div id="cmGroupList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
@@ -1779,7 +1759,6 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
           <select class="mselect" id="cmGroupType" onchange="cmGroupTypeChange()">
             <option value="group">Podgrupa klasy</option>
             <option value="small">Mała grupa (2–5 os.)</option>
-            <option value="indiv">Nauczanie indywidualne</option>
           </select>
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;width:60px" id="cmGroupCountWrap">
@@ -1828,6 +1807,106 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="mbtn mbtn-danger" id="cmDeleteBtn" onclick="cmDeleteClass()" style="display:none;margin-right:auto">Usuń klasę</button>
       <button class="mbtn mbtn-ghost" onclick="closeClassModal()">Anuluj</button>
       <button class="mbtn mbtn-primary" onclick="saveClassModal()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════
+     MODAL NAUCZANIA INDYWIDUALNEGO
+══════════════════════════════════ -->
+<div class="modal-overlay" id="niModal" style="align-items:flex-start;padding:20px 0">
+  <div class="modal-box" style="width:680px;max-width:98vw;max-height:95vh;overflow-y:auto">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div class="modal-title" style="margin-bottom:2px">👤 Nauczanie indywidualne i zajęcia w małych grupach</div>
+        <div style="font-size:.72rem;color:var(--text-m)">
+          Centralne zarządzanie uczniami NI — które przedmioty indywidualnie, które z klasą
+        </div>
+      </div>
+      <button onclick="closeNIModal()" style="background:none;border:none;cursor:pointer;
+        font-size:1.2rem;color:var(--text-m);padding:4px 8px;flex-shrink:0">✕</button>
+    </div>
+
+    <!-- Filtr klasy -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em">Klasa:</span>
+      <select class="mselect" id="niClassFilter" onchange="niRender()" style="flex:1;max-width:160px">
+        <option value="">Wszystkie klasy</option>
+      </select>
+      <button class="mbtn mbtn-primary" style="padding:7px 14px;font-size:.78rem" onclick="niAddStudent()">
+        + Dodaj ucznia NI
+      </button>
+    </div>
+
+    <!-- Lista uczniów NI -->
+    <div id="niStudentList"></div>
+
+  </div>
+</div>
+
+<!-- MODAL EDYCJI UCZNIA NI -->
+<div class="modal-overlay" id="niEditModal" style="z-index:650">
+  <div class="modal-box" style="width:600px;max-width:98vw;max-height:92vh;overflow-y:auto">
+
+    <div class="modal-title" id="niEditTitle" style="margin-bottom:16px">Uczeń NI</div>
+
+    <!-- Podstawowe dane -->
+    <div class="mrow" style="margin-bottom:10px">
+      <div class="mfield" style="flex:2">
+        <label>Imię i nazwisko ucznia</label>
+        <input class="minput" id="niStudName" placeholder="np. Jan Kowalski">
+      </div>
+      <div class="mfield" style="flex:1">
+        <label>Klasa</label>
+        <select class="mselect" id="niStudClass" onchange="niEditClassChange()">
+          <option value="">— brak —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mrow" style="margin-bottom:14px">
+      <div class="mfield" style="flex:1">
+        <label>Forma NI</label>
+        <select class="mselect" id="niStudForm">
+          <option value="indywidualne">Nauczanie indywidualne</option>
+          <option value="grupowe-2-5">Zajęcia grupowe (2–5 os.)</option>
+          <option value="rewalidacja">Rewalidacja</option>
+          <option value="rewalidacja-grupowa">Rewalidacja grupowa</option>
+          <option value="zajęcia wyrównawcze">Wyrównawcze</option>
+          <option value="zajęcia rozwijające">Rozwijające</option>
+          <option value="logopedia">Logopedia</option>
+          <option value="inne">Inne</option>
+        </select>
+      </div>
+      <div class="mfield" style="flex:0 0 80px">
+        <label title="Liczba uczniów w grupie">Ucz. w gr.</label>
+        <input class="minput" id="niStudCount" type="number" min="1" max="5" value="1"
+          style="text-align:center" placeholder="1">
+      </div>
+    </div>
+
+    <!-- Tabela przedmiotów — serce modalu -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.05em;margin-bottom:8px">Przedmioty i sposób realizacji</div>
+    <div style="font-size:.72rem;color:var(--text-m);margin-bottom:10px;line-height:1.5">
+      Dla każdego przedmiotu wybierz czy uczeń realizuje go <strong>indywidualnie</strong>
+      (osobne lekcje z nauczycielem NI) czy <strong>z klasą</strong> (uczęszcza razem z klasą).
+    </div>
+
+    <div id="niSubjTable" style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px">
+      <!-- wypełniany przez niEditClassChange() -->
+    </div>
+
+    <!-- Podsumowanie -->
+    <div id="niEditSummary" style="margin-bottom:16px"></div>
+
+    <div class="modal-actions">
+      <button class="mbtn mbtn-danger" id="niDeleteBtn" onclick="niDeleteStudent()"
+        style="display:none;margin-right:auto">Usuń ucznia</button>
+      <button class="mbtn mbtn-ghost" onclick="closeNIEditModal()">Anuluj</button>
+      <button class="mbtn mbtn-primary" onclick="niSaveStudent()">Zapisz</button>
     </div>
   </div>
 </div>
@@ -4452,10 +4531,30 @@ function genIndivTeachUI() {
     });
   });
 
-  if(!allItems.length) return `<div style="color:var(--text-d);font-size:.78rem">
-    Brak wpisów nauczania indywidualnego lub grupowego.<br>
-    Dodaj je w <strong>Ustawieniach → Nauczyciele → karta nauczyciela → Nauczanie indywidualne i grupowe</strong>.
-  </div>`;
+  if(!allItems.length && !(appState.classes||[]).some(c=>(c.groups||[]).some(g=>g.type==='indiv'))) {
+    return `<div style="color:var(--text-d);font-size:.78rem">
+      Brak wpisów nauczania indywidualnego lub grupowego.<br>
+      Dodaj je w <strong>Ustawieniach → Nauczyciele → karta nauczyciela</strong>
+      lub <strong>Ustawieniach → Klasy → karta klasy → Grupy → typ NI</strong>.
+    </div>`;
+  }
+
+  // ── Wykryj nauczycieli łączących NI i regularne lekcje z tego samego przedmiotu ──
+  const combinedTeachers = [];
+  teachers.forEach(t => {
+    (t.individualTeaching||[]).forEach(item => {
+      if(!item.subjectId) return;
+      // Czy ten nauczyciel prowadzi też regularne lekcje z tego przedmiotu?
+      const regularAssign = (t.assignments||[]).filter(a=>a.subjectId===item.subjectId && a.hours>0);
+      if(regularAssign.length) {
+        regularAssign.forEach(a => {
+          const cls = (appState.classes||[]).find(c=>c.id===a.classId);
+          const subj = (appState.subjects||[]).find(s=>s.id===item.subjectId);
+          combinedTeachers.push({t, item, assign:a, cls, subj});
+        });
+      }
+    });
+  });
 
   // Pogrupuj: indywidualne vs grupowe
   const indivItems = allItems.filter(({item}) => (item.students||1)===1 && !item.form.includes('grupow'));
@@ -4466,6 +4565,35 @@ function genIndivTeachUI() {
     solver przydziela im osobne sloty w planie, niezależne od regularnych lekcji.
     Wpisz w polach poniżej ile razy w tygodniu dane zajęcia powinny się odbyć (zwykle odpowiada to już wpisanym godzinom).
   </p>`;
+
+  // ── Panel: nauczyciel łączy NI i regularne lekcje ──
+  if(combinedTeachers.length) {
+    html += `<div style="margin-bottom:14px;padding:10px 12px;
+      background:var(--orange)10;border:1px solid var(--orange)40;border-radius:8px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--orange);margin-bottom:8px">
+        ⚠ Nauczyciel prowadzi NI i regularne lekcje z tego samego przedmiotu
+      </div>`;
+    combinedTeachers.forEach(({t,item,assign,cls,subj}) => {
+      html += `<div style="font-size:.74rem;color:var(--text-m);margin-bottom:5px;padding-left:8px">
+        <strong style="color:var(--text)">${t.abbr}</strong> —
+        <span style="color:${subj?.color||'var(--accent)'}">
+          ${subj?.name||'przedmiot'}</span>:
+        NI z <strong>${item.name}</strong> (${item.hours}h)
+        + regularne z <strong>${cls?.name||'klasą'}</strong> (${assign.hours}h)<br>
+        <span style="font-size:.68rem;color:var(--text-d)">
+          Solver ułoży te lekcje w RÓŻNYCH slotach — nauczyciel nie może być jednocześnie
+          przy uczniu NI i w klasie. Łącznie ${item.hours+assign.hours}h/${subj?.name||''} tygodniowo.
+        </span>
+      </div>`;
+    });
+    html += `<div style="font-size:.68rem;color:var(--text-d);margin-top:6px;padding-top:6px;
+      border-top:1px solid var(--orange)30">
+      💡 Jeśli uczeń NI ma tego samego nauczyciela co klasa z danego przedmiotu —
+      klasa w godzinie NI ucznia po prostu ma o jednego ucznia mniej.
+      To poprawna sytuacja pedagogiczna, solver sobie z tym radzi.
+    </div>
+    </div>`;
+  }
 
   if(indivItems.length) {
     html += `<div style="font-size:.73rem;font-weight:700;color:var(--text-m);text-transform:uppercase;
@@ -4651,7 +4779,8 @@ function genRun() {
       note:r.note||''
     })),
     activeSem: appState.activeSem||1,
-    schoolWindow: appState.schoolWindow||{}
+    schoolWindow: appState.schoolWindow||{},
+    niStudents: (appState.niStudents||[]).map(s=>({id:s.id,name:s.name,classId:s.classId||null,studentCount:s.studentCount||1,subjects:(s.subjects||[]).map(r=>({...r}))}))
   };
 
   window._genWorker = genRunWorker(payload);
@@ -4849,21 +4978,26 @@ function genWorkerFn() {
     const tchSlots  = {}; // tchId  → Set('di_hn')
     const clsSlots  = {}; // clsId  → Set('di_hn')
     const roomSlots = {}; // roomId → Set('di_hn')
-    // Mapa uczniów NI: niStudentId → Set('di_hn') — kiedy uczeń jest zajęty (na lekcji z klasą)
+    // Mapa uczniów NI: niStudentId → Set('di_hn') — kiedy uczeń jest zajęty
+    // Zajmowany przez: (a) lekcje klasy gdy uczeń jest z klasą, (b) inne sloty NI tego ucznia
     const niStudentSlots = {}; // `${clsId}_${niGroupId}` → Set('di_hn')
 
+    // Zajmij slot ucznia NI (wywołaj po ułożeniu każdego slotu NI dla tego ucznia)
+    const occupyNIStudent = (clsId, niId, di, hn) => {
+      const k = `${clsId}_${niId}`;
+      if(!niStudentSlots[k]) niStudentSlots[k] = new Set();
+      niStudentSlots[k].add(`${di}_${hn}`);
+    };
+
     // Zbuduj mapę: które przedmioty uczeń NI realizuje z klasą
-    // niPartial[clsId][niGroupId] = Set(subjId) — przedmioty z klasą (nie NI)
+    // niPartial[clsId][niStudId] = Set(subjId NI) — przedmioty w NI (z klasą = pozostałe)
     const niPartial = {};
-    classes.forEach(cls => {
-      (cls.niGroups||[]).forEach(ni => {
-        if(!ni.niSubjects || !ni.niSubjects.length) return; // wszystkie w NI - brak konfliktu z klasą
-        const key = cls.id;
-        if(!niPartial[key]) niPartial[key] = {};
-        // niSubjects to te przedmioty które SĄ w NI - z klasą chodzi na POZOSTAŁE
-        // Zbierzemy wszystkie predmioty klasy i odejmiemy niSubjects
-        niPartial[key][ni.id] = new Set(ni.niSubjects); // to są NI-przedmioty
-      });
+    (P.niStudents||[]).forEach(stud => {
+      if(!stud.classId) return;
+      const niSubjIds = (stud.subjects||[]).filter(r=>r.mode==='indiv').map(r=>r.subjId);
+      if(!niSubjIds.length) return;
+      if(!niPartial[stud.classId]) niPartial[stud.classId] = {};
+      niPartial[stud.classId][stud.id] = new Set(niSubjIds);
     });
 
     const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(`${di}_${hn}`);
@@ -4871,23 +5005,20 @@ function genWorkerFn() {
     const isRoomFree = (rid,di,hn) => !roomSlots[rid]?.has(`${di}_${hn}`);
 
     // Czy uczeń NI jest wolny w tym slocie (nie jest wtedy na lekcji z klasą)
-    const isNIStudentFree = (clsId, niId, di, hn) => {
-      const k = `${clsId}_${niId}`;
-      return !niStudentSlots[k]?.has(`${di}_${hn}`);
+    const isNIStudentFree = (clsId, niStudId, di, hn) => {
+      const k = clsId + '_' + niStudId;
+      return !niStudentSlots[k]?.has(di + '_' + hn);
     };
 
     // Gdy kładziemy lekcję klasy - sprawdzamy czy uczeń NI jest na niej z klasą
     // i jeśli tak, zajmujemy jego slot (nie może mieć NI w tym czasie)
     const occupyNIStudentIfNeeded = (clsId, subjId, di, hn) => {
-      const cls = classes.find(c=>c.id===clsId);
-      if(!cls || !niPartial[clsId]) return;
-      Object.entries(niPartial[clsId]).forEach(([niId, niSubjSet]) => {
-        // niSubjSet = przedmioty realizowane w NI
-        // Jeśli subjId NIE jest w niSubjSet → uczeń jest z klasą → zajmij slot
+      if(!niPartial[clsId]) return;
+      Object.entries(niPartial[clsId]).forEach(([niStudId, niSubjSet]) => {
         if(!niSubjSet.has(subjId)) {
-          const k = `${clsId}_${niId}`;
+          const k = clsId + '_' + niStudId;
           if(!niStudentSlots[k]) niStudentSlots[k] = new Set();
-          niStudentSlots[k].add(`${di}_${hn}`);
+          niStudentSlots[k].add(di + '_' + hn);
         }
       });
     };
@@ -4979,34 +5110,30 @@ function genWorkerFn() {
       });
     });
 
-    // ── Dodaj zadania NI z grup klas (uczniowie z częściowym NI) ──
-    classes.forEach(cls => {
-      (cls.niGroups||[]).forEach(ni => {
-        if(!ni.niSubjects || !ni.niSubjects.length) return; // obsługiwane przez indivTeaching
-        // Uczeń ma NI z konkretnych przedmiotów - znajdź nauczyciela z assignments
-        const tch = ni.teacherId ? teachers.find(t=>t.id===ni.teacherId) : null;
+    // ── Dodaj zadania NI z appState.niStudents ──
+    (P.niStudents||[]).forEach(stud => {
+      const cls = stud.classId ? classes.find(c=>c.id===stud.classId) : null;
+      const indivRows = (stud.subjects||[]).filter(r=>r.mode==='indiv'&&r.teacherId&&r.hours>0);
+      indivRows.forEach(r => {
+        const tch  = teachers.find(t=>t.id===r.teacherId);
+        const subj = subjects.find(s=>s.id===r.subjId);
         if(!tch) return;
-        // Dla każdego przedmiotu NI tego ucznia - ile godzin ma mieć?
-        ni.niSubjects.forEach(subjId => {
-          // Znajdź godziny z assignments nauczyciela dla tej klasy i przedmiotu
-          const assignment = (tch.assignments||[]).find(a=>a.classId===cls.id && a.subjectId===subjId);
-          if(!assignment || !assignment.hours) return;
-          const subj = subjects.find(s=>s.id===subjId);
-          const virtualClsId = `ni_cls_${cls.id}_${ni.id}_${subjId}`;
-          tasks.push({
-            clsId: virtualClsId,
-            clsName: `${ni.name} / ${cls.name} (NI: ${subj?.abbr||subjId})`,
-            tchId: tch.id, tchAbbr: tch.abbr,
-            subjId, subjName: subj?.name||'NI',
-            hoursLeft: assignment.hours,
-            blkSz: 1, pos: 'any',
-            maxPD: 0, maxCon: 0,
-            isOptional: false, mergeClsIds: null,
-            isIndiv: true, isGroup: false, students: 1,
-            priority: 22, // najwyższy - najtrudniejsze ograniczenia
-            parentClsId: cls.id,  // klasa macierzysta
-            niGroupId: ni.id,     // ID ucznia NI
-          });
+        const virtualClsId = 'ni_' + stud.id + '_' + r.subjId;
+        tasks.push({
+          clsId: virtualClsId,
+          clsName: stud.name + ' (NI: ' + (subj?.abbr||r.subjId) + ')',
+          tchId: tch.id, tchAbbr: tch.abbr,
+          subjId: r.subjId, subjName: subj?.name||'NI',
+          hoursLeft: r.hours,
+          blkSz: 1, pos: 'any',
+          maxPD: 0, maxCon: 0,
+          isOptional: false, mergeClsIds: null,
+          isIndiv: true, isGroup: stud.studentCount>1,
+          students: stud.studentCount||1,
+          priority: 22,
+          parentClsId: stud.classId||null,
+          niStudId: stud.id,
+          niSubjId: r.subjId,
         });
       });
     });
@@ -5094,8 +5221,8 @@ function genWorkerFn() {
           // Wolność nauczyciela i wirtualnej klasy
           if(!block.every(hn=>isTchFree(task.tchId,di,hn) && isClsFree(task.clsId,di,hn))) continue;
           // Dla ucznia NI z częściowym NI: sprawdź czy nie jest w tym czasie na lekcji z klasą
-          if(task.parentClsId && task.niGroupId) {
-            if(!block.every(hn=>isNIStudentFree(task.parentClsId, task.niGroupId, di, hn))) continue;
+          if(task.parentClsId && task.niStudId) {
+            if(!block.every(hn=>isNIStudentFree(task.parentClsId, task.niStudId, di, hn))) continue;
           }
           // Dostępność nauczyciela (nie zablokowany)
           if(!block.every(hn=>tchAvail(task.tchId,di,hn))) continue;
@@ -5136,6 +5263,10 @@ function genWorkerFn() {
                          roomId:room?.id||null, groups:[]};
           newSched[key(task.clsId,chosen.di,hn)] = entry;
           occupy(task.tchId, task.clsId, room?.id, chosen.di, hn, task.subjId);
+          // Gdy to zadanie NI — zajmij też slot ucznia (żeby inne NI tego ucznia nie kolidowały)
+          if(task.parentClsId && task.niStudId) {
+            occupyNIStudent(task.parentClsId, task.niStudId, chosen.di, hn);
+          }
           incrPD(task.clsId, task.subjId, chosen.di);
           // Połączone klasy
           if(task.mergeClsIds) {
@@ -5261,9 +5392,15 @@ function renderStats() {
     const h=teacherHours[t.id]||0;
     const pct=Math.round(h/maxH*100);
     const barColor = pct>80?'var(--red)':pct>60?'var(--yellow)':'var(--green)';
+    const niH = (t.individualTeaching||[]).reduce((s,i)=>s+(i.hours||0),0);
     html+=`<div class="tlt-row">
-      <div class="tlt-name">${t.first} ${t.last} <span style="color:var(--text-m);font-family:var(--mono);font-size:.72rem">${t.abbr}</span></div>
-      <div class="tlt-hours">${h}</div>
+      <div class="tlt-name">${t.first} ${t.last}
+        <span style="color:var(--text-m);font-family:var(--mono);font-size:.72rem">${t.abbr}</span>
+        ${niH?`<span style="font-size:.62rem;padding:1px 5px;border-radius:6px;
+          background:var(--accent-g);color:var(--accent);margin-left:4px"
+          title="Godziny NI/grupowe poza planem klasy">+${niH}h NI</span>`:''}
+      </div>
+      <div class="tlt-hours" title="W planie lekcji${niH?' + '+niH+'h NI':''}">${h}</div>
       <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${barColor}"></div></div>
     </div>`;
   });
@@ -6406,9 +6543,8 @@ function openEditTeacherModal(id) {
   _tmIndiv = JSON.parse(JSON.stringify(t.individualTeaching || []));
   tmRenderSubjects(t.subjects || []);
   tmRenderAssignments();
-  tmRenderIndiv();
   tmFillSelects();
-  tmFillIndivSubject();
+  niUpdateTeacherBadge(id);
   document.getElementById('teacherModal').classList.add('show');
 }
 
@@ -6498,94 +6634,6 @@ function tmFillIndivSubject() {
   if(!sel||!appState) return;
   sel.innerHTML = '<option value="">— dowolny —</option>' +
     sortSubjects(appState.subjects).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-}
-
-function tmIndivFormChange() {
-  const form = document.getElementById('tmIndivForm').value;
-  const studEl = document.getElementById('tmIndivStudents');
-  const isGroup = form.includes('grupow') || form === 'zajęcia wyrównawcze' || form === 'zajęcia rozwijające';
-  studEl.max   = isGroup ? 5 : 1;
-  studEl.value = isGroup ? Math.min(parseInt(studEl.value)||1, 5) : 1;
-  studEl.disabled = !isGroup && form === 'indywidualne';
-}
-
-function tmAddIndiv() {
-  const name     = document.getElementById('tmIndivName').value.trim();
-  const subjId   = document.getElementById('tmIndivSubject').value;
-  const form     = document.getElementById('tmIndivForm').value;
-  const students = parseInt(document.getElementById('tmIndivStudents').value)||1;
-  const hours    = parseInt(document.getElementById('tmIndivHours').value)||1;
-  if(!name){ notify('Podaj imię ucznia lub opis grupy'); return; }
-  // Walidacja - max 5 uczniów dla zajęć grupowych
-  const isGroup = form.includes('grupow') || form==='zajęcia wyrównawcze' || form==='zajęcia rozwijające';
-  if(isGroup && students > 5) { notify('Zajęcia grupowe — max 5 uczniów'); return; }
-  _tmIndiv.push({ name, subjectId:subjId||null, form, students: isGroup ? students : 1, hours });
-  document.getElementById('tmIndivName').value = '';
-  document.getElementById('tmIndivStudents').value = '1';
-  tmRenderIndiv();
-}
-
-function tmRenderIndiv() {
-  const tbody = document.getElementById('tmIndivBody');
-  const summary = document.getElementById('tmIndivSummary');
-  if(!tbody) return;
-
-  if(!_tmIndiv.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-m);
-      font-size:.75rem;padding:10px">Brak uczniów z nauczaniem indywidualnym</td></tr>`;
-    if(summary) summary.innerHTML = '';
-    return;
-  }
-
-  tbody.innerHTML = _tmIndiv.map((item, i) => {
-    const subj     = item.subjectId ? appState.subjects.find(s=>s.id===item.subjectId) : null;
-    const isGroup  = (item.students||1) > 1 || item.form.includes('grupow');
-    const typeIcon = isGroup ? '👥' : '👤';
-    const formLabel= item.form.replace('zajęcia ','');
-    return `<tr>
-      <td style="font-weight:600">
-        <span title="${isGroup?'Zajęcia grupowe':'Nauczanie indywidualne'}">${typeIcon}</span>
-        ${item.name}
-      </td>
-      <td>${subj
-        ? `<span class="cdot" style="background:${subj.color};margin-right:5px"></span>${subj.name}`
-        : '<span style="color:var(--text-m)">—</span>'}</td>
-      <td><span style="font-size:.68rem;background:${isGroup?'var(--accent-g)':'var(--s3)'};
-        border:1px solid ${isGroup?'var(--accent)44':'var(--border)'};
-        padding:1px 6px;border-radius:4px;color:${isGroup?'var(--accent)':'var(--text-m)'}">${formLabel}</span></td>
-      <td style="text-align:center">
-        <input class="indiv-num" type="number" min="1" max="${isGroup?5:1}" value="${item.students||1}"
-          style="width:44px"
-          onchange="_tmIndiv[${i}].students=parseInt(this.value)||1;tmRenderIndivSummary()">
-      </td>
-      <td>
-        <input class="indiv-num" type="number" min="1" max="20" value="${item.hours}"
-          onchange="_tmIndiv[${i}].hours=parseInt(this.value)||1;tmRenderIndivSummary()">
-      </td>
-      <td><span class="tag-del" style="font-size:1rem;cursor:pointer;padding:2px 6px"
-        onclick="_tmIndiv.splice(${i},1);tmRenderIndiv()">×</span></td>
-    </tr>`;
-  }).join('');
-
-  tmRenderIndivSummary();
-}
-
-function tmRenderIndivSummary() {
-  const summary = document.getElementById('tmIndivSummary');
-  if(!summary||!_tmIndiv.length) return;
-  const total = _tmIndiv.reduce((s,i)=>s+(i.hours||0), 0);
-  const count = _tmIndiv.length;
-  const indivItems = _tmIndiv.filter(i=>(i.students||1)===1 && !i.form.includes('grupow'));
-  const groupItems = _tmIndiv.filter(i=>(i.students||1)>1  ||  i.form.includes('grupow'));
-  const totalStudents = _tmIndiv.reduce((s,i)=>s+(i.students||1),0);
-  summary.innerHTML = `<div class="indiv-summary">
-    <span class="indiv-summary-num">${total}</span>
-    <span>godz./tydz.
-      ${indivItems.length ? `<span style="color:var(--text-m)">· 👤 ${indivItems.length} indyw.</span>` : ''}
-      ${groupItems.length ? `<span style="color:var(--accent)">· 👥 ${groupItems.length} grupowych</span>` : ''}
-      <span style="color:var(--text-d);font-size:.72rem">(łącznie ${totalStudents} uczniów)</span>
-    </span>
-  </div>`;
 }
 
 function saveTeacherModal() {
@@ -8682,6 +8730,473 @@ function showPrivacyModal() {
 
 function closePrivacyModal() {
   document.getElementById('privacyOverlay').style.display = 'none';
+}
+
+
+// ================================================================
+//  MODAL NAUCZANIA INDYWIDUALNEGO (NI)
+// ================================================================
+// Struktura danych — appState.niStudents: [{
+//   id, name, classId, form, studentCount,
+//   subjects: [{
+//     subjId,
+//     mode: 'indiv' | 'class',  // indywidualnie lub z klasą
+//     teacherId: null | id,      // nauczyciel NI (tylko dla mode='indiv')
+//     hours: number              // godz./tydz. (tylko dla mode='indiv')
+//   }]
+// }]
+
+let _niEditId   = null;  // null = nowy, string = edycja
+let _niSubjRows = [];    // [{subjId, mode, teacherId, hours}] - stan edycji
+
+// ── Inicjalizacja stanu ──
+function niEnsureState() {
+  if(!appState.niStudents) appState.niStudents = [];
+}
+
+// ── Migracja ze starych struktur ──
+function niMigrate() {
+  if(!appState) return;
+  niEnsureState();
+
+  // Migruj z individualTeaching nauczycieli
+  (appState.teachers||[]).forEach(t => {
+    (t.individualTeaching||[]).forEach(item => {
+      // Sprawdź czy już nie zmigrowany
+      const exists = appState.niStudents.some(s =>
+        s.name === item.name && s._srcTch === t.id
+      );
+      if(exists) return;
+      const newStud = {
+        id: 'ni_' + Date.now() + Math.random().toString(36).slice(2,6),
+        name: item.name,
+        classId: null,
+        form: item.form || 'indywidualne',
+        studentCount: item.students || 1,
+        _srcTch: t.id,
+        subjects: item.subjectId ? [{
+          subjId: item.subjectId,
+          mode: 'indiv',
+          teacherId: t.id,
+          hours: item.hours || 1
+        }] : []
+      };
+      appState.niStudents.push(newStud);
+    });
+  });
+
+  // Migruj z grup klas (type='indiv')
+  (appState.classes||[]).forEach(cls => {
+    (cls.groups||[]).filter(g => g.type === 'indiv').forEach(g => {
+      const exists = appState.niStudents.some(s =>
+        s.name === g.name && s.classId === cls.id
+      );
+      if(exists) return;
+      const newStud = {
+        id: 'ni_' + Date.now() + Math.random().toString(36).slice(2,6),
+        name: g.name,
+        classId: cls.id,
+        form: 'indywidualne',
+        studentCount: 1,
+        subjects: (g.subjects||[]).map(sid => ({
+          subjId: sid, mode: 'indiv',
+          teacherId: g.teacherId || null, hours: 1
+        }))
+      };
+      appState.niStudents.push(newStud);
+      // Usuń z grup klasy
+      cls.groups = cls.groups.filter(gg => gg.id !== g.id);
+    });
+  });
+}
+
+// ── Otwórz modal główny ──
+function openNIModal(fromTchId, fromClsId) {
+  if(!appState) { notify('Najpierw utwórz plan'); return; }
+  niEnsureState();
+  niMigrate();
+
+  // Wypełnij filtr klas
+  const cf = document.getElementById('niClassFilter');
+  if(cf) {
+    cf.innerHTML = '<option value="">Wszystkie klasy</option>' +
+      sortClasses(appState.classes||[]).map(c =>
+        `<option value="${c.id}">${c.name}</option>`
+      ).join('');
+    if(fromClsId) cf.value = fromClsId;
+  }
+
+  niRender();
+  document.getElementById('niModal').classList.add('show');
+}
+
+function closeNIModal() {
+  document.getElementById('niModal').classList.remove('show');
+}
+
+// ── Renderuj listę uczniów NI ──
+function niRender() {
+  const clsFilter = document.getElementById('niClassFilter')?.value || '';
+  const list = document.getElementById('niStudentList');
+  if(!list) return;
+  niEnsureState();
+
+  let students = appState.niStudents;
+  if(clsFilter) students = students.filter(s => s.classId === clsFilter);
+
+  if(!students.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text-d)">
+      <div style="font-size:2rem;margin-bottom:10px">👤</div>
+      <div style="font-weight:700;margin-bottom:6px;color:var(--text-m)">Brak uczniów NI</div>
+      <div style="font-size:.78rem">Kliknij "+ Dodaj ucznia NI" aby zacząć</div>
+    </div>`;
+    return;
+  }
+
+  const subjects = appState.subjects||[];
+  const classes  = appState.classes||[];
+  const teachers = appState.teachers||[];
+
+  list.innerHTML = students.map(stud => {
+    const cls  = classes.find(c => c.id === stud.classId);
+    const indivSubjs = (stud.subjects||[]).filter(s => s.mode === 'indiv');
+    const classSubjs = (stud.subjects||[]).filter(s => s.mode === 'class');
+    const totalHours = indivSubjs.reduce((s,r) => s+(r.hours||0), 0);
+
+    const indivChips = indivSubjs.map(r => {
+      const subj = subjects.find(s=>s.id===r.subjId);
+      const tch  = r.teacherId ? teachers.find(t=>t.id===r.teacherId) : null;
+      return `<div style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;
+        border-radius:10px;background:${subj?.color||'#888'}22;
+        border:1px solid ${subj?.color||'#888'}44;font-size:.68rem;margin:1px">
+        <span style="width:7px;height:7px;border-radius:50%;
+          background:${subj?.color||'#888'};flex-shrink:0;display:inline-block"></span>
+        ${subj?.abbr||'?'}
+        ${tch?`<span style="color:var(--text-d)">${tch.abbr}</span>`:''}
+        <span style="color:var(--text-d)">${r.hours||1}h</span>
+      </div>`;
+    }).join('');
+
+    const classChips = classSubjs.map(r => {
+      const subj = subjects.find(s=>s.id===r.subjId);
+      return `<span style="font-size:.65rem;color:var(--text-d);padding:1px 5px;
+        border-radius:8px;background:var(--s3)">${subj?.abbr||'?'}</span>`;
+    }).join(' ');
+
+    const formBadge = stud.form ? `<span style="font-size:.65rem;padding:1px 7px;border-radius:8px;
+      background:var(--accent-g);color:var(--accent)">${stud.form}</span>` : '';
+
+    return `<div style="padding:12px 14px;background:var(--s2);border:1px solid var(--border);
+      border-radius:10px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="font-weight:700;font-size:.88rem">👤 ${stud.name}</span>
+            ${cls?`<span style="font-size:.7rem;background:var(--s3);padding:1px 7px;border-radius:6px;color:var(--text-m)">${cls.name}</span>`:''}
+            ${formBadge}
+            ${stud.studentCount>1?`<span style="font-size:.65rem;color:var(--text-d)">${stud.studentCount} ucz.</span>`:''}
+            ${totalHours?`<span style="font-family:var(--mono);font-size:.72rem;color:var(--accent)">${totalHours}h NI/tydz.</span>`:''}
+          </div>
+          ${indivChips?`<div style="margin-bottom:4px">
+            <span style="font-size:.62rem;color:var(--text-d);margin-right:4px">NI:</span>${indivChips}
+          </div>`:''}
+          ${classChips?`<div>
+            <span style="font-size:.62rem;color:var(--text-d);margin-right:4px">Z klasą:</span>${classChips}
+          </div>`:''}
+          ${!indivChips&&!classChips?`<span style="font-size:.72rem;color:var(--text-d)">Brak przypisanych przedmiotów</span>`:''}
+        </div>
+        <button onclick="niOpenEdit('${stud.id}')"
+          style="flex-shrink:0;padding:5px 12px;border-radius:6px;
+                 border:1px solid var(--border);background:transparent;
+                 color:var(--text-m);font-family:var(--font);font-size:.72rem;cursor:pointer">
+          Edytuj
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Dodaj nowego ucznia ──
+function niAddStudent() {
+  const clsFilter = document.getElementById('niClassFilter')?.value || '';
+  niOpenEdit(null, clsFilter);
+}
+
+// ── Otwórz edycję ucznia ──
+function niOpenEdit(studId, prefClsId) {
+  niEnsureState();
+  _niEditId = studId || null;
+
+  const stud = studId ? appState.niStudents.find(s=>s.id===studId) : null;
+
+  document.getElementById('niEditTitle').innerHTML =
+    stud ? `Edytuj: <span style="color:var(--accent)">${stud.name}</span>` : 'Nowy uczeń NI';
+  document.getElementById('niDeleteBtn').style.display = stud ? '' : 'none';
+
+  // Wypełnij pola
+  document.getElementById('niStudName').value  = stud?.name || '';
+  document.getElementById('niStudForm').value  = stud?.form || 'indywidualne';
+  document.getElementById('niStudCount').value = stud?.studentCount || 1;
+
+  // Wypełnij select klas
+  const clsSel = document.getElementById('niStudClass');
+  clsSel.innerHTML = '<option value="">— brak przypisania —</option>' +
+    sortClasses(appState.classes||[]).map(c =>
+      `<option value="${c.id}">${c.name}</option>`
+    ).join('');
+  clsSel.value = stud?.classId || prefClsId || '';
+
+  // Załaduj wiersze przedmiotów
+  _niSubjRows = JSON.parse(JSON.stringify(stud?.subjects || []));
+  niEditClassChange();
+
+  document.getElementById('niEditModal').classList.add('show');
+}
+
+function closeNIEditModal() {
+  document.getElementById('niEditModal').classList.remove('show');
+  _niEditId = null;
+  _niSubjRows = [];
+}
+
+// ── Zmiana klasy — przeładuj tabelę przedmiotów ──
+function niEditClassChange() {
+  const clsId = document.getElementById('niStudClass').value;
+  const cls   = clsId ? (appState.classes||[]).find(c=>c.id===clsId) : null;
+  const subjects = sortSubjects(appState.subjects||[]);
+  const teachers = sortTeachers(appState.teachers||[]);
+
+  // Które przedmioty są przypisane do tej klasy (lub wszystkie jeśli brak klasy)
+  const clsSubjs = cls
+    ? subjects.filter(s => !(s.classes||[]).length || (s.classes||[]).includes(clsId))
+    : subjects;
+
+  // Uzupełnij _niSubjRows — dodaj brakujące, zachowaj istniejące
+  clsSubjs.forEach(s => {
+    if(!_niSubjRows.find(r=>r.subjId===s.id)) {
+      _niSubjRows.push({ subjId:s.id, mode:'class', teacherId:null, hours:1 });
+    }
+  });
+  // Usuń przedmioty których nie ma w tej klasie (chyba że były ręcznie ustawione)
+  _niSubjRows = _niSubjRows.filter(r => clsSubjs.some(s=>s.id===r.subjId));
+
+  renderNISubjTable(clsSubjs, teachers);
+  niEditSummary();
+}
+
+// ── Renderuj tabelę przedmiotów ──
+function renderNISubjTable(clsSubjs, teachers) {
+  const container = document.getElementById('niSubjTable');
+  if(!container) return;
+
+  if(!clsSubjs.length) {
+    container.innerHTML = `<div style="color:var(--text-d);font-size:.78rem;padding:10px">
+      Wybierz klasę aby zobaczyć przedmioty</div>`;
+    return;
+  }
+
+  container.innerHTML = clsSubjs.map((subj,i) => {
+    const row = _niSubjRows.find(r=>r.subjId===subj.id) ||
+      { subjId:subj.id, mode:'class', teacherId:null, hours:1 };
+    const isIndiv = row.mode === 'indiv';
+
+    // Opcje nauczycieli przypisanych do tej klasy z tego przedmiotu
+    const clsId = document.getElementById('niStudClass').value;
+    const relevantTchs = clsId
+      ? teachers.filter(t=>(t.assignments||[]).some(a=>a.classId===clsId&&a.subjectId===subj.id))
+      : teachers;
+
+    const tchOptions = `<option value="">— brak —</option>` +
+      relevantTchs.map(t=>`<option value="${t.id}" ${row.teacherId===t.id?'selected':''}>
+        ${t.last} ${t.first} (${t.abbr})</option>`).join('') +
+      (relevantTchs.length < teachers.length
+        ? `<optgroup label="— inni nauczyciele —">` +
+          teachers.filter(t=>!relevantTchs.includes(t)).map(t=>
+            `<option value="${t.id}" ${row.teacherId===t.id?'selected':''}>${t.last} ${t.first} (${t.abbr})</option>`
+          ).join('') + `</optgroup>`
+        : '');
+
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;
+      background:${isIndiv?'var(--accent-g2)':'var(--s2)'};
+      border:1px solid ${isIndiv?'var(--accent)33':'var(--border)'};
+      border-radius:8px;flex-wrap:wrap" id="nirow_${subj.id}">
+
+      <!-- Kolor + nazwa przedmiotu -->
+      <div style="display:flex;align-items:center;gap:6px;min-width:130px;flex:1">
+        <span style="width:9px;height:9px;border-radius:50%;background:${subj.color||'#888'};flex-shrink:0"></span>
+        <span style="font-size:.8rem;font-weight:600">${subj.name}</span>
+        <span style="font-size:.68rem;color:var(--text-d);font-family:var(--mono)">${subj.abbr||''}</span>
+      </div>
+
+      <!-- Przełącznik Indywidualnie / Z klasą -->
+      <div style="display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;flex-shrink:0">
+        <button data-mode="class" onclick="niSetMode('${subj.id}','class')"
+          style="padding:4px 10px;font-size:.72rem;font-weight:600;cursor:pointer;border:none;
+                 background:${!isIndiv?'var(--accent)':'var(--s3)'};
+                 color:${!isIndiv?'#fff':'var(--text-m)'}">
+          🏫 Z klasą
+        </button>
+        <button data-mode="indiv" onclick="niSetMode('${subj.id}','indiv')"
+          style="padding:4px 10px;font-size:.72rem;font-weight:600;cursor:pointer;border:none;
+                 background:${isIndiv?'var(--accent)':'var(--s3)'};
+                 color:${isIndiv?'#fff':'var(--text-m)'}">
+          👤 Indywidualnie
+        </button>
+      </div>
+
+      <!-- Nauczyciel i godziny (tylko gdy indiv) -->
+      <div style="display:${isIndiv?'flex':'none'};gap:6px;align-items:center;flex-wrap:wrap"
+        id="niindiv_${subj.id}">
+        <select class="mselect" style="font-size:.72rem;padding:4px 8px;min-width:140px"
+          onchange="niSetTeacher('${subj.id}',this.value)">
+          ${tchOptions}
+        </select>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" min="1" max="20" value="${row.hours||1}"
+            style="width:48px;padding:4px 6px;border:1px solid var(--border);
+                   border-radius:6px;background:var(--s2);color:var(--text);
+                   font-family:var(--font);font-size:.72rem;text-align:center"
+            onchange="niSetHours('${subj.id}',this.value)"
+            title="Godziny NI tygodniowo">
+          <span style="font-size:.65rem;color:var(--text-d)">h/tydz.</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Zmiana trybu przedmiotu ──
+function niSetMode(subjId, mode) {
+  const row = _niSubjRows.find(r=>r.subjId===subjId);
+  if(row) row.mode = mode;
+  else _niSubjRows.push({subjId, mode, teacherId:null, hours:1});
+
+  // Przerenderuj tylko ten wiersz
+  const clsId   = document.getElementById('niStudClass').value;
+  const cls      = clsId ? (appState.classes||[]).find(c=>c.id===clsId) : null;
+  const subjects = sortSubjects(appState.subjects||[]);
+  const teachers = sortTeachers(appState.teachers||[]);
+  const clsSubjs = cls
+    ? subjects.filter(s => !(s.classes||[]).length || (s.classes||[]).includes(clsId))
+    : subjects;
+  renderNISubjTable(clsSubjs, teachers);
+  niEditSummary();
+}
+
+function niSetTeacher(subjId, tchId) {
+  const row = _niSubjRows.find(r=>r.subjId===subjId);
+  if(row) row.teacherId = tchId || null;
+  niEditSummary();
+}
+
+function niSetHours(subjId, val) {
+  const row = _niSubjRows.find(r=>r.subjId===subjId);
+  if(row) row.hours = parseInt(val)||1;
+  niEditSummary();
+}
+
+// ── Podsumowanie edycji ──
+function niEditSummary() {
+  const el = document.getElementById('niEditSummary');
+  if(!el) return;
+  const indiv = _niSubjRows.filter(r=>r.mode==='indiv');
+  const cls   = _niSubjRows.filter(r=>r.mode==='class');
+  const hours = indiv.reduce((s,r)=>s+(r.hours||0),0);
+  const noTch = indiv.filter(r=>!r.teacherId);
+
+  el.innerHTML = `<div style="padding:8px 12px;background:var(--s2);border-radius:8px;
+    font-size:.72rem;color:var(--text-m);display:flex;gap:16px;flex-wrap:wrap">
+    <span>👤 NI: <strong style="color:var(--accent)">${indiv.length}</strong> przedm. · ${hours}h/tydz.</span>
+    <span>🏫 Z klasą: <strong>${cls.length}</strong> przedm.</span>
+    ${noTch.length?`<span style="color:var(--red)">⚠ ${noTch.length} bez nauczyciela NI</span>`:''}
+  </div>`;
+}
+
+// ── Zapisz ucznia ──
+function niSaveStudent() {
+  const name = document.getElementById('niStudName').value.trim();
+  if(!name) { notify('Podaj imię i nazwisko ucznia'); return; }
+
+  const stud = {
+    id: _niEditId || ('ni_' + Date.now() + Math.random().toString(36).slice(2,6)),
+    name,
+    classId:      document.getElementById('niStudClass').value || null,
+    form:         document.getElementById('niStudForm').value,
+    studentCount: parseInt(document.getElementById('niStudCount').value)||1,
+    subjects:     _niSubjRows.filter(r=>r.mode==='indiv'||r.mode==='class')
+  };
+
+  niEnsureState();
+  if(_niEditId) {
+    const idx = appState.niStudents.findIndex(s=>s.id===_niEditId);
+    if(idx>=0) appState.niStudents[idx] = stud;
+  } else {
+    appState.niStudents.push(stud);
+  }
+
+  // Synchronizuj z polami klas i nauczycieli których solver potrzebuje
+  niSyncToAppState(stud);
+
+  persistAll();
+  closeNIEditModal();
+  niRender();
+  notify(_niEditId ? 'Zapisano zmiany' : 'Dodano ucznia NI: ' + name);
+}
+
+// ── Synchronizuj do appState (solver) ──
+function niSyncToAppState(stud) {
+  // Zaktualizuj grupy klasy (nie ma już indiv w grupach)
+  if(stud.classId) {
+    const cls = (appState.classes||[]).find(c=>c.id===stud.classId);
+    if(cls) {
+      cls.groups = (cls.groups||[]).filter(g=>g.type!=='indiv'||!g._niId||g._niId!==stud.id);
+    }
+  }
+  // Synchronizuj niStudentSubjects do nauczycieli
+  // (solver czyta appState.niStudents bezpośrednio)
+}
+
+// ── Usuń ucznia ──
+function niDeleteStudent() {
+  if(!_niEditId) return;
+  const stud = appState.niStudents?.find(s=>s.id===_niEditId);
+  if(!stud) return;
+  if(!confirm(`Usunąć ucznia NI "${stud.name}"?`)) return;
+  appState.niStudents = appState.niStudents.filter(s=>s.id!==_niEditId);
+  persistAll();
+  closeNIEditModal();
+  niRender();
+  notify('Usunięto ucznia NI');
+}
+
+// ── Zamknij klikając tło ──
+document.getElementById('niModal').addEventListener('click', function(e){
+  if(e.target===this) closeNIModal();
+});
+document.getElementById('niEditModal').addEventListener('click', function(e){
+  if(e.target===this) closeNIEditModal();
+});
+
+// ── Aktualizuj badge NI w modalu nauczyciela ──
+function niUpdateTeacherBadge(tchId) {
+  if(!tchId || !appState?.niStudents) return;
+  const box = document.getElementById('tmIndivSummaryBox');
+  if(!box) return;
+  const subjects = appState.subjects||[];
+  const niRows = [];
+  appState.niStudents.forEach(stud => {
+    (stud.subjects||[]).filter(r=>r.mode==='indiv'&&r.teacherId===tchId).forEach(r=>{
+      const subj = subjects.find(s=>s.id===r.subjId);
+      niRows.push(`${stud.name} · ${subj?.abbr||'?'} · ${r.hours||1}h`);
+    });
+  });
+  if(niRows.length) {
+    box.style.display='';
+    box.innerHTML = `<strong>👤 Ten nauczyciel prowadzi NI:</strong><br>` +
+      niRows.map(r=>`<span style="font-size:.72rem;color:var(--text-m)">${r}</span>`).join('<br>');
+  } else {
+    box.style.display='none';
+  }
 }
 
 // ================================================================
