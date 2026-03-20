@@ -1394,34 +1394,46 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap" onclick="tmAddAssignment()">+ Dodaj</button>
       </div>
     </div>
-    <!-- Nauczanie indywidualne -->
+    <!-- Nauczanie indywidualne i grupowe -->
     <div class="mfield" style="margin-top:4px">
-      <label>Nauczanie indywidualne
+      <label>Nauczanie indywidualne i zajęcia w małych grupach
         <span style="font-size:.7rem;font-weight:400;color:var(--text-m);margin-left:6px">
-          — godziny poza planem lekcji, przypisane do konkretnych uczniów
+          — odrębne formy organizacyjne z własnym pensum, traktowane jak osobne klasy
         </span>
       </label>
       <table class="indiv-table">
         <thead><tr>
-          <th>Uczeń / opis</th><th>Przedmiot</th><th>Forma</th>
-          <th style="width:70px">Godz./tydz.</th><th style="width:36px"></th>
+          <th>Uczeń / grupa / opis</th><th>Przedmiot</th><th>Forma</th>
+          <th style="width:52px" title="Liczba uczniów">Ucz.</th>
+          <th style="width:60px">Godz./tydz.</th>
+          <th style="width:36px"></th>
         </tr></thead>
         <tbody id="tmIndivBody"></tbody>
       </table>
       <div class="indiv-add-row">
-        <input class="minput" id="tmIndivName" placeholder="Imię Nazwisko lub opis" style="flex:2;min-width:120px">
+        <input class="minput" id="tmIndivName" placeholder="Imię Nazwisko / nazwa grupy" style="flex:2;min-width:120px">
         <select class="mselect" id="tmIndivSubject" style="flex:1;min-width:100px">
           <option value="">— przedmiot —</option>
         </select>
-        <select class="mselect" id="tmIndivForm" style="flex:1;min-width:100px">
-          <option value="indywidualne">Indywidualne</option>
+        <select class="mselect" id="tmIndivForm" style="flex:1;min-width:120px"
+          onchange="tmIndivFormChange()">
+          <option value="indywidualne">Indywidualne (1 uczeń)</option>
+          <option value="grupowe-2-5">Grupowe 2–5 uczniów</option>
           <option value="rewalidacja">Rewalidacja</option>
+          <option value="rewalidacja-grupowa">Rewalidacja grupowa</option>
           <option value="zajęcia wyrównawcze">Wyrównawcze</option>
           <option value="zajęcia rozwijające">Rozwijające</option>
+          <option value="logopedia">Logopedia</option>
           <option value="inne">Inne</option>
         </select>
+        <input class="indiv-num" id="tmIndivStudents" type="number" min="1" max="5"
+          value="1" placeholder="ucz." title="Liczba uczniów (max 5 dla zajęć grupowych)"
+          style="width:52px">
         <input class="indiv-num" id="tmIndivHours" type="number" min="1" max="20" value="1" placeholder="h">
         <button class="mbtn mbtn-primary" style="padding:8px 12px;white-space:nowrap" onclick="tmAddIndiv()">+ Dodaj</button>
+      </div>
+      <div style="font-size:.7rem;color:var(--text-d);margin-top:4px">
+        💡 Zajęcia indywidualne i grupowe (do 5 osób) są traktowane jak osobne klasy — solver przydzieli im osobne sloty i sale. Liczą się osobno w pensum nauczyciela.
       </div>
       <div id="tmIndivSummary"></div>
     </div>
@@ -1748,16 +1760,41 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       </div>
     </div>
 
-    <!-- Grupy -->
+    <!-- Grupy, NI, małe grupy -->
     <div class="mfield">
-      <label>Grupy (podgrupy klasy)</label>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <input class="minput" id="cmGroupInput" placeholder="np. gr1, gr2, ang-a" style="flex:1"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();cmAddGroup()}">
-        <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap" onclick="cmAddGroup()">+ Dodaj</button>
+      <label>Grupy, nauczanie indywidualne i zajęcia w małych grupach</label>
+      <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px;line-height:1.5">
+        Dodaj podgrupy klasy (np. do podziału na j. obcy), uczniów z NI lub grupy do 5 osób.
+        Każdej możesz przypisać nauczyciela — będzie podpowiadany przy dodawaniu lekcji.
+      </p>
+      <div id="cmGroupList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+        <div style="display:flex;flex-direction:column;gap:3px;flex:2;min-width:110px">
+          <span style="font-size:.68rem;color:var(--text-m);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Nazwa</span>
+          <input class="minput" id="cmGroupInput" placeholder="np. gr1, ang-a, Jan K."
+            onkeydown="if(event.key==='Enter'){event.preventDefault();cmAddGroup()}">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:110px">
+          <span style="font-size:.68rem;color:var(--text-m);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Typ</span>
+          <select class="mselect" id="cmGroupType" onchange="cmGroupTypeChange()">
+            <option value="group">Podgrupa klasy</option>
+            <option value="small">Mała grupa (2–5 os.)</option>
+            <option value="indiv">Nauczanie indywidualne</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;width:60px" id="cmGroupCountWrap">
+          <span style="font-size:.68rem;color:var(--text-m);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Ucz.</span>
+          <input class="minput" id="cmGroupCount" type="number" min="1" max="5" value="1"
+            style="padding:8px 6px;text-align:center" placeholder="1">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex:2;min-width:120px">
+          <span style="font-size:.68rem;color:var(--text-m);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Nauczyciel</span>
+          <select class="mselect" id="cmGroupTeacher">
+            <option value="">— brak —</option>
+          </select>
+        </div>
+        <button class="mbtn mbtn-primary" style="padding:8px 14px;white-space:nowrap;align-self:flex-end" onclick="cmAddGroup()">+ Dodaj</button>
       </div>
-      <div class="tag-list" id="cmGroupList"></div>
-      <p style="font-size:.72rem;color:var(--text-m);margin-top:4px">Grupom można potem przypisać nauczyciela przy dodawaniu lekcji.</p>
     </div>
 
     <!-- Sale — gospodarz -->
@@ -2013,6 +2050,7 @@ function migrateAppState() {
     if(!t.subjects)           t.subjects           = [];
     if(!t.assignments)        t.assignments        = [];
     if(!t.individualTeaching) t.individualTeaching = [];
+    (t.individualTeaching||[]).forEach(i => { if(i.students===undefined) i.students=1; });
     if(t.hoursTotal === undefined) t.hoursTotal = 0;
     if(t.hoursExtra === undefined) t.hoursExtra = 0;
     if(t.employment  === undefined) t.employment  = 'full'; // 'full'|'half'|'other'
@@ -2030,6 +2068,14 @@ function migrateAppState() {
   // Nowe pola klas
   (appState.classes||[]).forEach(c => {
     if(!c.optionalSubjects) c.optionalSubjects = [];
+    // Migruj grupy z string[] na object[]
+    if(Array.isArray(c.groups)) {
+      c.groups = c.groups.map(g =>
+        typeof g === 'string'
+          ? {id:'grp'+Math.random().toString(36).slice(2,9), name:g, type:'group', studentCount:0, teacherId:null}
+          : g
+      );
+    }
     if(!c.studentCount)     c.studentCount = 0;
     (c.optionalSubjects||[]).forEach(o => { if(!o.mergeWith) o.mergeWith = []; });
   });
@@ -3582,6 +3628,9 @@ function renderGenerator() {
   html += genSection('consecutive', '📆 Max dni z rzędu dla przedmiotu', `
     ${genMaxConsecutiveUI(C)}`);
 
+  // ─── SEKCJA 6c: Nauczanie indywidualne i grupowe ───
+  html += genSection('indivteach', '👤 Nauczanie indywidualne i grupowe', genIndivTeachUI());
+
   // ─── SEKCJA 7: Preferencje sal ───
   html += genSection('rooms', '🏫 Preferencje sal', genRoomPrefUI());
 
@@ -3996,7 +4045,6 @@ function genGroupsUI(C) {
       const dot    = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;
                        background:${s.color||'#888'}"></span>`;
       if(isAuto) {
-        // Przedmiot opcjonalny — zawsze w grupie, nie można wyłączyć
         return `<div class="gen-pill active" style="gap:5px;opacity:.85;cursor:default" title="${s.name} — automatycznie w grupie (przedmiot opcjonalny)">
           ${dot} ${s.abbr||s.name}
           <span style="font-size:.58rem;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.25)">auto</span>
@@ -4008,9 +4056,26 @@ function genGroupsUI(C) {
       </div>`;
     }).join('');
 
+    // Grupy NI i małe — pokaż informacyjnie
+    const specialGroups = (cls.groups||[]).filter(g=>g.type==='indiv'||g.type==='small');
+    const specialPills = specialGroups.map(g => {
+      const tch = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
+      const icon = g.type==='indiv' ? '👤' : '👤👤';
+      return `<div class="gen-pill active" style="gap:4px;opacity:.9;cursor:default;
+        border-color:var(--accent)" title="${g.type==='indiv'?'Nauczanie indywidualne':'Mała grupa'}: ${g.name}">
+        ${icon} ${g.name}${tch?' · '+tch.abbr:''}
+        <span style="font-size:.58rem;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.25)">
+          ${g.type==='indiv'?'NI':g.studentCount+'os.'}
+        </span>
+      </div>`;
+    }).join('');
+
     return `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
       <div style="font-size:.75rem;font-weight:700;margin-bottom:6px">${cls.name}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px">${pills}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${pills}
+        ${specialPills}
+      </div>
     </div>`;
   }).join('');
 
@@ -4374,6 +4439,89 @@ function genSetMaxConsecutive(subjId, val) {
   else C.maxConsecutive[subjId] = val;
 }
 
+// ── UI: Nauczanie indywidualne i grupowe ──
+function genIndivTeachUI() {
+  const teachers = appState.teachers||[];
+  const subjects = appState.subjects||[];
+
+  // Zbierz wszystkie wpisy NI i grupowe
+  const allItems = [];
+  sortTeachers(teachers).forEach(t => {
+    (t.individualTeaching||[]).forEach(item => {
+      allItems.push({t, item});
+    });
+  });
+
+  if(!allItems.length) return `<div style="color:var(--text-d);font-size:.78rem">
+    Brak wpisów nauczania indywidualnego lub grupowego.<br>
+    Dodaj je w <strong>Ustawieniach → Nauczyciele → karta nauczyciela → Nauczanie indywidualne i grupowe</strong>.
+  </div>`;
+
+  // Pogrupuj: indywidualne vs grupowe
+  const indivItems = allItems.filter(({item}) => (item.students||1)===1 && !item.form.includes('grupow'));
+  const groupItems = allItems.filter(({item}) => (item.students||1)>1  ||  item.form.includes('grupow'));
+
+  let html = `<p style="font-size:.72rem;color:var(--text-m);margin:0 0 12px;line-height:1.6">
+    Zajęcia indywidualne i grupowe (do 5 osób) są traktowane jak <strong>osobne klasy</strong> —
+    solver przydziela im osobne sloty w planie, niezależne od regularnych lekcji.
+    Wpisz w polach poniżej ile razy w tygodniu dane zajęcia powinny się odbyć (zwykle odpowiada to już wpisanym godzinom).
+  </p>`;
+
+  if(indivItems.length) {
+    html += `<div style="font-size:.73rem;font-weight:700;color:var(--text-m);text-transform:uppercase;
+      letter-spacing:.04em;margin-bottom:8px">👤 Nauczanie indywidualne</div>`;
+    html += indivItems.map(({t, item}) => {
+      const subj = item.subjectId ? subjects.find(s=>s.id===item.subjectId) : null;
+      return `<div class="gen-subj-row">
+        <span class="gen-subj-name" style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-weight:700">${item.name}</span>
+          <span style="font-size:.68rem;color:var(--text-d)">${t.abbr} · ${subj?.name||'—'} · ${item.form}</span>
+        </span>
+        <div class="gen-field-row">
+          <span class="gen-label">Godz./tydz.:</span>
+          <span style="font-family:var(--mono);font-size:.8rem;color:var(--accent);font-weight:700">${item.hours}</span>
+          <span class="gen-label" style="margin-left:10px;color:var(--text-d);font-size:.68rem">
+            (wg ustawień nauczyciela)
+          </span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if(groupItems.length) {
+    html += `<div style="font-size:.73rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.04em;margin:${indivItems.length?12:0}px 0 8px">👥 Zajęcia w grupach (2–5 osób)</div>`;
+    html += groupItems.map(({t, item}) => {
+      const subj = item.subjectId ? subjects.find(s=>s.id===item.subjectId) : null;
+      const students = item.students||2;
+      return `<div class="gen-subj-row" style="border-left:3px solid var(--accent);padding-left:8px">
+        <span class="gen-subj-name" style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-weight:700">${item.name}
+            <span style="font-size:.68rem;background:var(--accent-g);color:var(--accent);
+              padding:1px 6px;border-radius:8px;margin-left:4px">${students} ucz.</span>
+          </span>
+          <span style="font-size:.68rem;color:var(--text-d)">${t.abbr} · ${subj?.name||'—'} · ${item.form}</span>
+        </span>
+        <div class="gen-field-row">
+          <span class="gen-label">Godz./tydz.:</span>
+          <span style="font-family:var(--mono);font-size:.8rem;color:var(--accent);font-weight:700">${item.hours}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Podsumowanie
+  const totalHours = allItems.reduce((s,{item})=>s+item.hours,0);
+  const totalStudents = allItems.reduce((s,{item})=>s+(item.students||1),0);
+  html += `<div style="margin-top:12px;padding:8px 12px;background:var(--s2);border-radius:7px;
+    font-size:.72rem;color:var(--text-m)">
+    Łącznie: <strong>${totalHours} godz./tydz.</strong> dla ${totalStudents} uczniów
+    w ${allItems.length} zajęciach — solver zarezerwuje osobne sloty.
+  </div>`;
+
+  return html;
+}
+
 function genSaveConstraints() {
   persistAll();
   notify('Warunki generatora zapisane');
@@ -4441,7 +4589,8 @@ function genRun() {
       employment:t.employment||'full',
       employmentFraction:t.employmentFraction||1,
       assignments:(t.assignments||[]).filter(a=>a.hours>0),
-      availability:((C.teacherAvail||{})[t.id])||{}
+      availability:((C.teacherAvail||{})[t.id])||{},
+      individualTeaching:(t.individualTeaching||[]).map(i=>({...i, students:i.students||1}))
     })),
     subjects: subjects.map(s=>({
       id:s.id, name:s.name, abbr:s.abbr, color:s.color,
@@ -4742,7 +4891,33 @@ function genWorkerFn() {
       });
     });
 
-    log(`Zadań: ${tasks.length}, godzin do przydzielenia: ${tasks.reduce((s,t)=>s+t.hoursLeft,0)}`);
+    // ── Dodaj zadania NI i grupowe ──
+    teachers.forEach(t => {
+      (t.individualTeaching||[]).forEach((item,idx) => {
+        if(!item.hours) return;
+        const isGroup = (item.students||1) > 1 || (item.form||'').includes('grupow');
+        // ID wirtualnej klasy dla tego ucznia/grupy
+        const virtualClsId = `ni_${t.id}_${idx}`;
+        tasks.push({
+          clsId: virtualClsId,
+          clsName: item.name + (isGroup ? ` (gr. ${item.students||2})` : ' (NI)'),
+          tchId: t.id, tchAbbr: t.abbr,
+          subjId: item.subjectId||null,
+          subjName: item.form||'NI',
+          hoursLeft: item.hours,
+          blkSz: 1,             // NI zawsze pojedyncze godziny
+          pos: 'any',
+          maxPD: 0, maxCon: 0,
+          isOptional: false, mergeClsIds: null,
+          isIndiv: !isGroup,
+          isGroup: isGroup,
+          students: item.students||1,
+          priority: isGroup ? 15 : 20, // wysoki priorytet - trudniejsze do ułożenia
+        });
+      });
+    });
+
+    log('Zadań: ' + tasks.length + ', godzin do przydzielenia: ' + tasks.reduce((s,t)=>s+t.hoursLeft,0));
 
     // Sortuj: najpierw najtrudniejsze (opcjonalne/skrajne, blokami, dużo godzin)
     tasks.sort((a,b)=>b.priority-a.priority);
@@ -5124,7 +5299,15 @@ function renderSettings() {
       <div class="tch-card-header" onclick="toggleClsCard('${c.id}')">
         <div class="tch-card-name">${c.name}</div>
         ${homeroom ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Wychowawca">👤 ${homeroom.abbr}</span>` : ''}
-        ${c.groups&&c.groups.length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">gr: ${c.groups.join(', ')}</span>` : ''}
+        ${(c.groups||[]).length ? (() => {
+          const grps = c.groups.map(g => {
+            const tch = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
+            const icons = {group:'👥',small:'👤',indiv:'👤'};
+            const icon = icons[g.type||'group']||'👥';
+            return icon + (g.name||g) + (tch?' ('+tch.abbr+')':'');
+          });
+          return `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">${grps.join(' · ')}</span>`;
+        })() : ''}
         ${homeRoomNames.length ? `<span style="font-size:.72rem;color:var(--teal);margin-right:6px" title="Sale gospodarz">🏫 ${homeRoomNames.join(', ')}</span>` : ''}
         ${(c.optionalSubjects||[]).length ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px" title="Przedmioty opcjonalne">◑ ${(c.optionalSubjects||[]).map(o=>{const s=appState.subjects.find(s=>s.id===o.subjId);return s?(s.abbr||s.name)+(o.count?` (${o.count})`:'')+(o.position==='edge'?' ⇔':''):'';}).filter(Boolean).join(', ')}</span>` : ''}
         ${c.studentCount ? `<span style="font-size:.72rem;color:var(--text-m);margin-right:6px">👤 ${c.studentCount} ucz.</span>` : ''}
@@ -6188,14 +6371,28 @@ function tmFillIndivSubject() {
     sortSubjects(appState.subjects).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 }
 
+function tmIndivFormChange() {
+  const form = document.getElementById('tmIndivForm').value;
+  const studEl = document.getElementById('tmIndivStudents');
+  const isGroup = form.includes('grupow') || form === 'zajęcia wyrównawcze' || form === 'zajęcia rozwijające';
+  studEl.max   = isGroup ? 5 : 1;
+  studEl.value = isGroup ? Math.min(parseInt(studEl.value)||1, 5) : 1;
+  studEl.disabled = !isGroup && form === 'indywidualne';
+}
+
 function tmAddIndiv() {
-  const name  = document.getElementById('tmIndivName').value.trim();
-  const subjId= document.getElementById('tmIndivSubject').value;
-  const form  = document.getElementById('tmIndivForm').value;
-  const hours = parseInt(document.getElementById('tmIndivHours').value)||1;
-  if(!name){ notify('Podaj imię ucznia lub opis'); return; }
-  _tmIndiv.push({ name, subjectId:subjId||null, form, hours });
+  const name     = document.getElementById('tmIndivName').value.trim();
+  const subjId   = document.getElementById('tmIndivSubject').value;
+  const form     = document.getElementById('tmIndivForm').value;
+  const students = parseInt(document.getElementById('tmIndivStudents').value)||1;
+  const hours    = parseInt(document.getElementById('tmIndivHours').value)||1;
+  if(!name){ notify('Podaj imię ucznia lub opis grupy'); return; }
+  // Walidacja - max 5 uczniów dla zajęć grupowych
+  const isGroup = form.includes('grupow') || form==='zajęcia wyrównawcze' || form==='zajęcia rozwijające';
+  if(isGroup && students > 5) { notify('Zajęcia grupowe — max 5 uczniów'); return; }
+  _tmIndiv.push({ name, subjectId:subjId||null, form, students: isGroup ? students : 1, hours });
   document.getElementById('tmIndivName').value = '';
+  document.getElementById('tmIndivStudents').value = '1';
   tmRenderIndiv();
 }
 
@@ -6212,13 +6409,26 @@ function tmRenderIndiv() {
   }
 
   tbody.innerHTML = _tmIndiv.map((item, i) => {
-    const subj = item.subjectId ? appState.subjects.find(s=>s.id===item.subjectId) : null;
+    const subj     = item.subjectId ? appState.subjects.find(s=>s.id===item.subjectId) : null;
+    const isGroup  = (item.students||1) > 1 || item.form.includes('grupow');
+    const typeIcon = isGroup ? '👥' : '👤';
+    const formLabel= item.form.replace('zajęcia ','');
     return `<tr>
-      <td style="font-weight:600">${item.name}</td>
+      <td style="font-weight:600">
+        <span title="${isGroup?'Zajęcia grupowe':'Nauczanie indywidualne'}">${typeIcon}</span>
+        ${item.name}
+      </td>
       <td>${subj
         ? `<span class="cdot" style="background:${subj.color};margin-right:5px"></span>${subj.name}`
         : '<span style="color:var(--text-m)">—</span>'}</td>
-      <td><span style="font-size:.72rem;background:var(--s3);padding:2px 7px;border-radius:4px">${item.form}</span></td>
+      <td><span style="font-size:.68rem;background:${isGroup?'var(--accent-g)':'var(--s3)'};
+        border:1px solid ${isGroup?'var(--accent)44':'var(--border)'};
+        padding:1px 6px;border-radius:4px;color:${isGroup?'var(--accent)':'var(--text-m)'}">${formLabel}</span></td>
+      <td style="text-align:center">
+        <input class="indiv-num" type="number" min="1" max="${isGroup?5:1}" value="${item.students||1}"
+          style="width:44px"
+          onchange="_tmIndiv[${i}].students=parseInt(this.value)||1;tmRenderIndivSummary()">
+      </td>
       <td>
         <input class="indiv-num" type="number" min="1" max="20" value="${item.hours}"
           onchange="_tmIndiv[${i}].hours=parseInt(this.value)||1;tmRenderIndivSummary()">
@@ -6236,10 +6446,15 @@ function tmRenderIndivSummary() {
   if(!summary||!_tmIndiv.length) return;
   const total = _tmIndiv.reduce((s,i)=>s+(i.hours||0), 0);
   const count = _tmIndiv.length;
+  const indivItems = _tmIndiv.filter(i=>(i.students||1)===1 && !i.form.includes('grupow'));
+  const groupItems = _tmIndiv.filter(i=>(i.students||1)>1  ||  i.form.includes('grupow'));
+  const totalStudents = _tmIndiv.reduce((s,i)=>s+(i.students||1),0);
   summary.innerHTML = `<div class="indiv-summary">
     <span class="indiv-summary-num">${total}</span>
-    <span>godz./tydz. nauczania indywidualnego
-      <span style="color:var(--text-m)">(${count} ${count===1?'uczeń':count<5?'uczniów':'uczniów'})</span>
+    <span>godz./tydz.
+      ${indivItems.length ? `<span style="color:var(--text-m)">· 👤 ${indivItems.length} indyw.</span>` : ''}
+      ${groupItems.length ? `<span style="color:var(--accent)">· 👥 ${groupItems.length} grupowych</span>` : ''}
+      <span style="color:var(--text-d);font-size:.72rem">(łącznie ${totalStudents} uczniów)</span>
     </span>
   </div>`;
 }
@@ -7537,6 +7752,8 @@ function openAddClassModal() {
     document.getElementById('cmStudentCount').value = '';
     cmRenderGroups();
     cmFillHomeroom(null);
+    cmFillGroupTeachers();
+    cmGroupTypeChange();
     cmRenderRooms([]);
     cmRenderTeachers(null);
     _cmOptSubjects = [];
@@ -7550,13 +7767,20 @@ function openEditClassModal(id) {
   const c = appState.classes.find(c => c.id === id);
   if (!c) return;
   _cmId = id;
-  _cmGroups = [...(c.groups || [])];
+  // Migruj stare grupy (string) do nowego formatu (obiekt)
+  _cmGroups = (c.groups || []).map(g =>
+    typeof g === 'string'
+      ? { id:'grp'+Date.now()+Math.random().toString(36).slice(2,5), name:g, type:'group', studentCount:0, teacherId:null }
+      : g
+  );
   document.getElementById('classModalTitle').innerHTML = `Edytuj klasę <span>${c.name}</span>`;
   document.getElementById('cmName').value = c.name || '';
   document.getElementById('cmStudentCount').value = c.studentCount || '';
   document.getElementById('cmDeleteBtn').style.display = '';
   cmRenderGroups();
   cmFillHomeroom(c.homeroomTeacherId || null);
+  cmFillGroupTeachers();
+  cmGroupTypeChange();
   cmRenderRooms(c.homeRooms || []);
   cmRenderTeachers(id);
   _cmOptSubjects = (c.optionalSubjects || []).map(o=>({...o}));
@@ -7573,22 +7797,79 @@ function cmFillHomeroom(selectedId) {
     ).join('');
 }
 
+function cmGroupTypeChange() {
+  const type = document.getElementById('cmGroupType').value;
+  const countWrap = document.getElementById('cmGroupCountWrap');
+  const countEl   = document.getElementById('cmGroupCount');
+  if(type === 'small') {
+    countWrap.style.display = '';
+    countEl.max = 5; countEl.min = 2; countEl.value = Math.max(2, parseInt(countEl.value)||2);
+  } else if(type === 'indiv') {
+    countWrap.style.display = '';
+    countEl.max = 1; countEl.min = 1; countEl.value = 1;
+  } else {
+    countWrap.style.display = 'none';
+  }
+}
+
+function cmFillGroupTeachers() {
+  const sel = document.getElementById('cmGroupTeacher');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— brak —</option>' +
+    sortTeachers(appState.teachers||[]).map(t =>
+      `<option value="${t.id}">${t.last} ${t.first} (${t.abbr})</option>`
+    ).join('');
+}
+
 function cmRenderGroups() {
   const el = document.getElementById('cmGroupList');
-  el.innerHTML = _cmGroups.map((g, i) => `
-    <div class="tag">
-      <span>${g}</span>
-      <span class="tag-del" onclick="_cmGroups.splice(${i},1);cmRenderGroups()">×</span>
-    </div>`).join('') || '<span style="font-size:.75rem;color:var(--text-d)">Brak grup</span>';
+  if(!_cmGroups.length) {
+    el.innerHTML = '<span style="font-size:.75rem;color:var(--text-d)">Brak grup — dodaj poniżej</span>';
+    return;
+  }
+  const ICONS = {group:'👥', small:'👤👤', indiv:'👤'};
+  const LABELS = {group:'Podgrupa', small:'Mała grupa', indiv:'NI'};
+  el.innerHTML = _cmGroups.map((g, i) => {
+    const tch = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
+    const icon = ICONS[g.type||'group'];
+    const badge = LABELS[g.type||'group'];
+    const isSpecial = g.type === 'small' || g.type === 'indiv';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+      background:var(--s2);border-radius:7px;
+      border:1px solid ${isSpecial?'var(--accent)33':'var(--border)'}">
+      <span style="font-size:.85rem">${icon}</span>
+      <span style="font-weight:600;font-size:.8rem">${g.name}</span>
+      <span style="font-size:.65rem;padding:1px 6px;border-radius:8px;
+        background:${isSpecial?'var(--accent-g)':'var(--s3)'};
+        color:${isSpecial?'var(--accent)':'var(--text-m)'}">
+        ${badge}${g.studentCount&&g.studentCount>1?' ('+g.studentCount+' ucz.)':''}
+      </span>
+      ${tch ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${tch.abbr}</span>` : ''}
+      <button onclick="_cmGroups.splice(${i},1);cmRenderGroups()"
+        style="margin-left:auto;background:none;border:none;cursor:pointer;
+               color:var(--text-d);font-size:.9rem;padding:0 4px">×</button>
+    </div>`;
+  }).join('');
 }
 
 function cmAddGroup() {
-  const inp = document.getElementById('cmGroupInput');
-  const val = inp.value.trim();
+  const inp     = document.getElementById('cmGroupInput');
+  const type    = document.getElementById('cmGroupType').value;
+  const count   = parseInt(document.getElementById('cmGroupCount').value)||1;
+  const tchId   = document.getElementById('cmGroupTeacher').value||null;
+  const val     = inp.value.trim();
   if (!val) return;
-  // Obsłuż wielokrotne grupy oddzielone przecinkiem
-  val.split(',').map(v => v.trim()).filter(Boolean).forEach(g => {
-    if (!_cmGroups.includes(g)) _cmGroups.push(g);
+
+  val.split(',').map(v => v.trim()).filter(Boolean).forEach(name => {
+    if (!_cmGroups.some(g => g.name === name)) {
+      _cmGroups.push({
+        id: 'grp' + Date.now() + Math.random().toString(36).slice(2,5),
+        name,
+        type,
+        studentCount: type==='indiv' ? 1 : (type==='small' ? Math.min(count,5) : 0),
+        teacherId: tchId || null,
+      });
+    }
   });
   inp.value = '';
   cmRenderGroups();
@@ -7727,6 +8008,11 @@ function closeClassModal() {
   _cmId = null;
   _cmGroups = [];
   _cmOptSubjects = [];
+  // Reset pól grupy
+  const gtEl = document.getElementById('cmGroupType');
+  if(gtEl) gtEl.value = 'group';
+  const gwEl = document.getElementById('cmGroupCountWrap');
+  if(gwEl) gwEl.style.display = 'none';
 }
 
 document.getElementById('classModal').addEventListener('click', function(e) {
