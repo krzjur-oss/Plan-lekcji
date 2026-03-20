@@ -1066,6 +1066,51 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 }
 .print-header{display:none;margin-bottom:8px;font-size:.8rem;color:#555}
 
+/* ── WIDOK SAL (SalePlan-style) ── */
+.rs-wrap{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--s1)}
+.rs-table{border-collapse:collapse;min-width:max-content;width:100%}
+.rs-table th,.rs-table td{border:1px solid var(--border)}
+/* Nagłówki */
+.rs-time-th{background:var(--s2);font-size:.68rem;color:var(--text-m);
+  text-align:center;padding:5px 8px;position:sticky;left:0;min-width:52px;
+  font-family:var(--mono);white-space:nowrap;z-index:8}
+.rs-bld-th{font-size:.65rem;font-weight:800;text-align:center;padding:4px 6px;
+  text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;position:sticky}
+.rs-room-th{background:var(--s2);font-size:.78rem;font-weight:800;text-align:center;
+  padding:5px 6px;white-space:nowrap;min-width:90px;max-width:130px;position:sticky}
+.rs-room-num{display:block}
+.rs-room-cap{font-size:.58rem;font-weight:400;color:var(--text-d);
+  background:var(--s3);border-radius:4px;padding:0 4px;margin-left:3px}
+.rs-room-note{font-size:.6rem;color:var(--accent);margin-left:3px;cursor:help}
+.rs-room-type{font-size:.58rem;font-weight:400;color:var(--text-d)}
+.rs-homeroom-th{background:var(--s3);font-size:.62rem;font-weight:600;color:var(--text-m);
+  text-align:center;padding:3px 5px;cursor:pointer;white-space:nowrap;position:sticky}
+.rs-homeroom-th:hover{background:var(--s4);color:var(--accent)}
+/* Komórki */
+.rs-time-td{background:var(--s2);text-align:center;font-size:.72rem;font-family:var(--mono);
+  color:var(--text-m);padding:4px 6px;white-space:nowrap;position:sticky;left:0;z-index:2;vertical-align:middle}
+.rs-time-sub{font-size:.58rem;color:var(--text-d);display:block}
+.rs-cell{padding:2px;height:54px;min-width:88px;max-width:130px;
+  transition:background .1s;vertical-align:top;position:relative}
+.rs-cell-empty{cursor:pointer}
+.rs-cell-empty:hover{background:var(--accent-g)}
+.rs-cell-occ{cursor:pointer}
+.rs-cell-occ:hover{filter:brightness(1.05)}
+.rs-chip{border-radius:5px;padding:3px 5px;height:100%;display:flex;
+  flex-direction:column;justify-content:center;gap:1px}
+.rs-chip-cls{font-size:.73rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs-chip-meta{font-size:.62rem;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs-plus{height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;color:var(--text-d);opacity:0;transition:opacity .15s}
+.rs-cell-empty:hover .rs-plus{opacity:1}
+.rs-collision{outline:2px solid var(--red);outline-offset:-2px}
+.rs-collision-badge{font-size:.55rem;color:var(--red);font-weight:700}
+/* Status */
+.rs-status{display:flex;gap:10px;align-items:center;padding:7px 12px;
+  font-size:.72rem;color:var(--text-m);border-bottom:1px solid var(--border);
+  background:var(--s2);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.rs-warn{color:var(--red);font-weight:700}
+
 /* ── RESPONSIVE ── */
 @media(max-width:640px){
   .topbar{padding:0 12px}
@@ -1257,13 +1302,17 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
     <!-- VIEW: SALE -->
     <div class="view-panel" id="view-room">
       <div class="view-selector">
-        <span class="view-selector-label">Sala:</span>
-        <select class="vs-select" id="roomSelect" onchange="renderRoomView()">
-          <option value="">— wybierz salę —</option>
-        </select>
-        <span class="view-selector-label" style="margin-left:10px">Dzień:</span>
+        <span class="view-selector-label">Dzień:</span>
         <select class="vs-select" id="roomDaySelect" onchange="renderRoomView()">
-          <option value="all">Cały tydzień</option>
+          <option value="0">Poniedziałek</option>
+          <option value="1">Wtorek</option>
+          <option value="2">Środa</option>
+          <option value="3">Czwartek</option>
+          <option value="4">Piątek</option>
+        </select>
+        <span class="view-selector-label" id="roomBldLabel" style="margin-left:10px">Budynek:</span>
+        <select class="vs-select" id="roomBuildingFilter" onchange="renderRoomView()">
+          <option value="">Wszystkie budynki</option>
         </select>
       </div>
       <div id="roomGridWrap"></div>
@@ -2220,6 +2269,7 @@ function showApp() {
   const app = document.getElementById('appRoot');
   app.classList.add('show');
   populateSelects();
+  populateRoomBuildingFilter();
   renderCurrentView();
   detectAndShowConflicts();
 }
@@ -3051,7 +3101,7 @@ function populateSelects() {
   if(!appState) return;
 
   // Days to day selects
-  ['classDaySelect','teacherDaySelect','roomDaySelect'].forEach(id=>{
+  ['classDaySelect','teacherDaySelect'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
     el.innerHTML='<option value="all">Cały tydzień</option>' +
@@ -3078,13 +3128,7 @@ function populateSelects() {
     if(appState.teachers.length) ts.value=appState.teachers[0].id;
   }
 
-  // Room select
-  const rs=document.getElementById('roomSelect');
-  if(rs){
-    rs.innerHTML='<option value="">— wybierz salę —</option>' +
-      sortByName(appState.rooms).map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
-    if(appState.rooms.length) rs.value=appState.rooms[0].id;
-  }
+  populateRoomBuildingFilter();
 
   // Modal selects
   populateModalSelects();
@@ -3515,29 +3559,195 @@ function renderTeacherView() {
 }
 
 // ── ROOM VIEW ──
+// ================================================================
+//  WIDOK SAL — styl SalePlan
+//  Kolumny = sale (pogrupowane wg budynku/piętra/segmentu)
+//  Wiersze = godziny lekcyjne
+//  Jeden dzień na raz
+// ================================================================
 function renderRoomView() {
   if(!appState) return;
-  const roomId = document.getElementById('roomSelect').value;
-  const dayVal = document.getElementById('roomDaySelect').value;
-  const wrap   = document.getElementById('roomGridWrap');
-  if(!roomId){wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">Wybierz salę z listy</div></div>`;return;}
-  const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
-  const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
-  wrap.innerHTML = renderGrid(cols, null, days, {fixRoom:roomId, showDayLabel: dayVal==='all'});
-  wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
-    const clsId=td.dataset.clsid;
-    const di=parseInt(td.dataset.day);
-    const hn=parseInt(td.dataset.hour);
-    const lesson=getLesson(clsId,di,hn);
-    if(lesson && lesson.roomId!==roomId){
-      const chip=td.querySelector('.lesson-chip');
-      if(chip)chip.style.opacity='.15';
-    }
-    if(!lesson) td.onclick=()=>openAddModal(clsId,di,hn,'',roomId);
+  const di    = parseInt(document.getElementById('roomDaySelect').value)||0;
+  const bldFlt= document.getElementById('roomBuildingFilter')?.value||'';
+  const wrap  = document.getElementById('roomGridWrap');
+  const hours = appState.hours||[];
+  const rooms = appState.rooms||[];
+  const classes=appState.classes||[];
+  const subjs = appState.subjects||[];
+  const tchs  = appState.teachers||[];
+  const blds  = appState.buildings||[];
+  const DAYS  = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
+
+  if(!hours.length) {
+    wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">⏰</div>
+      <div class="empty-state-title">Brak godzin lekcyjnych</div></div>`;return;
+  }
+  if(!rooms.length) {
+    wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🏫</div>
+      <div class="empty-state-title">Brak sal — dodaj sale w Ustawieniach</div></div>`;return;
+  }
+
+  // ── Filtruj i sortuj sale ──
+  let visRooms = [...rooms].sort((a,b)=>(a.name||'').localeCompare(b.name||'','pl',{numeric:true}));
+  if(bldFlt) visRooms = visRooms.filter(r=>r.buildingId===bldFlt);
+
+  // ── Zgrupuj sale wg budynku (do nagłówka scalającego) ──
+  const bldGroups = [];
+  visRooms.forEach(r=>{
+    const bld = blds.find(b=>b.id===r.buildingId);
+    const last = bldGroups[bldGroups.length-1];
+    if(last && last.bldId===r.buildingId) { last.rooms.push(r); }
+    else bldGroups.push({
+      bldId:   r.buildingId,
+      name:    bld?.name || (blds.length>1?'Bez budynku':''),
+      color:   bld?.color || 'var(--accent)',
+      rooms:   [r]
+    });
   });
+  const showBldRow = blds.length > 1 || (blds.length===1 && bldFlt==='');
+
+  // ── Zbierz zajętość sal na ten dzień ──
+  // roomOcc[roomId][hourNum] = [{lesson, clsId}, ...] (może być kolizja)
+  const roomOcc = {};
+  Object.entries(schedData).forEach(([k,v])=>{
+    const p=k.split('_');
+    if(parseInt(p[1])!==di || !v.roomId) return;
+    if(!roomOcc[v.roomId]) roomOcc[v.roomId]={};
+    const hn=parseInt(p[2]);
+    if(!roomOcc[v.roomId][hn]) roomOcc[v.roomId][hn]=[];
+    roomOcc[v.roomId][hn].push({lesson:v, clsId:p[0]});
+  });
+
+  // ── Oblicz ilość zajętych slotów (do paska statusu) ──
+  let occupied=0, totalSlots=0;
+  visRooms.forEach(r=>{
+    hours.forEach(h=>{
+      totalSlots++;
+      if((roomOcc[r.id]?.[h.num]||[]).length) occupied++;
+    });
+  });
+
+  // ── Buduj thead ──
+  const ROW_H = 26;
+  let topOffset = 0;
+  let thead = '<thead>';
+
+  // Wiersz budynku (scalony)
+  if(showBldRow) {
+    thead += `<tr>
+      <th class="rs-time-th" style="top:0;z-index:12">${DAYS[di]}</th>`;
+    bldGroups.forEach(grp=>{
+      thead += `<th colspan="${grp.rooms.length}" class="rs-bld-th"
+        style="color:${grp.color};border-top:3px solid ${grp.color};border-bottom:2px solid ${grp.color}60">
+        ${grp.name||'Budynek główny'}
+      </th>`;
+    });
+    thead += '</tr>';
+    topOffset += ROW_H;
+  }
+
+  // Wiersz numerów sal
+  thead += `<tr>
+    <th class="rs-time-th" style="top:${topOffset}px;z-index:12">
+      ${showBldRow?'':''+DAYS[di]}
+    </th>`;
+  visRooms.forEach(r=>{
+    const bld = blds.find(b=>b.id===r.buildingId);
+    const bc  = bld?.color||'var(--border)';
+    const cap = r.capacity ? `<span class="rs-room-cap">${r.capacity} os.</span>` : '';
+    const note= r.note     ? `<span class="rs-room-note" title="${r.note}">ℹ</span>` : '';
+    thead += `<th class="rs-room-th" style="top:${topOffset}px;${!showBldRow?'border-top:3px solid '+bc:''}">
+      <span class="rs-room-num">${r.name}</span>${cap}${note}
+      ${r.type&&r.type!=='full'?`<br><span class="rs-room-type">${r.type}</span>`:''}
+    </th>`;
+  });
+  thead += '</tr>';
+  topOffset += ROW_H;
+
+  // Wiersz gospodarz
+  thead += `<tr>
+    <th class="rs-time-th rs-homeroom-th" style="top:${topOffset}px;z-index:12;font-size:.55rem">Gospod.</th>`;
+  visRooms.forEach(r=>{
+    const custNames=(r.custodians||[]).map(cid=>{
+      const c=classes.find(c=>c.id===cid);
+      return c?c.name:'?';
+    });
+    const label = custNames.join(', ') || '<span style="color:var(--text-d)">—</span>';
+    thead += `<th class="rs-homeroom-th" style="top:${topOffset}px"
+      onclick="openRoomModal('${r.id}')"
+      title="${custNames.join(', ')||'Kliknij aby przypisać gospodarzowi'}">
+      ${label}
+    </th>`;
+  });
+  thead += `</tr></thead>`;
+
+  // ── Buduj tbody ──
+  let tbody = '<tbody>';
+  hours.forEach(h=>{
+    tbody += `<tr>
+      <td class="rs-time-td">${h.num}<br><span class="rs-time-sub">${h.start}</span></td>`;
+    visRooms.forEach(r=>{
+      const occ = roomOcc[r.id]?.[h.num]||[];
+      const isCollision = occ.length > 1;
+
+      if(occ.length) {
+        // Weź pierwsze (lub zaznacz kolizję)
+        const {lesson,clsId} = occ[0];
+        const subj  = lesson.subjectId ? subjs.find(s=>s.id===lesson.subjectId) : null;
+        const tch   = lesson.teacherId ? tchs.find(t=>t.id===lesson.teacherId) : null;
+        const cls   = classes.find(c=>c.id===clsId);
+        const color = subj?.color||'#38bdf8';
+        const bg    = hexToRgba(color, .15);
+        const grp   = lesson.groups?.length ? ' ('+lesson.groups.join('/')+')' : '';
+        const collLabel = isCollision
+          ? `<div class="rs-collision-badge">⚠ ${occ.length}×</div>` : '';
+
+        tbody += `<td class="rs-cell rs-cell-occ${isCollision?' rs-collision':''}"
+          onclick="openEditModal('${clsId}',${di},${h.num})"
+          title="${cls?.name||'?'} · ${subj?.name||'?'}${tch?' · '+tch.last+' '+tch.first:''}">
+          <div class="rs-chip" style="background:${bg};border-left:3px solid ${color}">
+            <div class="rs-chip-cls" style="color:${color}">${cls?.name||'?'}${grp}</div>
+            <div class="rs-chip-meta">${subj?.abbr||'?'}${tch?' · '+tch.abbr:''}</div>
+            ${collLabel}
+          </div>
+        </td>`;
+      } else {
+        tbody += `<td class="rs-cell rs-cell-empty"
+          onclick="openAddModal(null,${di},${h.num},'','${r.id}')">
+          <div class="rs-plus">＋</div>
+        </td>`;
+      }
+    });
+    tbody += '</tr>';
+  });
+  tbody += '</tbody>';
+
+  // ── Status bar ──
+  const pct = totalSlots ? Math.round(occupied/totalSlots*100) : 0;
+  const statusBar = `<div class="rs-status">
+    <span>${DAYS[di]}</span>
+    <span style="color:var(--text-d)">·</span>
+    <span>${visRooms.length} sal</span>
+    <span style="color:var(--text-d)">·</span>
+    <span><strong>${occupied}</strong> / ${totalSlots} slotów zajętych (${pct}%)</span>
+    ${Object.values(roomOcc).some(r=>Object.values(r).some(v=>v.length>1))
+      ? `<span class="rs-warn">⚠ kolizja sal</span>` : ''}
+  </div>`;
+
+  wrap.innerHTML = statusBar +
+    `<div class="rs-wrap"><table class="rs-table">${thead}${tbody}</table></div>`;
 }
 
-// ── MATRIX VIEW ──
+function populateRoomBuildingFilter() {
+  const sel = document.getElementById('roomBuildingFilter');
+  if(!sel||!appState) return;
+  const blds = appState.buildings||[];
+  sel.innerHTML = '<option value="">Wszystkie budynki</option>' +
+    blds.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  sel.parentElement.style.display = blds.length < 2 ? 'none' : '';
+}
+
+
 function renderMatrixView() {
   if(!appState) return;
   const dayVal = document.getElementById('matrixDaySelect').value;
@@ -6059,6 +6269,34 @@ function resetApp() {
 // ================================================================
 function openAddModal(clsId, dayIdx, hourIdx, prefTeacherId='', prefRoomId='') {
   if(!appState)return;
+  // Widok sal: brak klasy — pokaż wybór klasy przed otwarciem modalu
+  if(!clsId) {
+    const classes = appState.classes||[];
+    if(!classes.length) { notify('Brak klas — dodaj klasy w Ustawieniach'); return; }
+    if(classes.length === 1) { clsId = classes[0].id; }
+    else {
+      // Prosty wybór klasy
+      const chosen = classes.find(c=>c.id === (window._lastRoomAddCls||'')) || null;
+      const sel = document.createElement('div');
+      sel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900;display:flex;align-items:center;justify-content:center';
+      sel.innerHTML = `<div style="background:var(--s1);border-radius:var(--radius-lg);padding:20px;
+        width:280px;max-height:80vh;overflow-y:auto;border:1px solid var(--border)">
+        <div style="font-weight:700;margin-bottom:12px">Wybierz klasę</div>
+        ${classes.map(c=>`<button onclick="window._lastRoomAddCls='${c.id}';document.body.removeChild(document.getElementById('_clsPicker'));openAddModal('${c.id}',${dayIdx},${hourIdx},'${prefTeacherId}','${prefRoomId}')"
+          style="display:block;width:100%;text-align:left;padding:8px 12px;margin-bottom:4px;
+                 background:var(--s2);border:1px solid var(--border);border-radius:6px;cursor:pointer;
+                 color:var(--text);font-family:var(--font);font-size:.85rem">
+          ${c.name}</button>`).join('')}
+        <button onclick="document.body.removeChild(document.getElementById('_clsPicker'))"
+          style="width:100%;margin-top:8px;padding:7px;background:transparent;border:1px solid var(--border);
+                 border-radius:6px;cursor:pointer;color:var(--text-m);font-family:var(--font)">
+          Anuluj</button>
+      </div>`;
+      sel.id = '_clsPicker';
+      document.body.appendChild(sel);
+      return;
+    }
+  }
   _mCtx = {mode:'add', clsId, dayIdx, hourIdx};
   const h=appState.hours.find(h=>h.num===hourIdx);
   document.getElementById('lessonModalTitle').innerHTML =
@@ -8411,6 +8649,7 @@ function cmDeleteClass() {
   Object.keys(schedData).filter(k => k.startsWith(_cmId + '_')).forEach(k => delete schedData[k]);
   persistAll();
   populateSelects();
+  populateRoomBuildingFilter();
   renderCurrentView();
   renderSettings();
   closeClassModal();
