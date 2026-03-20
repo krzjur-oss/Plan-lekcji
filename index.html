@@ -1066,50 +1066,91 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 }
 .print-header{display:none;margin-bottom:8px;font-size:.8rem;color:#555}
 
-/* ── WIDOK SAL (SalePlan-style) ── */
-.rs-wrap{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--s1)}
-.rs-table{border-collapse:collapse;min-width:max-content;width:100%}
-.rs-table th,.rs-table td{border:1px solid var(--border)}
-/* Nagłówki */
-.rs-time-th{background:var(--s2);font-size:.68rem;color:var(--text-m);
-  text-align:center;padding:5px 8px;position:sticky;left:0;min-width:52px;
-  font-family:var(--mono);white-space:nowrap;z-index:8}
-.rs-bld-th{font-size:.65rem;font-weight:800;text-align:center;padding:4px 6px;
-  text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;position:sticky}
-.rs-room-th{background:var(--s2);font-size:.78rem;font-weight:800;text-align:center;
-  padding:5px 6px;white-space:nowrap;min-width:90px;max-width:130px;position:sticky}
-.rs-room-num{display:block}
-.rs-room-cap{font-size:.58rem;font-weight:400;color:var(--text-d);
-  background:var(--s3);border-radius:4px;padding:0 4px;margin-left:3px}
-.rs-room-note{font-size:.6rem;color:var(--accent);margin-left:3px;cursor:help}
-.rs-room-type{font-size:.58rem;font-weight:400;color:var(--text-d)}
-.rs-homeroom-th{background:var(--s3);font-size:.62rem;font-weight:600;color:var(--text-m);
-  text-align:center;padding:3px 5px;cursor:pointer;white-space:nowrap;position:sticky}
-.rs-homeroom-th:hover{background:var(--s4);color:var(--accent)}
-/* Komórki */
-.rs-time-td{background:var(--s2);text-align:center;font-size:.72rem;font-family:var(--mono);
-  color:var(--text-m);padding:4px 6px;white-space:nowrap;position:sticky;left:0;z-index:2;vertical-align:middle}
-.rs-time-sub{font-size:.58rem;color:var(--text-d);display:block}
-.rs-cell{padding:2px;height:54px;min-width:88px;max-width:130px;
-  transition:background .1s;vertical-align:top;position:relative}
-.rs-cell-empty{cursor:pointer}
-.rs-cell-empty:hover{background:var(--accent-g)}
-.rs-cell-occ{cursor:pointer}
-.rs-cell-occ:hover{filter:brightness(1.05)}
-.rs-chip{border-radius:5px;padding:3px 5px;height:100%;display:flex;
-  flex-direction:column;justify-content:center;gap:1px}
-.rs-chip-cls{font-size:.73rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rs-chip-meta{font-size:.62rem;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rs-plus{height:100%;display:flex;align-items:center;justify-content:center;
-  font-size:1.1rem;color:var(--text-d);opacity:0;transition:opacity .15s}
-.rs-cell-empty:hover .rs-plus{opacity:1}
-.rs-collision{outline:2px solid var(--red);outline-offset:-2px}
-.rs-collision-badge{font-size:.55rem;color:var(--red);font-weight:700}
-/* Status */
-.rs-status{display:flex;gap:10px;align-items:center;padding:7px 12px;
-  font-size:.72rem;color:var(--text-m);border-bottom:1px solid var(--border);
-  background:var(--s2);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
-.rs-warn{color:var(--red);font-weight:700}
+/* ── WIDOK SAL — CSS skopiowany z SalePlan ── */
+.room-schedule-table{
+  width:max-content;min-width:100%;
+  border-collapse:separate;border-spacing:0;table-layout:auto
+}
+.room-schedule-table th{
+  background:var(--s2);border:1px solid var(--border);padding:4px;
+  font-size:.68rem;font-weight:700;text-align:center;color:var(--text-m);
+  position:sticky;top:var(--th-top,0px);z-index:5;vertical-align:middle
+}
+.room-schedule-table th.rs-time-th{
+  width:60px;background:var(--s1);font-family:var(--mono);color:var(--text-d);
+  position:sticky;left:0;z-index:15
+}
+.rs-th-building{
+  font-size:.6rem;font-weight:800;font-family:var(--mono);letter-spacing:.5px;
+  padding:4px;border-bottom:1px solid var(--border);white-space:nowrap
+}
+.rs-th-floor{
+  font-size:.62rem;font-weight:700;padding:3px 4px;
+  border-bottom:1px solid var(--border);white-space:nowrap
+}
+.rs-th-seg{
+  font-size:.58rem;color:var(--text-d);padding:3px 4px;
+  text-transform:uppercase;letter-spacing:.4px;
+  border-bottom:1px solid var(--border);white-space:nowrap
+}
+.rs-th-room{
+  font-family:var(--mono);font-size:.72rem;font-weight:700;
+  color:var(--accent);padding:4px;
+  border-bottom:1px solid var(--border);white-space:nowrap
+}
+.rs-th-homeroom{
+  font-size:.58rem;padding:3px 2px;line-height:1.3;color:var(--text-m);cursor:pointer
+}
+.rs-th-homeroom:hover{background:var(--s3);color:var(--accent)}
+.rs-th-homeroom .hr-class{
+  font-weight:700;color:var(--text);background:var(--s3);border-radius:3px;
+  padding:1px 4px;display:inline-block;margin-bottom:1px
+}
+.rs-th-homeroom .hr-teacher{color:var(--green);font-size:.56rem;font-family:var(--mono)}
+.rs-hr-pair{display:flex;flex-direction:column;align-items:center;gap:1px}
+.rs-hr-sep{width:55%;height:1px;background:var(--border);margin:2px auto;opacity:.6}
+.room-schedule-table td{
+  border:1px solid var(--border);padding:0;vertical-align:top;
+  min-width:90px;background:var(--s1)
+}
+.room-schedule-table td.rs-time-td{
+  background:var(--s2);text-align:center;font-family:var(--mono);
+  font-size:.78rem;font-weight:600;color:var(--text-m);vertical-align:middle;
+  padding:8px 4px;width:60px;min-width:60px;position:sticky;left:0;z-index:4
+}
+.rs-cell-inner{
+  width:100%;min-height:54px;padding:5px 6px;cursor:pointer;
+  transition:background .1s;display:flex;flex-direction:column;gap:2px;position:relative
+}
+.rs-cell-inner:hover{background:var(--s2)}
+.rs-cell-inner.filled{background:rgba(59,130,246,.06);border-left:3px solid var(--accent)}
+.rs-cell-inner.filled:hover{background:rgba(59,130,246,.12)}
+.rs-cell-row-cls{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:2px}
+.rs-cell-abbr{
+  display:inline-block;background:rgba(59,130,246,.18);color:var(--accent);
+  border-radius:4px;font-family:var(--mono);font-size:.68rem;font-weight:700;
+  padding:0 5px;margin-right:3px;letter-spacing:.5px
+}
+.rs-cell-abbr-cls{background:rgba(16,185,129,.15);color:var(--green)}
+.rs-cell-row-tch{display:flex;align-items:center;gap:3px;flex-wrap:wrap;line-height:1}
+.rs-cell-row-subj{font-size:.7rem;color:var(--text);line-height:1.2;word-break:break-word}
+.rs-cell-plus{font-size:.65rem;color:var(--text-d);text-align:center;margin-top:14px;user-select:none}
+.rs-cell-inner.collision{outline:2px solid var(--red);outline-offset:-2px;background:var(--red-g)}
+.rs-cell-inner.collision::after{
+  content:'⚠ kolizja';position:absolute;bottom:2px;right:4px;
+  font-size:.55rem;color:var(--red);font-weight:700
+}
+.room-schedule-wrap{overflow-x:auto}
+@media print{
+  .rs-th-building,.rs-th-floor,.rs-th-seg{font-size:.55rem!important;background:#e8e8e8!important}
+  .rs-th-room{font-size:.62rem!important;color:#1a56db!important}
+  .rs-th-homeroom{font-size:.5rem!important}
+  .rs-cell-inner{min-height:28px!important;padding:2px 3px!important}
+  .rs-cell-inner.filled{border-left:2px solid #555!important;background:#f0f4ff!important}
+  .room-schedule-table td.rs-time-td{background:#f5f5f5!important}
+  .room-schedule-table td{min-width:unset!important}
+  .rs-cell-abbr{font-size:.55rem!important;padding:0 2px!important}
+}
 
 /* ── RESPONSIVE ── */
 @media(max-width:640px){
@@ -3519,20 +3560,20 @@ function renderTeacherView() {
     const isSupport = supportClasses.has(clsId);
 
     if(lesson && lesson.teacherId!==tchId){
-      const chip = td.querySelector('.lesson-chip');
+      // Znajdź chip lekcji (może być .lesson-chip lub .m-chip lub pierwszy div)
+      const chip = td.querySelector('.lesson-chip,.m-chip,.cell-chip') || td.firstElementChild?.firstElementChild;
       if(chip) {
         if(isSupport) {
-          // Nauczyciel wspomaga w tej klasie — oznacz inaczej niż zaciemnione
           chip.style.opacity = '.75';
           chip.style.borderLeft = '3px solid var(--teal)';
-          chip.title = 'Lekcja z klasą — obecny jako nauczyciel wspomagający';
-          // Dodaj badge wspomagający
+          chip.title = 'Lekcja z klasą — nauczyciel wspomagający';
           if(!chip.querySelector('.support-badge')) {
             const badge = document.createElement('span');
             badge.className = 'support-badge';
             badge.textContent = '+W';
             badge.style.cssText = 'position:absolute;top:2px;left:3px;font-size:.55rem;'+
-              'background:var(--teal);color:#fff;border-radius:3px;padding:0 3px;font-weight:700';
+              'background:var(--teal);color:#fff;border-radius:3px;padding:0 3px;font-weight:700;z-index:1';
+            chip.style.position = 'relative';
             chip.appendChild(badge);
           }
         } else {
@@ -3565,186 +3606,187 @@ function renderTeacherView() {
 //  Wiersze = godziny lekcyjne
 //  Jeden dzień na raz
 // ================================================================
+// ================================================================
+//  WIDOK SAL — wzorowany 1:1 na SalePlan
+// ================================================================
+const ROOM_BLD_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+
 function renderRoomView() {
   if(!appState) return;
-  const di    = parseInt(document.getElementById('roomDaySelect').value)||0;
-  const bldFlt= document.getElementById('roomBuildingFilter')?.value||'';
-  const wrap  = document.getElementById('roomGridWrap');
-  const hours = appState.hours||[];
-  const rooms = appState.rooms||[];
-  const classes=appState.classes||[];
-  const subjs = appState.subjects||[];
-  const tchs  = appState.teachers||[];
-  const blds  = appState.buildings||[];
-  const DAYS  = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
+  const di     = parseInt(document.getElementById('roomDaySelect').value)||0;
+  const bldFlt = document.getElementById('roomBuildingFilter')?.value||'';
+  const wrap   = document.getElementById('roomGridWrap');
+  const hours  = appState.hours||[];
+  const rooms  = (appState.rooms||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','pl',{numeric:true}));
+  const classes= appState.classes||[];
+  const subjs  = appState.subjects||[];
+  const tchs   = appState.teachers||[];
+  const blds   = appState.buildings||[];
 
-  if(!hours.length) {
-    wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">⏰</div>
-      <div class="empty-state-title">Brak godzin lekcyjnych</div></div>`;return;
+  if(!hours.length){
+    wrap.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏰</div><div class="empty-state-title">Brak godzin lekcyjnych</div></div>';
+    return;
   }
-  if(!rooms.length) {
-    wrap.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🏫</div>
-      <div class="empty-state-title">Brak sal — dodaj sale w Ustawieniach</div></div>`;return;
-  }
-
-  // ── Filtruj i sortuj sale ──
-  let visRooms = [...rooms].sort((a,b)=>(a.name||'').localeCompare(b.name||'','pl',{numeric:true}));
-  if(bldFlt) visRooms = visRooms.filter(r=>r.buildingId===bldFlt);
-
-  // ── Zgrupuj sale wg budynku (do nagłówka scalającego) ──
-  const bldGroups = [];
-  visRooms.forEach(r=>{
-    const bld = blds.find(b=>b.id===r.buildingId);
-    const last = bldGroups[bldGroups.length-1];
-    if(last && last.bldId===r.buildingId) { last.rooms.push(r); }
-    else bldGroups.push({
-      bldId:   r.buildingId,
-      name:    bld?.name || (blds.length>1?'Bez budynku':''),
-      color:   bld?.color || 'var(--accent)',
-      rooms:   [r]
-    });
-  });
-  const showBldRow = blds.length > 1 || (blds.length===1 && bldFlt==='');
-
-  // ── Zbierz zajętość sal na ten dzień ──
-  // roomOcc[roomId][hourNum] = [{lesson, clsId}, ...] (może być kolizja)
-  const roomOcc = {};
-  Object.entries(schedData).forEach(([k,v])=>{
-    const p=k.split('_');
-    if(parseInt(p[1])!==di || !v.roomId) return;
-    if(!roomOcc[v.roomId]) roomOcc[v.roomId]={};
-    const hn=parseInt(p[2]);
-    if(!roomOcc[v.roomId][hn]) roomOcc[v.roomId][hn]=[];
-    roomOcc[v.roomId][hn].push({lesson:v, clsId:p[0]});
-  });
-
-  // ── Oblicz ilość zajętych slotów (do paska statusu) ──
-  let occupied=0, totalSlots=0;
-  visRooms.forEach(r=>{
-    hours.forEach(h=>{
-      totalSlots++;
-      if((roomOcc[r.id]?.[h.num]||[]).length) occupied++;
-    });
-  });
-
-  // ── Buduj thead ──
-  const ROW_H = 26;
-  let topOffset = 0;
-  let thead = '<thead>';
-
-  // Wiersz budynku (scalony)
-  if(showBldRow) {
-    thead += `<tr>
-      <th class="rs-time-th" style="top:0;z-index:12">${DAYS[di]}</th>`;
-    bldGroups.forEach(grp=>{
-      thead += `<th colspan="${grp.rooms.length}" class="rs-bld-th"
-        style="color:${grp.color};border-top:3px solid ${grp.color};border-bottom:2px solid ${grp.color}60">
-        ${grp.name||'Budynek główny'}
-      </th>`;
-    });
-    thead += '</tr>';
-    topOffset += ROW_H;
+  if(!rooms.length){
+    wrap.innerHTML='<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">Brak sal — dodaj sale w Ustawieniach</div></div>';
+    return;
   }
 
-  // Wiersz numerów sal
-  thead += `<tr>
-    <th class="rs-time-th" style="top:${topOffset}px;z-index:12">
-      ${showBldRow?'':''+DAYS[di]}
-    </th>`;
-  visRooms.forEach(r=>{
-    const bld = blds.find(b=>b.id===r.buildingId);
-    const bc  = bld?.color||'var(--border)';
-    const cap = r.capacity ? `<span class="rs-room-cap">${r.capacity} os.</span>` : '';
-    const note= r.note     ? `<span class="rs-room-note" title="${r.note}">ℹ</span>` : '';
-    thead += `<th class="rs-room-th" style="top:${topOffset}px;${!showBldRow?'border-top:3px solid '+bc:''}">
-      <span class="rs-room-num">${r.name}</span>${cap}${note}
-      ${r.type&&r.type!=='full'?`<br><span class="rs-room-type">${r.type}</span>`:''}
-    </th>`;
+  // Filtruj wg budynku
+  let visRooms = bldFlt ? rooms.filter(r=>r.buildingId===bldFlt) : rooms;
+
+  // Zbuduj kolumny z informacją o budynku
+  const cols = visRooms.map(r=>{
+    const bldIdx = blds.findIndex(b=>b.id===r.buildingId);
+    const bld    = bldIdx>=0 ? blds[bldIdx] : null;
+    return {room:r, bld, bldIdx: bldIdx>=0?bldIdx:0};
   });
-  thead += '</tr>';
-  topOffset += ROW_H;
+
+  // Wykryj ile unikalnych budynków
+  const uniqueBlds = [...new Set(cols.map(c=>c.bldIdx))];
+  const showBldRow = blds.length>1 || uniqueBlds.length>1;
+
+  // ── Funkcja buildMergedRow (jak w SalePlan) ──
+  function buildMergedRow(keyFn, labelFn, stylesFn, extraClass, timeCell, topPx) {
+    const topStyle = `--th-top:${topPx}px;`;
+    let row = `<tr><th class="rs-time-th" style="${topStyle}">${timeCell}</th>`;
+    let i=0;
+    while(i<cols.length){
+      const key=keyFn(cols[i]);
+      let span=1;
+      while(i+span<cols.length && keyFn(cols[i+span])===key) span++;
+      const styles=stylesFn?stylesFn(cols[i]):'';
+      row+=`<th colspan="${span}" class="${extraClass}" style="${topStyle}${styles}">${labelFn(cols[i])}</th>`;
+      i+=span;
+    }
+    return row+'</tr>';
+  }
+
+  const ROW_H=26;
+  let _rowTop=0;
+  let thead='<thead>';
+
+  // Wiersz budynków
+  if(showBldRow){
+    thead+=buildMergedRow(
+      c=>c.bldIdx,
+      c=>{ const b=blds[c.bldIdx]; return b?b.name:'Budynek główny'; },
+      c=>{ const color=ROOM_BLD_COLORS[c.bldIdx%ROOM_BLD_COLORS.length]; return `color:${color};border-top:3px solid ${color};border-bottom:2px solid ${color}`; },
+      'rs-th-building','Budynek',_rowTop
+    );
+    _rowTop+=ROW_H;
+  }
+
+  // Wiersz numerów sal (zawsze)
+  {
+    const topStyle=`--th-top:${_rowTop}px;`;
+    let row=`<tr><th class="rs-time-th" style="background:var(--s1);${topStyle}">Godz.</th>`;
+    cols.forEach(col=>{
+      const r=col.room;
+      const bldColor = col.bld?.color || ROOM_BLD_COLORS[col.bldIdx%ROOM_BLD_COLORS.length];
+      const topBorder = !showBldRow ? `border-top:3px solid ${bldColor}` : '';
+      const cap = r.capacity?`<br><span style="font-size:.55rem;color:var(--text-d);font-weight:400">${r.capacity} os.</span>`:'';
+      row+=`<th class="rs-th-room" style="${topStyle}${topBorder}"
+        title="${r.note||r.name}">Sala ${r.name}${cap}</th>`;
+    });
+    thead+=row+'</tr>';
+    _rowTop+=ROW_H;
+  }
 
   // Wiersz gospodarz
-  thead += `<tr>
-    <th class="rs-time-th rs-homeroom-th" style="top:${topOffset}px;z-index:12;font-size:.55rem">Gospod.</th>`;
-  visRooms.forEach(r=>{
-    const custNames=(r.custodians||[]).map(cid=>{
-      const c=classes.find(c=>c.id===cid);
-      return c?c.name:'?';
+  {
+    const topStyle=`--th-top:${_rowTop}px;`;
+    let row=`<tr><th class="rs-time-th" style="background:var(--s1);font-size:.55rem;color:var(--text-d);${topStyle}">Gospod.</th>`;
+    cols.forEach(col=>{
+      const r=col.room;
+      const custNames=(r.custodians||[]).map(cid=>classes.find(c=>c.id===cid)?.name||'?');
+      const hasTwo=custNames.length>1;
+      row+=`<th class="rs-th-homeroom" style="${topStyle}" onclick="openEditRoomModal('${r.id}')"
+        title="Kliknij aby edytować salę">
+        ${custNames.length
+          ? custNames.slice(0,2).map((n,i)=>
+              `<div class="rs-hr-pair"><div class="hr-class${i?'-2':''}">${n}</div></div>`+
+              (i===0&&hasTwo?'<div class="rs-hr-sep"></div>':'')
+            ).join('')
+          : '<span style="color:var(--text-d)">—</span>'}
+      </th>`;
     });
-    const label = custNames.join(', ') || '<span style="color:var(--text-d)">—</span>';
-    thead += `<th class="rs-homeroom-th" style="top:${topOffset}px"
-      onclick="openRoomModal('${r.id}')"
-      title="${custNames.join(', ')||'Kliknij aby przypisać gospodarzowi'}">
-      ${label}
-    </th>`;
+    thead+=row+'</tr>';
+  }
+  thead+='</thead>';
+
+  // ── Zbierz zajętość sal ──
+  const dayOcc={}; // roomId → { hourNum → {lesson, clsId} }
+  const dayOccCount={}; // roomId_hourNum → count (do wykrywania kolizji)
+  Object.entries(schedData).forEach(([k,v])=>{
+    const p=k.split('_');
+    if(parseInt(p[1])!==di||!v.roomId) return;
+    const rId=v.roomId, hn=parseInt(p[2]);
+    if(!dayOcc[rId]) dayOcc[rId]={};
+    if(!dayOcc[rId][hn]) dayOcc[rId][hn]={lesson:v,clsId:p[0]};
+    const ck=rId+'_'+hn;
+    dayOccCount[ck]=(dayOccCount[ck]||0)+1;
   });
-  thead += `</tr></thead>`;
 
   // ── Buduj tbody ──
-  let tbody = '<tbody>';
+  let tbody='<tbody>';
   hours.forEach(h=>{
-    tbody += `<tr>
-      <td class="rs-time-td">${h.num}<br><span class="rs-time-sub">${h.start}</span></td>`;
-    visRooms.forEach(r=>{
-      const occ = roomOcc[r.id]?.[h.num]||[];
-      const isCollision = occ.length > 1;
+    tbody+=`<tr><td class="rs-time-td">${h.num}<br><span style="font-size:.65rem;color:var(--text-d)">${h.start}</span></td>`;
+    cols.forEach(col=>{
+      const r=col.room;
+      const occ=dayOcc[r.id]?.[h.num];
+      const isCollision=(dayOccCount[r.id+'_'+h.num]||0)>1;
 
-      if(occ.length) {
-        // Weź pierwsze (lub zaznacz kolizję)
-        const {lesson,clsId} = occ[0];
-        const subj  = lesson.subjectId ? subjs.find(s=>s.id===lesson.subjectId) : null;
-        const tch   = lesson.teacherId ? tchs.find(t=>t.id===lesson.teacherId) : null;
+      if(occ){
+        const {lesson,clsId}=occ;
+        const subj  = lesson.subjectId?subjs.find(s=>s.id===lesson.subjectId):null;
+        const tch   = lesson.teacherId?tchs.find(t=>t.id===lesson.teacherId):null;
         const cls   = classes.find(c=>c.id===clsId);
-        const color = subj?.color||'#38bdf8';
-        const bg    = hexToRgba(color, .15);
-        const grp   = lesson.groups?.length ? ' ('+lesson.groups.join('/')+')' : '';
-        const collLabel = isCollision
-          ? `<div class="rs-collision-badge">⚠ ${occ.length}×</div>` : '';
+        const grps  = lesson.groups?.length?lesson.groups:[];
+        const clsLabel = (cls?.name||'?')+(grps.length?' ('+grps.join('/')+')':'');
 
-        tbody += `<td class="rs-cell rs-cell-occ${isCollision?' rs-collision':''}"
-          onclick="openEditModal('${clsId}',${di},${h.num})"
-          title="${cls?.name||'?'} · ${subj?.name||'?'}${tch?' · '+tch.last+' '+tch.first:''}">
-          <div class="rs-chip" style="background:${bg};border-left:3px solid ${color}">
-            <div class="rs-chip-cls" style="color:${color}">${cls?.name||'?'}${grp}</div>
-            <div class="rs-chip-meta">${subj?.abbr||'?'}${tch?' · '+tch.abbr:''}</div>
-            ${collLabel}
+        tbody+=`<td>
+          <div class="rs-cell-inner filled${isCollision?' collision':''}"
+            onclick="openEditModal('${clsId}',${di},${h.num})"
+            title="${clsLabel} · ${subj?.name||'—'} · ${tch?tch.last+' '+tch.first:''}">
+            <div class="rs-cell-row-cls">
+              <span class="rs-cell-abbr rs-cell-abbr-cls">${clsLabel}</span>
+            </div>
+            ${subj?`<div class="rs-cell-row-subj">${subj.abbr||subj.name}</div>`:''}
+            ${tch?`<div class="rs-cell-row-tch"><span class="rs-cell-abbr">${tch.abbr}</span></div>`:''}
           </div>
         </td>`;
       } else {
-        tbody += `<td class="rs-cell rs-cell-empty"
-          onclick="openAddModal(null,${di},${h.num},'','${r.id}')">
-          <div class="rs-plus">＋</div>
+        tbody+=`<td>
+          <div class="rs-cell-inner"
+            onclick="openAddModal(null,${di},${h.num},'','${r.id}')">
+            <div class="rs-cell-plus">＋</div>
+          </div>
         </td>`;
       }
     });
-    tbody += '</tr>';
+    tbody+='</tr>';
   });
-  tbody += '</tbody>';
+  tbody+='</tbody>';
 
-  // ── Status bar ──
-  const pct = totalSlots ? Math.round(occupied/totalSlots*100) : 0;
-  const statusBar = `<div class="rs-status">
-    <span>${DAYS[di]}</span>
-    <span style="color:var(--text-d)">·</span>
-    <span>${visRooms.length} sal</span>
-    <span style="color:var(--text-d)">·</span>
-    <span><strong>${occupied}</strong> / ${totalSlots} slotów zajętych (${pct}%)</span>
-    ${Object.values(roomOcc).some(r=>Object.values(r).some(v=>v.length>1))
-      ? `<span class="rs-warn">⚠ kolizja sal</span>` : ''}
+  wrap.innerHTML=`<div class="room-schedule-wrap">
+    <table class="room-schedule-table">${thead}${tbody}</table>
   </div>`;
-
-  wrap.innerHTML = statusBar +
-    `<div class="rs-wrap"><table class="rs-table">${thead}${tbody}</table></div>`;
 }
 
 function populateRoomBuildingFilter() {
   const sel = document.getElementById('roomBuildingFilter');
+  const lbl = document.getElementById('roomBldLabel');
   if(!sel||!appState) return;
   const blds = appState.buildings||[];
   sel.innerHTML = '<option value="">Wszystkie budynki</option>' +
     blds.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-  sel.parentElement.style.display = blds.length < 2 ? 'none' : '';
+  if(lbl) lbl.style.display = blds.length<2?'none':'';
+  if(sel.parentElement) {
+    const span = sel.previousElementSibling;
+    if(span) span.style.display = blds.length<2?'none':'';
+    sel.style.display = blds.length<2?'none':'';
+  }
 }
 
 
@@ -5246,6 +5288,12 @@ function genHandleResult(newSched, warnings, stats) {
   // Zapisz w localStorage jako backup
   try { localStorage.setItem('pl_sched_generated', JSON.stringify({sched:newSched,ts:Date.now()})); }
   catch(_) {}
+}
+
+function genDiscard() {
+  // Odrzuć wygenerowany plan — wyczyść tymczasowy wynik
+  if(window._genResult) { window._genResult = null; }
+  renderGenerator();
 }
 
 function genApply() {
@@ -6998,6 +7046,11 @@ function tmAddAssignment() {
 
 
 // ── Nauczanie indywidualne ──
+function tmRenderIndiv() {
+  // NI nauczyciela teraz zarządzane przez system niStudents (openNIModal)
+  // Ta funkcja jest zachowana dla kompatybilności
+}
+
 function tmFillIndivSubject() {
   const sel = document.getElementById('tmIndivSubject');
   if(!sel||!appState) return;
@@ -9079,7 +9132,6 @@ function buildPrintHTML(type, items, isSheet) {
   const school = appState.name||'';
   const year   = appState.schoolYear||appState.year||'';
   const hours  = appState.hours||[];
-  const DAYS   = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
 
   const css = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
