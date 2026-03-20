@@ -3457,16 +3457,61 @@ function renderTeacherView() {
   const days = dayVal==='all' ? [0,1,2,3,4] : [parseInt(dayVal)];
   const cols = appState.classes.map(c=>({id:c.id,label:c.name}));
   wrap.innerHTML = renderGrid(cols, null, days, {fixTeacher:tchId, showDayLabel: dayVal==='all'});
+
+  // Znajdź klasy gdzie nauczyciel jest wspomagającym (przez niStudents)
+  const supportClasses = new Set();
+  (appState.niStudents||[]).forEach(stud => {
+    if(!stud.classId) return;
+    (stud.subjects||[]).forEach(r => {
+      if(r.supportTeacherId === tchId) supportClasses.add(stud.classId);
+    });
+  });
+
   wrap.querySelectorAll('td[data-clsid]').forEach(td=>{
     const clsId=td.dataset.clsid;
     const di=parseInt(td.dataset.day);
     const hn=parseInt(td.dataset.hour);
     const lesson=getLesson(clsId,di,hn);
+    const isSupport = supportClasses.has(clsId);
+
     if(lesson && lesson.teacherId!==tchId){
-      td.querySelector('.lesson-chip')&&(td.querySelector('.lesson-chip').style.opacity='.2');
+      const chip = td.querySelector('.lesson-chip');
+      if(chip) {
+        if(isSupport) {
+          // Nauczyciel wspomaga w tej klasie — oznacz inaczej niż zaciemnione
+          chip.style.opacity = '.75';
+          chip.style.borderLeft = '3px solid var(--teal)';
+          chip.title = 'Lekcja z klasą — obecny jako nauczyciel wspomagający';
+          // Dodaj badge wspomagający
+          if(!chip.querySelector('.support-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'support-badge';
+            badge.textContent = '+W';
+            badge.style.cssText = 'position:absolute;top:2px;left:3px;font-size:.55rem;'+
+              'background:var(--teal);color:#fff;border-radius:3px;padding:0 3px;font-weight:700';
+            chip.appendChild(badge);
+          }
+        } else {
+          chip.style.opacity = '.2';
+        }
+      }
     }
     if(!lesson) td.onclick=()=>openAddModal(clsId,di,hn,tchId,'');
   });
+
+  // Info o roli wspomagającego jeśli dotyczy
+  if(supportClasses.size > 0) {
+    const clsNames = [...supportClasses].map(id=>{
+      const c = appState.classes.find(c=>c.id===id);
+      return c?.name||'?';
+    }).join(', ');
+    const info = document.createElement('div');
+    info.style.cssText = 'margin-bottom:10px;padding:7px 12px;background:var(--teal)15;'+
+      'border:1px solid var(--teal)44;border-radius:8px;font-size:.72rem;color:var(--text-m)';
+    info.innerHTML = `👥 Pełni rolę <strong>nauczyciela wspomagającego</strong> w klasach: <strong>${clsNames}</strong>`+
+      ` — lekcje oznaczone <span style="color:var(--teal);font-weight:700">+W</span> i zielonym paskiem.`;
+    wrap.insertBefore(info, wrap.firstChild);
+  }
 }
 
 // ── ROOM VIEW ──
@@ -8704,6 +8749,22 @@ function openPrintPanel() {
       </div>
     </div>
 
+    <div style="margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">👤 Plan ucznia NI</div>
+      <div style="font-size:.7rem;color:var(--text-d);margin-bottom:8px">
+        Indywidualny plan pokazujący kiedy uczeń ma zajęcia NI a kiedy jest z klasą
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${(appState.niStudents||[]).length ? (appState.niStudents||[]).map(s=>`
+          <button class="wbtn wbtn-ghost" style="text-align:left;padding:7px 12px"
+            onclick="doPrintNI('${s.id}')">
+            👤 ${s.name}${s.classId ? ' ('+((appState.classes||[]).find(c=>c.id===s.classId)?.name||'')+ ')' : ''}
+          </button>`).join('') :
+          `<div style="font-size:.75rem;color:var(--text-d);padding:8px">Brak uczniów NI</div>`
+        }
+      </div>
+    </div>
+
     <div style="border-top:1px solid var(--border);padding-top:14px">
       <div style="font-size:.72rem;font-weight:700;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Inne</div>
       <button class="wbtn wbtn-ghost" style="width:100%;margin-bottom:6px;text-align:left;padding:7px 12px"
@@ -9473,6 +9534,153 @@ function niSettingsSection() {
 
   html += `</div>`;
   return html;
+}
+
+
+// ── Drukuj plan ucznia NI ──
+function doPrintNI(studId) {
+  closePrintPanel();
+  if(!appState) return;
+  const stud    = (appState.niStudents||[]).find(s=>s.id===studId);
+  if(!stud) return;
+  const cls     = stud.classId ? appState.classes.find(c=>c.id===stud.classId) : null;
+  const hours   = appState.hours||[];
+  const subjects= appState.subjects||[];
+  const teachers= appState.teachers||[];
+  const DAYS    = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
+
+  // Zbierz przedmioty NI i ich nauczycieli
+  const niMap = {}; // subjId → {tch, hours}
+  (stud.subjects||[]).forEach(r => {
+    if((r.mode==='indiv'||r.mode==='split') && r.teacherId) {
+      const tch = teachers.find(t=>t.id===r.teacherId);
+      niMap[r.subjId] = { tch, hoursNI: r.hours||0, hoursClass: r.hoursClass||0, mode: r.mode };
+    }
+    if(r.supportTeacherId) {
+      if(!niMap[r.subjId]) niMap[r.subjId] = {};
+      niMap[r.subjId].suppTch = teachers.find(t=>t.id===r.supportTeacherId);
+    }
+  });
+
+  // Pobierz plan klasy (schedData)
+  const clsSchedule = {}; // 'di_hn' → lesson
+  if(stud.classId) {
+    Object.entries(schedData).forEach(([k,v]) => {
+      const parts = k.split('_');
+      if(parts[0]===stud.classId) {
+        clsSchedule[parts[1]+'_'+parts[2]] = v;
+      }
+    });
+  }
+
+  // Buduj tabelę HTML
+  let table = `<table style="border-collapse:collapse;width:100%;font-size:.78rem">
+    <thead><tr>
+      <th style="border:1px solid #ccc;padding:5px 8px;background:#f5f5f5;min-width:50px">Godz.</th>
+      ${DAYS.map(d=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#f5f5f5">${d}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+  hours.forEach(h => {
+    table += `<tr><td style="border:1px solid #ccc;padding:4px 6px;text-align:center;
+      background:#f9f9f9;font-size:.7rem">${h.num}<br><span style="color:#888">${h.start}</span></td>`;
+
+    for(let di=0; di<5; di++) {
+      const key = di+'_'+h.num;
+      const lesson = clsSchedule[key];
+
+      if(!lesson) {
+        table += `<td style="border:1px solid #ccc;padding:4px"></td>`;
+        continue;
+      }
+
+      const subj = lesson.subjectId ? subjects.find(s=>s.id===lesson.subjectId) : null;
+      const tch  = lesson.teacherId ? teachers.find(t=>t.id===lesson.teacherId) : null;
+      const niInfo = subj ? niMap[subj.id] : null;
+
+      let cellBg = '#fff';
+      let cellBorder = '1px solid #ccc';
+      let modeLabel = '';
+      let extraInfo = '';
+
+      if(niInfo && (niInfo.mode==='indiv' || niInfo.mode==='split')) {
+        // Ten przedmiot uczeń może mieć w NI lub z klasą (split)
+        if(niInfo.mode==='indiv') {
+          // Całkowicie NI — uczeń NIE jest na tej lekcji z klasą
+          cellBg = '#e8f4fd';
+          cellBorder = '2px solid #0284c7';
+          modeLabel = `<div style="font-size:.6rem;color:#0284c7;font-weight:700">👤 NI</div>`;
+          extraInfo = niInfo.tch
+            ? `<div style="font-size:.62rem;color:#555">${niInfo.tch.abbr}</div>` : '';
+        } else {
+          // Split — część NI, część z klasą
+          cellBg = '#fffbeb';
+          cellBorder = '2px solid #d97706';
+          modeLabel = `<div style="font-size:.6rem;color:#d97706;font-weight:700">½ NI+klasa</div>`;
+          extraInfo = niInfo.tch
+            ? `<div style="font-size:.62rem;color:#555">NI: ${niInfo.tch.abbr}</div>` : '';
+        }
+      } else {
+        // Z klasą normalnie
+        cellBg = '#fff';
+        if(niInfo?.suppTch) {
+          // Ma nauczyciela wspomagającego na tej lekcji
+          cellBg = '#f0fdf4';
+          cellBorder = '1px solid #059669';
+          extraInfo = `<div style="font-size:.62rem;color:#059669">+${niInfo.suppTch.abbr} (W)</div>`;
+        }
+        modeLabel = `<div style="font-size:.6rem;color:#888">🏫 z kl.</div>`;
+      }
+
+      const color = subj?.color||'#888';
+      table += `<td style="border:${cellBorder};padding:4px 5px;background:${cellBg};vertical-align:top">
+        <div style="font-size:.72rem;font-weight:700;color:${color}">${subj?.abbr||'?'}</div>
+        ${tch?`<div style="font-size:.62rem;color:#555">${tch.abbr}</div>`:''}
+        ${modeLabel}
+        ${extraInfo}
+      </td>`;
+    }
+    table += '</tr>';
+  });
+  table += '</tbody></table>';
+
+  // Legenda
+  const legend = `<div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:.7rem;color:#555">
+    <span><span style="display:inline-block;width:12px;height:12px;background:#e8f4fd;border:2px solid #0284c7;vertical-align:middle"></span> Zajęcia indywidualne (NI)</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#fffbeb;border:2px solid #d97706;vertical-align:middle"></span> Podzielone (część NI, część z klasą)</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#f0fdf4;border:1px solid #059669;vertical-align:middle"></span> Z klasą + nauczyciel wspomagający (W)</span>
+    <span style="background:#fff;border:1px solid #ccc;padding:0 4px">Z klasą normalnie</span>
+  </div>`;
+
+  // NI subjects info
+  const niSubjList = (stud.subjects||[]).filter(r=>r.mode==='indiv'||r.mode==='split').map(r=>{
+    const subj = subjects.find(s=>s.id===r.subjId);
+    const tch  = r.teacherId ? teachers.find(t=>t.id===r.teacherId) : null;
+    return `<li>${subj?.name||'?'}: ${r.hours||0}h NI/tydz.${tch?' — '+tch.last+' '+tch.first:''}
+      ${r.mode==='split'?' + '+(r.hoursClass||0)+'h z klasą':''}</li>`;
+  }).join('');
+
+  // Otwórz okno druku
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>Plan NI — ${stud.name}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:16px;color:#222}
+      h1{font-size:1rem;margin-bottom:4px}
+      h2{font-size:.85rem;color:#555;font-weight:normal;margin-bottom:12px}
+      @page{margin:1cm;size:A4 landscape}
+      @media print{body{padding:0}}
+    </style>
+  </head><body>
+    <h1>Plan ucznia: ${stud.name}</h1>
+    <h2>${cls?'Klasa: '+cls.name+' · ':''}Forma: ${stud.form||'NI'}
+      · Rok szkolny: ${appState.schoolYear||appState.year||''}</h2>
+    ${niSubjList ? `<ul style="font-size:.72rem;color:#555;margin-bottom:10px">${niSubjList}</ul>` : ''}
+    ${table}
+    ${legend}
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 400);
 }
 
 // ================================================================
