@@ -1201,7 +1201,6 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <button class="ttab" data-view="duty" onclick="switchView('duty',this)">🚨 Dyżury</button>
       <button class="ttab" data-view="stats" onclick="switchView('stats',this)">📊 Statystyki</button>
       <button class="ttab" data-view="generator" onclick="switchView('generator',this)">⚡ Generator</button>
-      <button class="ttab no-print" onclick="openNIModal()" title="Nauczanie indywidualne i zajęcia w małych grupach">👤 NI / Grupy</button>
     </div>
     <div class="topbar-actions">
       <button class="icon-btn no-print" title="Drukuj plan" onclick="openPrintPanel()">🖨️</button>
@@ -1815,7 +1814,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 <!-- ══════════════════════════════════
      MODAL NAUCZANIA INDYWIDUALNEGO
 ══════════════════════════════════ -->
-<div class="modal-overlay" id="niModal" style="align-items:flex-start;padding:20px 0">
+<div class="modal-overlay" id="niModal" style="align-items:flex-start;padding:20px 0;display:none">
   <div class="modal-box" style="width:680px;max-width:98vw;max-height:95vh;overflow-y:auto">
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -1847,7 +1846,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 </div>
 
 <!-- MODAL EDYCJI UCZNIA NI -->
-<div class="modal-overlay" id="niEditModal" style="z-index:650">
+<div class="modal-overlay" id="niEditModal" style="z-index:650;display:none">
   <div class="modal-box" style="width:600px;max-width:98vw;max-height:92vh;overflow-y:auto">
 
     <div class="modal-title" id="niEditTitle" style="margin-bottom:16px">Uczeń NI</div>
@@ -2073,7 +2072,7 @@ const SUBJ_COLORS = [
   '#a78bfa','#2dd4bf','#fb923c','#f472b6',
   '#818cf8','#4ade80','#e879f9','#67e8f9'
 ];
-const WIZ_STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny'];
+const WIZ_STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny','NI / Grupy'];
 const LS = {
   STATE:    'pl_state',
   SCHED:    'pl_sched',
@@ -2320,7 +2319,7 @@ function openSettings() {
 //  WIZARD
 // ================================================================
 let wStep = 0;
-let wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+let wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
 
 function startWizard(resume=false) {
   if(resume) {
@@ -2331,7 +2330,7 @@ function startWizard(resume=false) {
     } catch(_) { wStep=0; }
   } else {
     wStep = 0;
-    wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[] };
+    wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
     localStorage.removeItem(LS.WIZ);
   }
   document.getElementById('wizardOverlay').classList.add('show');
@@ -2380,6 +2379,7 @@ function renderWizStep() {
     case 4: body.innerHTML = wizStep4(); break;
     case 5: body.innerHTML = wizStep5(); break;
     case 6: body.innerHTML = wizStep6(); break;
+    case 7: body.innerHTML = wizStep7(); break;
   }
 }
 
@@ -2635,8 +2635,81 @@ function wizStep6() {
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+// Step 7: NI / Grupy
+function wizStep7() {
+  // Inicjuj niStudents jeśli nie istnieje
+  if(!wData.niStudents) wData.niStudents = [];
+
+  const studs = wData.niStudents||[];
+  const subjects = wData.subjects||[];
+  const teachers = wData.teachers||[];
+  const classes  = wData.classes||[];
+
+  const rows = studs.map((s,i) => {
+    const cls  = classes.find(c=>c.id===s.classId);
+    const hours= (s.subjects||[]).filter(r=>r.mode==='indiv').reduce((h,r)=>h+(r.hours||0),0);
+    const niSubjs = (s.subjects||[]).filter(r=>r.mode==='indiv')
+      .map(r=>{ const subj=subjects.find(ss=>ss.id===r.subjId); return subj?.abbr||'?'; }).join(', ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
+      background:var(--s2);border-radius:7px;border:1px solid var(--border);margin-bottom:5px">
+      <span style="font-weight:600;flex:1">👤 ${s.name}</span>
+      ${cls?`<span style="font-size:.7rem;color:var(--text-m)">${cls.name}</span>`:''}
+      ${niSubjs?`<span style="font-size:.7rem;color:var(--accent)">${niSubjs}</span>`:''}
+      ${hours?`<span style="font-size:.7rem;font-family:var(--mono);color:var(--accent)">${hours}h</span>`:''}
+      <button onclick="wNIRemove(${i})"
+        style="background:none;border:none;cursor:pointer;color:var(--text-d);font-size:.9rem">×</button>
+    </div>`;
+  }).join('');
+
+  return `<div class="wcard">
+    <div class="wcard-title">Nauczanie indywidualne i grupy do 5 os. <span style="font-weight:400;font-size:.72rem;color:var(--text-m)">(opcjonalne — możesz uzupełnić po stworzeniu planu)</span></div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:14px;line-height:1.5">
+      Dodaj uczniów objętych nauczaniem indywidualnym lub uczęszczających na zajęcia w małych grupach.
+      Dla każdego ucznia możesz określić które przedmioty realizuje indywidualnie a które z klasą.
+    </p>
+    ${rows || `<div style="padding:16px;text-align:center;color:var(--text-d);
+      border:1px dashed var(--border);border-radius:8px;font-size:.78rem;margin-bottom:12px">
+      Brak uczniów NI — możesz dodać ich tutaj lub później w Ustawieniach
+    </div>`}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input class="winput" id="wNIName" placeholder="Imię Nazwisko ucznia" style="flex:2">
+      <select class="wselect" id="wNIClass" style="flex:1">
+        <option value="">— klasa —</option>
+        ${classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+      </select>
+      <button class="tag-add-btn" onclick="wNIAdd()">+ Dodaj</button>
+    </div>
+    <p style="font-size:.7rem;color:var(--text-d);margin-top:8px">
+      💡 Szczegóły (które przedmioty NI, nauczyciel, godziny) ustaw po stworzeniu planu
+      w <strong>Ustawieniach → 👤 NI / Grupy</strong>.
+    </p>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
     <button class="wbtn wbtn-primary" onclick="wizFinish()">✓ Utwórz plan</button>
   </div>`;
+}
+
+function wNIAdd() {
+  const name = document.getElementById('wNIName').value.trim();
+  const classId = document.getElementById('wNIClass').value || null;
+  if(!name) { notify('Podaj imię ucznia'); return; }
+  if(!wData.niStudents) wData.niStudents = [];
+  wData.niStudents.push({
+    id: 'ni_' + Date.now() + Math.random().toString(36).slice(2,6),
+    name, classId, form: 'indywidualne', studentCount: 1, subjects: []
+  });
+  document.getElementById('wNIName').value = '';
+  renderWizStep();
+}
+
+function wNIRemove(i) {
+  if(wData.niStudents) wData.niStudents.splice(i, 1);
+  renderWizStep();
 }
 
 // Wizard navigation
@@ -2711,6 +2784,7 @@ function wizFinish() {
     })),
     hours: wData.hours.sort((a,b)=>a.num-b.num),
   };
+  appState.niStudents = wData.niStudents||[];
   schedData = {};
   _demoMode = false;
   localStorage.removeItem(LS.WIZ); // wyczyść autozapis
@@ -5890,6 +5964,9 @@ function renderSettings() {
       </table>
     </div>
   </div>`;
+
+  // ── Nauczanie indywidualne i grupowe ──
+  html += niSettingsSection();
 
   html+=`<div class="settings-card" style="grid-column:1/-1">`;
   html+=`<div class="settings-card-title" style="color:var(--red)">Strefa niebezpieczna</div>`;
@@ -9197,6 +9274,102 @@ function niUpdateTeacherBadge(tchId) {
   } else {
     box.style.display='none';
   }
+}
+
+
+// ================================================================
+//  NI — SEKCJA W USTAWIENIACH
+// ================================================================
+function niSettingsSection() {
+  niEnsureState();
+  const students  = appState.niStudents||[];
+  const classes   = appState.classes||[];
+  const subjects  = appState.subjects||[];
+  const teachers  = appState.teachers||[];
+
+  const totalHours = students.reduce((sum, s) =>
+    sum + (s.subjects||[]).filter(r=>r.mode==='indiv').reduce((h,r)=>h+(r.hours||0),0), 0);
+
+  let html = `<div class="settings-card" style="grid-column:1/-1">
+    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>👤 Nauczanie indywidualne i zajęcia w małych grupach</span>
+      <button class="mbtn mbtn-primary" style="padding:6px 14px;font-size:.75rem"
+        onclick="openNIModal()">+ Dodaj ucznia NI</button>
+    </div>
+    <div style="font-size:.72rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Uczniowie realizujący część lub wszystkie przedmioty poza klasą
+      (nauczanie indywidualne, rewalidacja, zajęcia grupowe do 5 os.).
+      Solver traktuje każdego ucznia NI jak osobną wirtualną klasę
+      i układa dla niego osobne sloty w planie.
+    </div>`;
+
+  if(!students.length) {
+    html += `<div style="padding:24px;text-align:center;color:var(--text-d);
+      border:1px dashed var(--border);border-radius:8px">
+      <div style="font-size:1.6rem;margin-bottom:8px">👤</div>
+      <div style="font-size:.82rem">Brak uczniów NI — kliknij "+ Dodaj ucznia NI"</div>
+    </div>`;
+  } else {
+    html += `<div style="font-size:.72rem;color:var(--text-m);margin-bottom:10px">
+      ${students.length} uczniów · ${totalHours} godz. NI/tydz.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">`;
+
+    students.forEach(stud => {
+      const cls       = classes.find(c=>c.id===stud.classId);
+      const indivRows = (stud.subjects||[]).filter(r=>r.mode==='indiv');
+      const classRows = (stud.subjects||[]).filter(r=>r.mode==='class');
+      const hours     = indivRows.reduce((s,r)=>s+(r.hours||0),0);
+
+      const indivChips = indivRows.map(r => {
+        const s = subjects.find(s=>s.id===r.subjId);
+        const t = r.teacherId ? teachers.find(t=>t.id===r.teacherId) : null;
+        return `<span style="display:inline-flex;align-items:center;gap:3px;
+          padding:2px 7px;border-radius:10px;font-size:.67rem;
+          background:${s?.color||'#888'}22;border:1px solid ${s?.color||'#888'}44">
+          <span style="width:6px;height:6px;border-radius:50%;
+            background:${s?.color||'#888'};display:inline-block"></span>
+          ${s?.abbr||'?'}${t?' · '+t.abbr:''}
+          <span style="color:var(--text-d)">${r.hours||1}h</span>
+        </span>`;
+      }).join('');
+
+      const classChips = classRows.map(r => {
+        const s = subjects.find(s=>s.id===r.subjId);
+        return `<span style="font-size:.65rem;color:var(--text-d);padding:1px 5px;
+          border-radius:8px;background:var(--s3)">${s?.abbr||'?'}</span>`;
+      }).join(' ');
+
+      html += `<div style="display:flex;align-items:flex-start;gap:10px;
+        padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap">
+            <span style="font-weight:700;font-size:.85rem">👤 ${stud.name}</span>
+            ${cls?`<span style="font-size:.68rem;background:var(--s3);padding:1px 6px;
+              border-radius:5px;color:var(--text-m)">${cls.name}</span>`:''}
+            <span style="font-size:.68rem;color:var(--accent);font-family:var(--mono)">${hours}h NI/tydz.</span>
+          </div>
+          ${indivChips?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px">
+            <span style="font-size:.62rem;color:var(--text-d)">NI:</span>${indivChips}
+          </div>`:''}
+          ${classChips?`<div>
+            <span style="font-size:.62rem;color:var(--text-d)">Z klasą:</span> ${classChips}
+          </div>`:''}
+        </div>
+        <button onclick="niOpenEdit('${stud.id}')"
+          style="flex-shrink:0;padding:4px 10px;border-radius:6px;
+            border:1px solid var(--border);background:transparent;
+            color:var(--text-m);font-family:var(--font);font-size:.7rem;cursor:pointer">
+          Edytuj
+        </button>
+      </div>`;
+    });
+
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
 // ================================================================
