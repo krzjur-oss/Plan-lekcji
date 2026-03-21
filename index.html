@@ -4373,7 +4373,7 @@ function genPositionUI(C) {
   (appState.classes||[]).forEach(cls => {
     (cls.optionalSubjects||[]).forEach(o => {
       if(!autoPositions[o.subjId]) autoPositions[o.subjId] = new Set();
-      autoPositions[o.subjId].add(o.position||'first');
+      if(o.position && o.position !== 'any') autoPositions[o.subjId].add(o.position);
     });
   });
 
@@ -4390,17 +4390,17 @@ function genPositionUI(C) {
     const dot        = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
                          background:${s.color||'#888'};flex-shrink:0"></span>`;
 
-    // Przedmiot opcjonalny — pozycja narzucona automatycznie, nie pokazuj przycisków
+    // Przedmiot z wymuszonym edge (jawnie ustawione w opcjonalnych) — zablokuj UI
     if(isAutoEdge) {
       return `<div class="gen-subj-row">
         <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">
           ${dot}${s.name}
           <span style="font-size:.66rem;padding:2px 8px;border-radius:10px;
             background:var(--accent-g);color:var(--accent);border:1px solid var(--accent)44">
-            ◑ auto: skrajne (z opcjonalnych)
+            ⇔ skrajne godziny (z ustawień klasy)
           </span>
         </span>
-        <span style="font-size:.7rem;color:var(--text-d);font-style:italic">— ustawione automatycznie</span>
+        <span style="font-size:.7rem;color:var(--text-d);font-style:italic">— ustaw w modalu klasy → Grupy międzyoddziałowe</span>
       </div>`;
     }
 
@@ -8757,7 +8757,7 @@ function cmRenderOptSubjects() {
     const subj    = subjects.find(s=>s.id===o.subjId);
     const dot     = subj ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;
       background:${subj.color};flex-shrink:0"></span>` : '';
-    const pos     = o.position||'edge';
+    const pos     = o.position||'any';
     const mergeWith = o.mergeWith||[];
 
     // Chipy klas do łączenia
@@ -8796,12 +8796,12 @@ function cmRenderOptSubjects() {
       </div>
       <!-- Wiersz 2: skrajne godziny -->
       <div style="display:flex;align-items:center;gap:8px;padding-left:16px">
-        <span style="font-size:.7rem;color:var(--text-m);white-space:nowrap">Skrajne godziny:</span>
+        <span style="font-size:.7rem;color:var(--text-m);white-space:nowrap">Pozycja w planie:</span>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.72rem">
           <input type="checkbox" ${pos==='edge'?'checked':''}
             onchange="_cmOptSubjects[${i}].position=this.checked?'edge':'any';cmRenderOptSubjects()"
             style="accent-color:var(--accent);width:15px;height:15px">
-          Zawsze pierwsza lub ostatnia godzina klasy
+          Skrajne godziny (pierwsza lub ostatnia lekcja klasy)
         </label>
       </div>
       <!-- Wiersz 3: łączenie z innymi klasami -->
@@ -8832,7 +8832,7 @@ function cmAddOptSubj() {
   // Zaproponuj pierwszy przedmiot który nie jest jeszcze na liście
   const used  = _cmOptSubjects.map(o=>o.subjId);
   const first = (appState.subjects||[]).find(s=>!used.includes(s.id));
-  _cmOptSubjects.push({subjId: first?.id||'', count: 0, position: 'edge'});
+  _cmOptSubjects.push({subjId: first?.id||'', count: 0, position: 'any'});
   cmRenderOptSubjects();
 }
 
