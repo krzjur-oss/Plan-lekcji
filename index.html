@@ -3693,18 +3693,26 @@ function renderRoomView() {
     _rowTop+=ROW_H;
   }
 
-  // Wiersz gospodarz
+  // Wiersz gospodarz — klasy których homeRooms zawiera tę salę
+  // (odwrotne wyszukiwanie: klasa → sala, bo sala nie przechowuje listy klas-gospodarz)
+  const roomToClasses = {}; // roomId → [className, ...]
+  classes.forEach(cls => {
+    (cls.homeRooms||[]).forEach(rid => {
+      if(!roomToClasses[rid]) roomToClasses[rid] = [];
+      roomToClasses[rid].push(cls.name);
+    });
+  });
   {
     const topStyle=`--th-top:${_rowTop}px;`;
     let row=`<tr><th class="rs-time-th" style="background:var(--s1);font-size:.55rem;color:var(--text-d);${topStyle}">Gospod.</th>`;
     cols.forEach(col=>{
       const r=col.room;
-      const custNames=(r.custodians||[]).map(cid=>classes.find(c=>c.id===cid)?.name||'?');
-      const hasTwo=custNames.length>1;
+      const clsNames=(roomToClasses[r.id]||[]).slice().sort((a,b)=>a.localeCompare(b,'pl',{numeric:true}));
+      const hasTwo=clsNames.length>1;
       row+=`<th class="rs-th-homeroom" style="${topStyle}" onclick="openEditRoomModal('${r.id}')"
         title="Kliknij aby edytować salę">
-        ${custNames.length
-          ? custNames.slice(0,2).map((n,i)=>
+        ${clsNames.length
+          ? clsNames.slice(0,2).map((n,i)=>
               `<div class="rs-hr-pair"><div class="hr-class${i?'-2':''}">${n}</div></div>`+
               (i===0&&hasTwo?'<div class="rs-hr-sep"></div>':'')
             ).join('')
