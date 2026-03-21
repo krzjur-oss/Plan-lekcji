@@ -1872,17 +1872,19 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <p style="font-size:.72rem;color:var(--text-m);margin-top:5px">Zaznaczone sale będą podpowiadane jako pierwsze przy dodawaniu lekcji tej klasy.</p>
     </div>
 
-    <!-- Przedmioty opcjonalne — część klasy -->
+    <!-- Grupy łączone / przedmioty opcjonalne -->
     <div class="mfield">
-      <label>Przedmioty realizowane przez część klasy</label>
-      <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px">
-        Np. religia — 22 z 25 uczniów, etyka — 3 z 25. Wpisz liczbę uczniów uczęszczających.
+      <label>Grupy łączone i przedmioty dla części klasy</label>
+      <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px;line-height:1.5">
+        Używaj dla: <strong>grup międzyoddziałowych</strong> (np. Niemiec — 7a+7b razem) 
+        i <strong>opcjonalnych</strong> (np. religia część klasy, etyka reszta).<br>
+        Łącząc klasy: generator traktuje grupy jako <em>równoległe</em> — obie klasy mają w tym slocie swoje grupy jednocześnie, bez blokowania reszty klasy.
       </p>
       <div id="cmOptSubjList" style="display:flex;flex-direction:column;gap:6px"></div>
       <button onclick="cmAddOptSubj()"
         style="margin-top:6px;font-size:.72rem;color:var(--accent);background:none;
                border:1px dashed var(--accent);border-radius:6px;padding:4px 10px;cursor:pointer">
-        + dodaj przedmiot opcjonalny
+        + dodaj grupę / przedmiot opcjonalny
       </button>
     </div>
 
@@ -5361,7 +5363,8 @@ function genWorkerFn() {
 
     // ── Struktury zajętości ──
     const tchSlots  = {}; // tchId  → Set('di_hn')
-    const clsSlots  = {}; // clsId  → Set('di_hn')
+    const clsSlots  = {}; // clsId  → Set('di_hn')  — pełna klasa (lekcje dla całej klasy)
+    const grpSlots  = {}; // grpSlotId → Set('di_hn') — wirtualne sloty grup łączonych
     const roomSlots = {}; // roomId → Set('di_hn')
     // Mapa uczniów NI: niStudentId → Set('di_hn') — kiedy uczeń jest zajęty
     // Zajmowany przez: (a) lekcje klasy gdy uczeń jest z klasą, (b) inne sloty NI tego ucznia
@@ -5390,6 +5393,7 @@ function genWorkerFn() {
 
     const isTchFree  = (tid,di,hn) => !tchSlots[tid]?.has(`${di}_${hn}`);
     const isClsFree  = (cid,di,hn) => !clsSlots[cid]?.has(`${di}_${hn}`);
+    const isGrpFree  = (gid,di,hn) => !grpSlots[gid]?.has(`${di}_${hn}`);
     const isRoomFree = (rid,di,hn) => !roomSlots[rid]?.has(`${di}_${hn}`);
 
     // Czy uczeń NI jest wolny w tym slocie (nie jest wtedy na lekcji z klasą)
@@ -5411,16 +5415,23 @@ function genWorkerFn() {
       });
     };
 
-    const occupy = (tid,cid,rid,di,hn,subjId) => {
-      if(tid) { if(!tchSlots[tid])  tchSlots[tid] =new Set(); tchSlots[tid].add(`${di}_${hn}`); }
-      if(cid) { if(!clsSlots[cid])  clsSlots[cid] =new Set(); clsSlots[cid].add(`${di}_${hn}`); }
-      if(rid) { if(!roomSlots[rid]) roomSlots[rid]=new Set(); roomSlots[rid].add(`${di}_${hn}`); }
-      // Zajmij slot ucznia NI jeśli ta lekcja jest "z klasą" dla niego
-      if(cid && subjId) occupyNIStudentIfNeeded(cid, subjId, di, hn);
+    const occupyGrp = (gid,di,hn) => {
+      if(!gid) return;
+      if(!grpSlots[gid]) grpSlots[gid]=new Set();
+      grpSlots[gid].add(`${di}_${hn}`);
     };
-    const vacate = (tid,cid,rid,di,hn) => {
+    const occupy = (tid,cid,rid,di,hn,subjId,gid=null) => {
+      if(tid) { if(!tchSlots[tid])  tchSlots[tid] =new Set(); tchSlots[tid].add(`${di}_${hn}`); }
+      // Dla grup łączonych: blokuj tylko slot grupy, NIE całą klasę
+      if(gid) { occupyGrp(gid,di,hn); }
+      else if(cid) { if(!clsSlots[cid]) clsSlots[cid]=new Set(); clsSlots[cid].add(`${di}_${hn}`); }
+      if(rid) { if(!roomSlots[rid]) roomSlots[rid]=new Set(); roomSlots[rid].add(`${di}_${hn}`); }
+      if(cid && subjId && !gid) occupyNIStudentIfNeeded(cid, subjId, di, hn);
+    };
+    const vacate = (tid,cid,rid,di,hn,gid=null) => {
       tchSlots[tid]?.delete(`${di}_${hn}`);
-      clsSlots[cid]?.delete(`${di}_${hn}`);
+      if(gid) grpSlots[gid]?.delete(`${di}_${hn}`);
+      else clsSlots[cid]?.delete(`${di}_${hn}`);
       if(rid) roomSlots[rid]?.delete(`${di}_${hn}`);
     };
 
@@ -5461,12 +5472,25 @@ function genWorkerFn() {
     // ── Zbuduj zadania ──
     sts('Budowanie listy zadań…');
     const tasks = [];
+
+    // Zbierz grupy równoległe per klasa:
+    // parallelGroups[clsId] = [{subjId, mergeWith:[clsId...]}]
+    // Gdy klasa ma np. Niemiec(merge 7b) i Hiszp(merge 7c) — to są równoległe grupy:
+    // w tym samym slocie 7a ma jednocześnie Niemiec-grupę i Hiszp-grupę
+    const parallelGroups = {}; // clsId → Set(subjId) — przedmioty z mergeWith (grupy)
+    classes.forEach(cls => {
+      (cls.optionalSubjects||[]).forEach(o => {
+        if(!o.subjId || !(o.mergeWith||[]).length) return;
+        if(!parallelGroups[cls.id]) parallelGroups[cls.id] = new Set();
+        parallelGroups[cls.id].add(o.subjId);
+      });
+    });
+
     teachers.forEach(t => {
       t.assignments.forEach(a => {
         if(!subjActive(a.subjectId)) return;
         const cls = classes.find(c=>c.id===a.classId);
         if(!cls || !a.hours) return;
-        // Sprawdź czy predmiot jest dla tej klasy
         const subj = subjects.find(s=>s.id===a.subjectId);
         if(subj?.classes?.length && !subj.classes.includes(cls.id)) return;
 
@@ -5476,15 +5500,22 @@ function genWorkerFn() {
         const maxPD  = (C.maxPerDay||{})[a.subjectId]||0;
         const maxCon = (C.maxConsecutive||{})[a.subjectId]||0;
 
-        // Opcjonalne — skrajne godziny
         const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
         const isEdge   = optEntry?.position==='edge';
         const effectivePos = isEdge ? 'edge' : pos;
 
-        // Grupy połączone między klasami
-        const mergeClsIds = optEntry?.mergeWith?.length
+        // Czy to jest przedmiot w grupach łączonych?
+        const isInterclass = !!(optEntry?.mergeWith?.length);
+
+        // Klasy uczestniczące w tej grupie (z obu stron)
+        const mergeClsIds = isInterclass
           ? [cls.id,...optEntry.mergeWith]
           : null;
+
+        // Wirtualny ID grupy (zamiast blokowania całej klasy)
+        // Każda klasa ma osobny "slot grupowy" dla tego przedmiotu
+        // Format: "grp_{clsId}_{subjId}"
+        const groupSlotId = isInterclass ? `grp_${cls.id}_${a.subjectId}` : null;
 
         tasks.push({
           clsId:cls.id, clsName:cls.name,
@@ -5492,8 +5523,11 @@ function genWorkerFn() {
           subjId:a.subjectId, subjName:subj?.name||'?',
           hoursLeft:a.hours, blkSz,
           pos:effectivePos, maxPD, maxCon,
-          isOptional:!!optEntry, mergeClsIds,
-          priority: (effectivePos!=='any'?10:0) + (blkSz>1?5:0) + a.hours
+          isOptional:!!optEntry,
+          isInterclass,    // grupy łączone — NIE blokuj całej klasy
+          mergeClsIds,     // klasy uczestniczące (tylko po stronie "partner" klasy)
+          groupSlotId,     // wirtualny slot tej grupy
+          priority: (effectivePos!=='any'?10:0) + (blkSz>1?5:0) + a.hours + (isInterclass?8:0)
         });
       });
     });
@@ -5611,17 +5645,30 @@ function genWorkerFn() {
           if(task.pos==='first' && hi>1) continue;
           if(task.pos==='last'  && hi<hours.length-2) continue;
           if(task.pos==='edge'  && hi>0 && hi<hours.length-task.blkSz) continue;
-          // Wolność nauczyciela i wirtualnej klasy
-          if(!block.every(hn=>isTchFree(task.tchId,di,hn) && isClsFree(task.clsId,di,hn))) continue;
+          // Wolność nauczyciela
+          if(!block.every(hn=>isTchFree(task.tchId,di,hn))) continue;
+          // Dostępność nauczyciela (nie zablokowany)
+          if(!block.every(hn=>tchAvail(task.tchId,di,hn))) continue;
           // Dla ucznia NI z częściowym NI: sprawdź czy nie jest w tym czasie na lekcji z klasą
           if(task.parentClsId && task.niStudId) {
             if(!block.every(hn=>isNIStudentFree(task.parentClsId, task.niStudId, di, hn))) continue;
           }
-          // Dostępność nauczyciela (nie zablokowany)
-          if(!block.every(hn=>tchAvail(task.tchId,di,hn))) continue;
-          // Dla połączonych klas — wszystkie muszą być wolne
-          if(task.mergeClsIds) {
-            if(!task.mergeClsIds.every(cid=>block.every(hn=>isClsFree(cid,di,hn)))) continue;
+          if(task.isInterclass) {
+            // Grupy łączone: sprawdź wirtualne sloty grup (nie całe klasy)
+            // Własna grupa tej klasy musi być wolna
+            if(!block.every(hn=>isGrpFree(task.groupSlotId,di,hn))) continue;
+            // Grupy partnerskie (po stronie drugiej klasy) też muszą być wolne
+            // Każda klasa w mergeClsIds ma swój groupSlotId: grp_{clsId}_{subjId}
+            if(task.mergeClsIds) {
+              const partnerIds = task.mergeClsIds.filter(cid=>cid!==task.clsId);
+              if(!partnerIds.every(cid=>{
+                const partnerGrp=`grp_${cid}_${task.subjId}`;
+                return block.every(hn=>isGrpFree(partnerGrp,di,hn));
+              })) continue;
+            }
+          } else {
+            // Zwykłe zadanie: cała klasa musi być wolna
+            if(!block.every(hn=>isClsFree(task.clsId,di,hn))) continue;
           }
 
           const score = block.reduce((s,hn)=>s+tchPref(task.tchId,di,hn),0)
@@ -5655,19 +5702,26 @@ function genWorkerFn() {
           const entry = {subjectId:task.subjId, teacherId:task.tchId,
                          roomId:room?.id||null, groups:[]};
           newSched[key(task.clsId,chosen.di,hn)] = entry;
-          occupy(task.tchId, task.clsId, room?.id, chosen.di, hn, task.subjId);
-          // Gdy to zadanie NI — zajmij też slot ucznia (żeby inne NI tego ucznia nie kolidowały)
+          if(task.isInterclass) {
+            // Grupy łączone: blokuj slot grupy (nie całą klasę)
+            occupy(task.tchId, task.clsId, room?.id, chosen.di, hn, task.subjId, task.groupSlotId);
+            // Wpisz do planów klas partnerskich i zajmij ich sloty grup
+            if(task.mergeClsIds) {
+              task.mergeClsIds.filter(cid=>cid!==task.clsId).forEach(cid => {
+                newSched[key(cid,chosen.di,hn)] = {...entry};
+                const partnerGrp=`grp_${cid}_${task.subjId}`;
+                occupyGrp(partnerGrp,chosen.di,hn);
+                if(room?.id) { if(!roomSlots[room.id]) roomSlots[room.id]=new Set(); }
+              });
+            }
+          } else {
+            occupy(task.tchId, task.clsId, room?.id, chosen.di, hn, task.subjId);
+          }
+          // Gdy to zadanie NI — zajmij też slot ucznia
           if(task.parentClsId && task.niStudId) {
             occupyNIStudent(task.parentClsId, task.niStudId, chosen.di, hn);
           }
           incrPD(task.clsId, task.subjId, chosen.di);
-          // Połączone klasy
-          if(task.mergeClsIds) {
-            task.mergeClsIds.filter(cid=>cid!==task.clsId).forEach(cid => {
-              newSched[key(cid,chosen.di,hn)] = {...entry};
-              occupy(null, cid, null, chosen.di, hn, task.subjId);
-            });
-          }
         });
         hoursLeft  -= chosen.block.length;
         placedForTask += chosen.block.length;
