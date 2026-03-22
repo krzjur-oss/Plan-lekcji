@@ -6173,13 +6173,13 @@ function renderSettings() {
 
     const totalAssigned = (t.assignments||[]).reduce((sum,a)=>sum+(a.hours||0),0);
     const fullTarget = (t.hoursTotal||0) + (t.hoursExtra||0);
+    const niPenH = niPensumHours(t.id);
     const totalWithNI = totalAssigned + niPenH;
     const etats = fullTarget
       ? `${totalWithNI}/${fullTarget} godz.${niPenH?` (w tym ${niPenH}h NI)`:''}${t.hoursExtra ? ' ('+t.hoursTotal+'+'+t.hoursExtra+')' : ''}`
       : `${totalWithNI} godz. przydzielonych`;
     const indivHours = (t.individualTeaching||[]).reduce((s,i)=>s+(i.hours||0),0);
     const indivCount = (t.individualTeaching||[]).length;
-    const niPenH = niPensumHours(t.id);
     const hoursColor = fullTarget
       ? (totalAssigned > fullTarget ? 'var(--red)' : totalAssigned === fullTarget ? 'var(--green)' : 'var(--yellow)')
       : 'var(--text-m)';
