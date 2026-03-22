@@ -1872,21 +1872,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       <p style="font-size:.72rem;color:var(--text-m);margin-top:5px">Zaznaczone sale będą podpowiadane jako pierwsze przy dodawaniu lekcji tej klasy.</p>
     </div>
 
-    <!-- Grupy łączone / przedmioty opcjonalne -->
-    <div class="mfield">
-      <label>Grupy łączone i przedmioty dla części klasy</label>
-      <p style="font-size:.72rem;color:var(--text-m);margin:0 0 8px;line-height:1.5">
-        Używaj dla: <strong>grup międzyoddziałowych</strong> (np. Niemiec — 7a+7b razem) 
-        i <strong>opcjonalnych</strong> (np. religia część klasy, etyka reszta).<br>
-        Łącząc klasy: generator traktuje grupy jako <em>równoległe</em> — obie klasy mają w tym slocie swoje grupy jednocześnie, bez blokowania reszty klasy.
-      </p>
-      <div id="cmOptSubjList" style="display:flex;flex-direction:column;gap:6px"></div>
-      <button onclick="cmAddOptSubj()"
-        style="margin-top:6px;font-size:.72rem;color:var(--accent);background:none;
-               border:1px dashed var(--accent);border-radius:6px;padding:4px 10px;cursor:pointer">
-        + dodaj grupę / przedmiot opcjonalny
-      </button>
-    </div>
+
 
     <!-- Nauczyciele — tylko podgląd -->
     <div class="mfield">
@@ -5130,14 +5116,22 @@ function genRun() {
       id:c.id, name:c.name, studentCount:c.studentCount||0,
       optionalSubjects:(c.optionalSubjects||[]),
       homeRooms:(c.homeRooms||[]),
-      // Grupy NI — uczniowie realizujący tylko część przedmiotów poza klasą
+      // Grupy NI
       niGroups:(c.groups||[])
         .filter(g=>(typeof g==='object') && g.type==='indiv')
         .map(g=>({
           id:g.id||g.name, name:g.name,
           teacherId:g.teacherId||null,
-          // Które przedmioty są w NI (pusta tablica = wszystkie)
           niSubjects: g.subjects||[]
+        })),
+      // Grupy łączone (type=group/small z linkedWith)
+      groups:(c.groups||[])
+        .filter(g=>(typeof g==='object') && (g.type==='group'||g.type==='small'))
+        .map(g=>({
+          id:g.id, name:g.name, type:g.type,
+          teacherId:g.teacherId||null,
+          studentCount:g.studentCount||0,
+          linkedWith:(g.linkedWith||[])
         }))
     })),
     teachers: teachers.map(t=>({
@@ -5473,16 +5467,42 @@ function genWorkerFn() {
     sts('Budowanie listy zadań…');
     const tasks = [];
 
-    // Zbierz grupy równoległe per klasa:
-    // parallelGroups[clsId] = [{subjId, mergeWith:[clsId...]}]
-    // Gdy klasa ma np. Niemiec(merge 7b) i Hiszp(merge 7c) — to są równoległe grupy:
-    // w tym samym slocie 7a ma jednocześnie Niemiec-grupę i Hiszp-grupę
-    const parallelGroups = {}; // clsId → Set(subjId) — przedmioty z mergeWith (grupy)
+    // Zbierz połączenia grup między klasami z g.linkedWith
+    // linkedMap[grpId] = {clsId, partnerGrpSlots:[grpSlotId...]}
+    // Format wirtualnego slotu grupy: "grp_{clsId}_{grpId}"
+    const grpSlotOf = (clsId, grpId) => `grp_${clsId}_${grpId}`;
+
+    // Dla każdej grupy z linkedWith — znajdź przypisany przedmiot (przez teacherId)
+    // Mapa: grpId → subjectId (pierwszy przydział nauczyciela dla tej klasy+grupy)
+    // W praktyce: nauczyciel przypisany do klasy prowadzi też grupę
+    // Połączone grupy dzielą ten sam slot w planie — jeden nauczyciel, jedna sala
+
+    // Zbierz wszystkie grupy łączone w grupy-klucze
+    // linkedGroups[canonicalKey] = [{clsId, grpId, subjId}]
+    // canonical key = posortowane grp_clsId_grpId połączone
+    const linkedGroupSets = []; // [{grpSlots:[...], subjId}]
+    const seenGrpSlots = new Set();
+
     classes.forEach(cls => {
-      (cls.optionalSubjects||[]).forEach(o => {
-        if(!o.subjId || !(o.mergeWith||[]).length) return;
-        if(!parallelGroups[cls.id]) parallelGroups[cls.id] = new Set();
-        parallelGroups[cls.id].add(o.subjId);
+      (cls.niGroups||[]).concat(
+        // niGroups zawiera tylko NI — dla zwykłych grup czytamy z cls.groups przez payload
+        // Payload klas ma groups z linkedWith
+        []
+      );
+    });
+
+    // Czytamy linkedWith bezpośrednio z payload classes (mamy je przez cls.groups)
+    // Payload class ma: optionalSubjects (stary system) i teraz grupy z linkedWith
+    // Grupy z linkedWith są w cls.groups (type=group/small)
+    classes.forEach(cls => {
+      (cls.groups||[]).forEach(g => {
+        if(!(g.linkedWith||[]).length) return;
+        const slotId = grpSlotOf(cls.id, g.id);
+        if(seenGrpSlots.has(slotId)) return;
+        // Zbierz wszystkich partnerów
+        const allSlots = [slotId, ...g.linkedWith.map(lw=>grpSlotOf(lw.clsId,lw.grpId))];
+        allSlots.forEach(s=>seenGrpSlots.add(s));
+        linkedGroupSets.push({slots:allSlots, clsId:cls.id, grpId:g.id});
       });
     });
 
@@ -5500,22 +5520,32 @@ function genWorkerFn() {
         const maxPD  = (C.maxPerDay||{})[a.subjectId]||0;
         const maxCon = (C.maxConsecutive||{})[a.subjectId]||0;
 
+        // Stary system optionalSubjects (pozycja skrajna)
         const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
         const isEdge   = optEntry?.position==='edge';
         const effectivePos = isEdge ? 'edge' : pos;
 
-        // Czy to jest przedmiot w grupach łączonych?
-        const isInterclass = !!(optEntry?.mergeWith?.length);
+        // Nowy system: sprawdź czy nauczyciel prowadzi przedmiot dla grupy z linkedWith
+        // Grupa łączona = nauczyciel ma przydział do tej klasy I istnieje grupa tej klasy
+        // z linkedWith wskazującym na inną klasę która też ma przydział tego samego nauczyciela
+        // (lub innego nauczyciela — każda klasa może mieć swojego)
+        //
+        // Uproszczenie: jeśli klasa ma grupę (type=group/small) z linkedWith — 
+        // i ta klasa ma przydział tego przedmiotu — to jest to zadanie grupowe
+        const linkedGrp = (cls.groups||[]).find(g =>
+          (g.type==='group'||g.type==='small') && (g.linkedWith||[]).length > 0 &&
+          // Sprawdź czy ten nauczyciel jest przypisany do tej grupy (przez teacherId grupy)
+          // lub czy nie ma przypisanego nauczyciela (wtedy bierzemy dowolny z przydziałem)
+          (!g.teacherId || g.teacherId===t.id)
+        );
 
-        // Klasy uczestniczące w tej grupie (z obu stron)
-        const mergeClsIds = isInterclass
-          ? [cls.id,...optEntry.mergeWith]
-          : null;
-
-        // Wirtualny ID grupy (zamiast blokowania całej klasy)
-        // Każda klasa ma osobny "slot grupowy" dla tego przedmiotu
-        // Format: "grp_{clsId}_{subjId}"
-        const groupSlotId = isInterclass ? `grp_${cls.id}_${a.subjectId}` : null;
+        // Jeśli klasa ma grupę łączoną i nauczyciel ma przydział — to zadanie grupowe
+        const isInterclass = !!(linkedGrp);
+        const groupSlotId  = isInterclass ? grpSlotOf(cls.id, linkedGrp.id) : null;
+        // Sloty partnerów (inne klasy/grupy połączone z tą)
+        const partnerSlots = isInterclass
+          ? (linkedGrp.linkedWith||[]).map(lw=>grpSlotOf(lw.clsId,lw.grpId))
+          : [];
 
         tasks.push({
           clsId:cls.id, clsName:cls.name,
@@ -5524,9 +5554,12 @@ function genWorkerFn() {
           hoursLeft:a.hours, blkSz,
           pos:effectivePos, maxPD, maxCon,
           isOptional:!!optEntry,
-          isInterclass,    // grupy łączone — NIE blokuj całej klasy
-          mergeClsIds,     // klasy uczestniczące (tylko po stronie "partner" klasy)
-          groupSlotId,     // wirtualny slot tej grupy
+          isInterclass,
+          mergeClsIds: isInterclass
+            ? [cls.id, ...(linkedGrp.linkedWith||[]).map(lw=>lw.clsId)]
+            : null,
+          groupSlotId,
+          partnerSlots,
           priority: (effectivePos!=='any'?10:0) + (blkSz>1?5:0) + a.hours + (isInterclass?8:0)
         });
       });
@@ -5655,16 +5688,9 @@ function genWorkerFn() {
           }
           if(task.isInterclass) {
             // Grupy łączone: sprawdź wirtualne sloty grup (nie całe klasy)
-            // Własna grupa tej klasy musi być wolna
             if(!block.every(hn=>isGrpFree(task.groupSlotId,di,hn))) continue;
-            // Grupy partnerskie (po stronie drugiej klasy) też muszą być wolne
-            // Każda klasa w mergeClsIds ma swój groupSlotId: grp_{clsId}_{subjId}
-            if(task.mergeClsIds) {
-              const partnerIds = task.mergeClsIds.filter(cid=>cid!==task.clsId);
-              if(!partnerIds.every(cid=>{
-                const partnerGrp=`grp_${cid}_${task.subjId}`;
-                return block.every(hn=>isGrpFree(partnerGrp,di,hn));
-              })) continue;
+            if(task.partnerSlots?.length) {
+              if(!task.partnerSlots.every(ps=>block.every(hn=>isGrpFree(ps,di,hn)))) continue;
             }
           } else {
             // Zwykłe zadanie: cała klasa musi być wolna
@@ -5703,15 +5729,13 @@ function genWorkerFn() {
                          roomId:room?.id||null, groups:[]};
           newSched[key(task.clsId,chosen.di,hn)] = entry;
           if(task.isInterclass) {
-            // Grupy łączone: blokuj slot grupy (nie całą klasę)
+            // Grupy łączone: blokuj slot własnej grupy + sloty partnerów
             occupy(task.tchId, task.clsId, room?.id, chosen.di, hn, task.subjId, task.groupSlotId);
-            // Wpisz do planów klas partnerskich i zajmij ich sloty grup
-            if(task.mergeClsIds) {
-              task.mergeClsIds.filter(cid=>cid!==task.clsId).forEach(cid => {
+            // Wpisz lekcję do planów klas partnerskich i zajmij ich sloty
+            if(task.partnerSlots?.length && task.mergeClsIds) {
+              task.mergeClsIds.filter(cid=>cid!==task.clsId).forEach((cid,pi) => {
                 newSched[key(cid,chosen.di,hn)] = {...entry};
-                const partnerGrp=`grp_${cid}_${task.subjId}`;
-                occupyGrp(partnerGrp,chosen.di,hn);
-                if(room?.id) { if(!roomSlots[room.id]) roomSlots[room.id]=new Set(); }
+                if(task.partnerSlots[pi]) occupyGrp(task.partnerSlots[pi],chosen.di,hn);
               });
             }
           } else {
@@ -8491,41 +8515,72 @@ function cmRenderGroups() {
   const ICONS  = {group:'👥', small:'👤👤', indiv:'👤'};
   const LABELS = {group:'Podgrupa', small:'Mała grupa', indiv:'NI'};
   const subjects = appState.subjects||[];
+  const allClasses = sortClasses(appState.classes||[]).filter(c=>c.id!==_cmId);
 
   el.innerHTML = _cmGroups.map((g, i) => {
-    const tch       = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
-    const icon      = ICONS[g.type||'group'];
-    const badge     = LABELS[g.type||'group'];
-    const isSpecial = g.type === 'small' || g.type === 'indiv';
-    const isNI      = g.type === 'indiv';
+    const tch    = g.teacherId ? (appState.teachers||[]).find(t=>t.id===g.teacherId) : null;
+    const icon   = ICONS[g.type||'group'];
+    const badge  = LABELS[g.type||'group'];
+    const isNI   = g.type === 'indiv';
+    const isGrp  = g.type === 'group' || g.type === 'small';
 
-    // Przedmioty przypisane do tej grupy/NI
+    // NI: przedmioty
     const grpSubjects = (g.subjects||[]).map(sid => subjects.find(s=>s.id===sid)).filter(Boolean);
-    const hasPartialSubjects = isNI && grpSubjects.length > 0;
     const subjChips = grpSubjects.map(s =>
       `<span style="font-size:.6rem;padding:1px 5px;border-radius:8px;
         background:${s.color}22;color:${s.color};border:1px solid ${s.color}44">${s.abbr||s.name}</span>`
     ).join('');
-
-    // Info o trybie uczestnictwa
     const modeLabel = isNI && grpSubjects.length > 0
       ? `<span style="font-size:.62rem;color:var(--orange);padding:1px 5px;border-radius:6px;
            background:var(--orange)15">NI tylko: ${subjChips}</span>
          <span style="font-size:.62rem;color:var(--text-d)">· reszta z klasą</span>`
-      : isNI
-        ? `<span style="font-size:.62rem;color:var(--text-d)">wszystkie przedmioty NI</span>`
+      : isNI ? `<span style="font-size:.62rem;color:var(--text-d)">wszystkie przedmioty NI</span>` : '';
+
+    // Połączenia między klasami (tylko dla grup type=group/small)
+    const linked = g.linkedWith||[];
+    const linkedChips = linked.map(lw => {
+      const cls = allClasses.find(c=>c.id===lw.clsId);
+      const grp = (cls?.groups||[]).find(gg=>gg.id===lw.grpId);
+      return cls&&grp
+        ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:.65rem;
+            padding:1px 6px;border-radius:8px;background:var(--accent-g);color:var(--accent);
+            border:1px solid var(--accent)33">
+            ${cls.name} / ${grp.name}
+            <span onclick="cmUnlinkGroup(${i},'${lw.clsId}','${lw.grpId}')"
+              style="cursor:pointer;margin-left:2px;color:var(--red);font-size:.75rem;line-height:1">×</span>
+          </span>`
         : '';
+    }).filter(Boolean).join('');
+
+    // Dropdown: lista grup z innych klas do połączenia
+    const linkOptions = allClasses.flatMap(cls =>
+      (cls.groups||[])
+        .filter(gg => (gg.type==='group'||gg.type==='small') && !linked.some(lw=>lw.clsId===cls.id&&lw.grpId===gg.id))
+        .map(gg => `<option value="${cls.id}|${gg.id}">${cls.name} / ${gg.name}</option>`)
+    );
+
+    const linkRow = isGrp && allClasses.length ? `
+      <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px dashed var(--border);flex-wrap:wrap">
+        <span style="font-size:.67rem;color:var(--text-m);white-space:nowrap">🔗 Połącz z:</span>
+        ${linkedChips}
+        ${linkOptions.length ? `<select class="mselect" style="font-size:.68rem;padding:2px 6px;min-width:0;flex:1;max-width:200px"
+          onchange="cmLinkGroup(${i},this.value);this.value=''">
+          <option value="">+ dodaj połączenie…</option>
+          ${linkOptions.join('')}
+        </select>` : `<span style="font-size:.65rem;color:var(--text-d)">brak innych grup</span>`}
+      </div>` : '';
 
     return `<div style="display:flex;flex-direction:column;gap:5px;padding:8px 10px;
       background:var(--s2);border-radius:8px;
-      border:1px solid ${isSpecial?'var(--accent)33':'var(--border)'}">
+      border:1px solid ${isNI?'var(--accent)33':linked.length?'var(--green)44':'var(--border)'}">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:.85rem">${icon}</span>
         <span style="font-weight:600;font-size:.8rem">${g.name}</span>
         <span style="font-size:.65rem;padding:1px 6px;border-radius:8px;
-          background:${isSpecial?'var(--accent-g)':'var(--s3)'};
-          color:${isSpecial?'var(--accent)':'var(--text-m)'}">
+          background:${isNI?'var(--accent-g)':linked.length?'rgba(16,185,129,.12)':'var(--s3)'};
+          color:${isNI?'var(--accent)':linked.length?'var(--green)':'var(--text-m)'}">
           ${badge}${g.studentCount&&g.studentCount>1?' ('+g.studentCount+' ucz.)':''}
+          ${linked.length?` · 🔗 ${linked.length} powiązanie`:''}
         </span>
         ${tch ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${tch.abbr}</span>` : ''}
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
@@ -8539,11 +8594,28 @@ function cmRenderGroups() {
             style="background:none;border:none;cursor:pointer;color:var(--text-d);font-size:.9rem;padding:0 4px">×</button>
         </div>
       </div>
-      ${modeLabel ? `<div style="display:flex;align-items:center;gap:5px;padding-left:28px;flex-wrap:wrap">
-        ${modeLabel}
-      </div>` : ''}
+      ${modeLabel ? `<div style="display:flex;align-items:center;gap:5px;padding-left:28px;flex-wrap:wrap">${modeLabel}</div>` : ''}
+      ${linkRow}
     </div>`;
   }).join('');
+}
+
+function cmLinkGroup(grpIdx, val) {
+  if(!val) return;
+  const [clsId, grpId] = val.split('|');
+  if(!clsId||!grpId) return;
+  const g = _cmGroups[grpIdx];
+  if(!g.linkedWith) g.linkedWith = [];
+  if(!g.linkedWith.some(lw=>lw.clsId===clsId&&lw.grpId===grpId))
+    g.linkedWith.push({clsId, grpId});
+  cmRenderGroups();
+}
+
+function cmUnlinkGroup(grpIdx, clsId, grpId) {
+  const g = _cmGroups[grpIdx];
+  if(!g.linkedWith) return;
+  g.linkedWith = g.linkedWith.filter(lw=>!(lw.clsId===clsId&&lw.grpId===grpId));
+  cmRenderGroups();
 }
 
 // Edytuj które przedmioty uczeń z NI realizuje indywidualnie
