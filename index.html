@@ -1467,10 +1467,6 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         <input class="minput" id="tmFraction" type="number" min="0.1" max="1" step="0.05" placeholder="np. 0.75">
       </div>
     </div>
-    <div class="mfield">
-      <label>Nauczane przedmioty</label>
-      <div class="subj-check-grid" id="tmSubjectList"></div>
-    </div>
     <div class="mfield" style="margin-top:4px">
       <label>Przydziały: klasa / przedmiot / liczba godz. tygodniowo</label>
       <table class="assign-table" id="tmAssignTable">
@@ -6106,7 +6102,9 @@ function renderSettings() {
   }
 
   sortTeachers(appState.teachers).forEach(t => {
-    const subjects = (t.subjects||[]).map(sid => {
+    // Unikalne przedmioty z przydziałów
+    const subjIds = [...new Set((t.assignments||[]).map(a=>a.subjectId))];
+    const subjects = subjIds.map(sid => {
       const s = appState.subjects.find(s=>s.id===sid);
       return s ? `<span class="tch-badge" style="background:${hexToRgba(s.color,.18)};color:${s.color}">${s.abbr}</span>` : '';
     }).join('');
@@ -6564,13 +6562,14 @@ function rebuildTeacherOptions() {
 
   // Podziel nauczycieli na 3 grupy:
   // 1. Ma przydział do tej klasy I tego przedmiotu
-  // 2. Uczy tego przedmiotu (subjects[]) ale nie ma przydziału do tej klasy
+  // 2. Uczy tego przedmiotu (ma przydział do jakiejkolwiek klasy z tym przedmiotem)
   // 3. Pozostali
   const g1 = [], g2 = [], g3 = [];
   appState.teachers.forEach(t => {
     const hasAssignment = clsId && subjId &&
       (t.assignments||[]).some(a => a.classId === clsId && a.subjectId === subjId);
-    const teachesSubj = subjId && (t.subjects||[]).includes(subjId);
+    const teachesSubj = subjId &&
+      (t.assignments||[]).some(a => a.subjectId === subjId);
     if (hasAssignment)       g1.push(t);
     else if (teachesSubj)    g2.push(t);
     else                     g3.push(t);
@@ -6634,7 +6633,8 @@ function mOnTeacherChange() {
     (t.assignments||[]).some(a => a.classId === clsId && a.subjectId === subjId);
   const hasClassAssignment =
     (t.assignments||[]).some(a => a.classId === clsId);
-  const teachesSubject = subjId && (t.subjects||[]).includes(subjId);
+  const teachesSubject = subjId &&
+    (t.assignments||[]).some(a => a.subjectId === subjId);
 
   if (hasExactAssignment) {
     warn.style.display = 'none';
@@ -6643,7 +6643,7 @@ function mOnTeacherChange() {
 
   let msg = '';
   if (!teachesSubject && subjId) {
-    msg = `⚠️ ${t.abbr} nie ma ${subj ? subj.name : 'tego przedmiotu'} wśród nauczanych przedmiotów.`;
+    msg = `⚠️ ${t.abbr} nie prowadzi ${subj ? subj.name : 'tego przedmiotu'} w żadnej klasie.`;
   } else if (!hasClassAssignment && subjId) {
     msg = `ℹ️ ${t.abbr} nie ma przydziału do klasy ${cls ? cls.name : ''} dla ${subj ? subj.name : 'tego przedmiotu'}.`;
   } else if (subjId) {
@@ -7056,7 +7056,6 @@ function openAddTeacherModal() {
   tmRenderIndiv();
   tmFillIndivSubject();
   document.getElementById('tmDeleteBtn').style.display = 'none';
-  tmRenderSubjects([]);
   tmRenderAssignments();
   tmFillSelects();
   document.getElementById('teacherModal').classList.add('show');
@@ -7080,7 +7079,6 @@ function openEditTeacherModal(id) {
   document.getElementById('tmFractionWrap').style.display = t.employment==='other' ? '' : 'none';
   document.getElementById('tmDeleteBtn').style.display = '';
   _tmIndiv = JSON.parse(JSON.stringify(t.individualTeaching || []));
-  tmRenderSubjects(t.subjects || []);
   tmRenderAssignments();
   tmFillSelects();
   niUpdateTeacherBadge(id);
@@ -7154,12 +7152,7 @@ function tmAddAssignment() {
   const exists = _tmAssignments.find(a => a.classId === classId && a.subjectId === subjectId);
   if (exists) { notify('Ten przydział już istnieje'); return; }
   _tmAssignments.push({ classId, subjectId, hours });
-  // Also auto-add this subject to teacher's subjects
-  const subjCheck = document.querySelector(`#tmSubjectList input[value="${subjectId}"]`);
-  if (subjCheck && !subjCheck.checked) {
-    subjCheck.checked = true;
-    subjCheck.parentElement.classList.add('checked');
-  }
+  // subjects[] nieużywane — wynika z assignments
   document.getElementById('tmAddClass').value = '';
   document.getElementById('tmAddSubject').value = '';
   document.getElementById('tmAddHours').value = '1';
@@ -7187,27 +7180,21 @@ function saveTeacherModal() {
   const hoursTotal = parseInt(document.getElementById('tmHoursTotal').value) || 0;
   const hoursExtra = parseInt(document.getElementById('tmHoursExtra').value) || 0;
   if (!first && !last) { notify('Podaj imię lub nazwisko'); return; }
-  const subjects = [...document.querySelectorAll('#tmSubjectList input:checked')].map(i => i.value);
-
   if (_tmId) {
-    // Edit existing
     const t = appState.teachers.find(t => t.id === _tmId);
     if (t) {
       t.first = first; t.last = last; t.abbr = abbr;
       t.hoursTotal = hoursTotal;
       t.hoursExtra = hoursExtra;
-      t.subjects = subjects;
       t.assignments = _tmAssignments;
       t.individualTeaching = _tmIndiv;
     }
   } else {
-    // New teacher
     appState.teachers.push({
       id: 'tch' + Date.now(),
       first, last, abbr,
       hoursTotal,
       hoursExtra,
-      subjects,
       assignments: _tmAssignments,
       individualTeaching: _tmIndiv
     });
