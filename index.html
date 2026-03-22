@@ -2272,10 +2272,30 @@ function init() {
   applyTheme();
   initConsent();
   if(appState) {
+    migrateEdgePosition();
     showApp();
   } else {
     showWelcome();
   }
+}
+
+// Migracja: przenosi position='edge' z optionalSubjects do edgePosition na grupach
+function migrateEdgePosition() {
+  if(!appState) return;
+  (appState.classes||[]).forEach(cls => {
+    (cls.optionalSubjects||[]).filter(o=>o.position==='edge').forEach(o => {
+      // Znajdź grupę tej klasy której nauczyciel prowadzi ten przedmiot
+      const tch = (appState.teachers||[]).find(t=>
+        (t.assignments||[]).some(a=>a.classId===cls.id&&a.subjectId===o.subjId)
+      );
+      if(tch) {
+        const grp = (cls.groups||[]).find(g=>
+          (g.type==='group'||g.type==='small') && (!g.teacherId||g.teacherId===tch.id)
+        );
+        if(grp) grp.edgePosition = true;
+      }
+    });
+  });
 }
 
 function showWelcome() {
@@ -4356,12 +4376,26 @@ function genPositionUI(C) {
   const activeSubjects = sortSubjects(subjects).filter(s => !(s.classes||[]).length || (appState.classes||[]).some(c => s.classes.includes(c.id)));
   if(!activeSubjects.length) return '<div style="color:var(--text-d);font-size:.78rem">Brak przedmiotów z przypisanymi klasami</div>';
 
-  // Zbierz automatyczne reguły z przedmiotów opcjonalnych klas
-  const autoPositions = {}; // subjId → Set('first'|'last'|'any')
+  // Zbierz automatyczne reguły z optionalSubjects (stary) i grup z edgePosition (nowy)
+  const autoPositions = {}; // subjId → Set('edge')
   (appState.classes||[]).forEach(cls => {
+    // Stary system
     (cls.optionalSubjects||[]).forEach(o => {
-      if(!autoPositions[o.subjId]) autoPositions[o.subjId] = new Set();
-      if(o.position && o.position !== 'any') autoPositions[o.subjId].add(o.position);
+      if(o.position && o.position !== 'any') {
+        if(!autoPositions[o.subjId]) autoPositions[o.subjId] = new Set();
+        autoPositions[o.subjId].add(o.position);
+      }
+    });
+    // Nowy system: grupy z edgePosition
+    // Szukamy przedmiotu przypisanego do tej grupy przez nauczyciela
+    (cls.groups||[]).filter(g=>g.edgePosition && (g.type==='group'||g.type==='small')).forEach(g => {
+      // Znajdź przedmioty prowadzone przez nauczyciela tej grupy dla tej klasy
+      const tchId = g.teacherId;
+      const tch = tchId ? (appState.teachers||[]).find(t=>t.id===tchId) : null;
+      (tch?.assignments||[]).filter(a=>a.classId===cls.id).forEach(a => {
+        if(!autoPositions[a.subjectId]) autoPositions[a.subjectId] = new Set();
+        autoPositions[a.subjectId].add('edge');
+      });
     });
   });
 
@@ -5131,7 +5165,8 @@ function genRun() {
           id:g.id, name:g.name, type:g.type,
           teacherId:g.teacherId||null,
           studentCount:g.studentCount||0,
-          linkedWith:(g.linkedWith||[])
+          linkedWith:(g.linkedWith||[]),
+          edgePosition:!!(g.edgePosition)
         }))
     })),
     teachers: teachers.map(t=>({
@@ -5522,7 +5557,8 @@ function genWorkerFn() {
 
         // Stary system optionalSubjects (pozycja skrajna)
         const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
-        const isEdge   = optEntry?.position==='edge';
+        // Nowy system: edgePosition z grupy (ustawiane przez checkbox w modalu klasy)
+        const isEdge   = optEntry?.position==='edge' || !!(linkedGrp?.edgePosition);
         const effectivePos = isEdge ? 'edge' : pos;
 
         // Nowy system: sprawdź czy nauczyciel prowadzi przedmiot dla grupy z linkedWith
@@ -8559,6 +8595,18 @@ function cmRenderGroups() {
         .map(gg => `<option value="${cls.id}|${gg.id}">${cls.name} / ${gg.name}</option>`)
     );
 
+    const isEdge = !!(g.edgePosition);
+
+    const edgeRow = isGrp ? `
+      <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px dashed var(--border)">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.7rem;color:var(--text-m)">
+          <input type="checkbox" ${isEdge?'checked':''}
+            onchange="_cmGroups[${i}].edgePosition=this.checked;cmRenderGroups()"
+            style="accent-color:var(--accent);width:14px;height:14px">
+          ⇔ Skrajne godziny (pierwsza lub ostatnia lekcja klasy)
+        </label>
+      </div>` : '';
+
     const linkRow = isGrp && allClasses.length ? `
       <div style="display:flex;align-items:center;gap:6px;padding-top:5px;border-top:1px dashed var(--border);flex-wrap:wrap">
         <span style="font-size:.67rem;color:var(--text-m);white-space:nowrap">🔗 Połącz z:</span>
@@ -8595,6 +8643,7 @@ function cmRenderGroups() {
         </div>
       </div>
       ${modeLabel ? `<div style="display:flex;align-items:center;gap:5px;padding-left:28px;flex-wrap:wrap">${modeLabel}</div>` : ''}
+      ${edgeRow}
       ${linkRow}
     </div>`;
   }).join('');
