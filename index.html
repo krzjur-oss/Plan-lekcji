@@ -6383,90 +6383,83 @@ function settingsBudynki() {
 }
 function settingsGodziny() {
   let html = `<div style="grid-column:1/-1">`;
-  html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
-  {
-    // ── Godziny lekcyjne ──
-    const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
-    html+=`<div class="settings-card">`;
-    html+=`<div class="settings-card-title">Godziny lekcyjne</div>`;
-    html+=`<div class="hour-timeline">`;
-    sortedH.forEach((h,i) => {
-      const dur = timeToMins(h.end) - timeToMins(h.start);
-      html+=`<div class="hour-row">
-        <div class="hour-row-num">${h.num}</div>
-        <div class="hour-row-time" onclick="openEditHourModal(${h.num})">
-          <span class="hour-row-range">${h.start} – ${h.end}</span>
-          <span class="hour-row-dur">${dur} min</span>
-          <span style="margin-left:auto;font-size:.72rem;color:var(--accent)">✎</span>
-        </div>
-      </div>`;
-      if(i < sortedH.length-1) {
-        const next = sortedH[i+1];
-        const brk = timeToMins(next.start) - timeToMins(h.end);
-        if(brk > 0) html+=`<div class="hour-break-bar">przerwa ${brk} min</div>`;
-      }
-    });
-    html+=`</div>`;
-    html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddHourModal()">+ Dodaj godzinę</button>`;
-    html+=`</div>`;
+  const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
+  html+=`<div class="settings-card">`;
+  html+=`<div class="settings-card-title">Godziny lekcyjne</div>`;
+  html+=`<div class="hour-timeline">`;
+  sortedH.forEach((h,i) => {
+    const dur = timeToMins(h.end) - timeToMins(h.start);
+    html+=`<div class="hour-row">
+      <div class="hour-row-num">${h.num}</div>
+      <div class="hour-row-time" onclick="openEditHourModal(${h.num})">
+        <span class="hour-row-range">${h.start} – ${h.end}</span>
+        <span class="hour-row-dur">${dur} min</span>
+        <span style="margin-left:auto;font-size:.72rem;color:var(--accent)">✎</span>
+      </div>
+    </div>`;
+    if(i < sortedH.length-1) {
+      const next = sortedH[i+1];
+      const brk = timeToMins(next.start) - timeToMins(h.end);
+      if(brk > 0) html+=`<div class="hour-break-bar">przerwa ${brk} min</div>`;
+    }
+  });
+  html+=`</div>`;
+  html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:12px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddHourModal()">+ Dodaj godzinę</button>`;
+  html+=`</div>`;
   html += `</div>`;
   return html;
 }
+
 function settingsDyzury() {
   let html = `<div style="grid-column:1/-1">`;
-  }
-  {
-    // ── Dyżury ──
-    if(!appState.duties || appState.duties.length===0) regenerateDuties();
-    const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
-    const firstHour = sortedH[0];
-    const lastHour  = sortedH[sortedH.length-1];
-    const allDuties = [...(appState.duties||[])].sort((a,b)=>timeToMins(a.start)-timeToMins(b.start));
-    html+=`<div class="settings-card">`;
-    html+=`<div class="settings-card-title">Dyżury</div>`;
-    html+=`<div class="duty-settings-list">`;
-    if(firstHour) {
-      const beforeEnd = firstHour.start;
-      const beforeStart = minsToTime(timeToMins(beforeEnd) - 15);
-      html+=`<div style="margin-bottom:6px">`;
-      html+=`<button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('${beforeStart}','${beforeEnd}','Przed lekcjami')">+ Dyżur przed lekcjami</button>`;
-      html+=`</div>`;
-    }
-    allDuties.forEach(d => {
-      const filledDays = DUTY_DAY_KEYS.filter(k=>{
-        const v=d.places&&d.places[k];
-        return Array.isArray(v)?v.some(r=>r.place||r.teacherId):!!v;
-      }).length;
-      const isAuto = d.type==='break' || (!d.type && d.breakAfterHour!==undefined);
-      html+=`<div class="duty-settings-row ${isAuto?'break-duty':'extra-duty'}">`;
-      html+=`<div class="hour-row-num" style="display:flex;align-items:center;justify-content:center;border-radius:6px;width:32px;font-size:.65rem;margin-right:6px;background:${isAuto?'var(--accent)':'var(--text-m)'};color:#fff;flex-shrink:0">${isAuto?'🔔':'📌'}</div>`;
-      html+=`<div class="duty-slot" onclick="openEditDutyModal('${d.id}')">`;
-      html+=`<span class="duty-slot-time">${d.start} – ${d.end}</span>`;
-      html+=`<span class="duty-slot-label">${d.label||(isAuto?'Po lekcji '+(d.breakAfterHour||''):'Dyżur')} <span style="font-size:.65rem;color:var(--text-d)">${d.durMins} min</span></span>`;
-      html+=`<span class="duty-slot-places">${filledDays?filledDays+'/5 dni':''}</span>`;
-      html+=`<span style="font-size:.7rem;color:var(--accent)">✎</span>`;
-      html+=`</div>`;
-      html+=`</div>`;
-    });
-    if(!allDuties.length) {
-      html+=`<div style="font-size:.8rem;color:var(--text-m);padding:8px 0;text-align:center">Brak dyżurów.</div>`;
-    }
-    if(lastHour) {
-      const afterStart = lastHour.end;
-      const afterEnd   = minsToTime(timeToMins(afterStart) + 15);
-      html+=`<div style="margin-top:6px">`;
-      html+=`<button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('${afterStart}','${afterEnd}','Po lekcjach')">+ Dyżur po lekcjach</button>`;
-      html+=`</div>`;
-    }
-    html+=`</div>`;
-    html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('','','')">+ Dodaj inny dyżur</button>`;
+  if(!appState.duties || appState.duties.length===0) regenerateDuties();
+  const sortedH = [...appState.hours].sort((a,b)=>a.num-b.num);
+  const firstHour = sortedH[0];
+  const lastHour  = sortedH[sortedH.length-1];
+  const allDuties = [...(appState.duties||[])].sort((a,b)=>timeToMins(a.start)-timeToMins(b.start));
+  html+=`<div class="settings-card">`;
+  html+=`<div class="settings-card-title">Dyżury</div>`;
+  html+=`<div class="duty-settings-list">`;
+  if(firstHour) {
+    const beforeEnd = firstHour.start;
+    const beforeStart = minsToTime(timeToMins(beforeEnd) - 15);
+    html+=`<div style="margin-bottom:6px">`;
+    html+=`<button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('${beforeStart}','${beforeEnd}','Przed lekcjami')">+ Dyżur przed lekcjami</button>`;
     html+=`</div>`;
   }
-  html+=`</div>`; // koniec wrappera Godziny+Dyżury
-  // Danger zone
+  allDuties.forEach(d => {
+    const filledDays = DUTY_DAY_KEYS.filter(k=>{
+      const v=d.places&&d.places[k];
+      return Array.isArray(v)?v.some(r=>r.place||r.teacherId):!!v;
+    }).length;
+    const isAuto = d.type==='break' || (!d.type && d.breakAfterHour!==undefined);
+    html+=`<div class="duty-settings-row ${isAuto?'break-duty':'extra-duty'}">`;
+    html+=`<div class="hour-row-num" style="display:flex;align-items:center;justify-content:center;min-width:28px">${isAuto?'P':'D'}</div>`;
+    html+=`<div class="duty-slot" onclick="openEditDutyModal('${d.id}')">`;
+    html+=`<span class="duty-slot-time">${d.start} – ${d.end}</span>`;
+    html+=`<span class="duty-slot-label">${d.label||(isAuto?'Po lekcji '+(d.breakAfterHour||''):'Dyżur')}</span>`;
+    html+=`<span class="duty-slot-places">${filledDays?filledDays+'/5 dni':''}</span>`;
+    html+=`<span style="font-size:.7rem;color:var(--accent)">✎</span>`;
+    html+=`</div>`;
+    html+=`</div>`;
+  });
+  if(!allDuties.length) {
+    html+=`<div style="font-size:.8rem;color:var(--text-m);padding:8px 0;text-align:center">Brak dyżurów — dodaj lub uzupełnij godziny lekcyjne.</div>`;
+  }
+  if(lastHour) {
+    const afterStart = lastHour.end;
+    const afterEnd   = minsToTime(timeToMins(afterStart) + 15);
+    html+=`<div style="margin-top:6px">`;
+    html+=`<button class="wbtn wbtn-ghost" style="width:100%;padding:7px;font-size:.75rem;border-style:dashed" onclick="openAddDutyModal('${afterStart}','${afterEnd}','Po lekcjach')">+ Dyżur po lekcjach</button>`;
+    html+=`</div>`;
+  }
+  html+=`</div>`;
+  html+=`<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddDutyModal()">+ Dodaj inny dyżur</button>`;
+  html+=`</div>`;
   html += `</div>`;
   return html;
 }
+
 function settingsSzkola() {
   let html = '';
   html+=`<div class="settings-card" style="grid-column:1/-1">
