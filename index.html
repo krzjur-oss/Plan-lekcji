@@ -1960,6 +1960,15 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
       </div>
     </div>
 
+    <div style="margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem">
+        <input type="checkbox" id="niStudInPensum" style="accent-color:var(--accent);width:15px;height:15px">
+        <span>Godziny NI <strong>wliczane do pensum</strong> nauczyciela
+          <span style="color:var(--text-m);font-weight:400"> — zaznacz gdy nauczyciel realizuje NI w ramach swojego etatu, nie jako godziny dodatkowe</span>
+        </span>
+      </label>
+    </div>
+
     <!-- Tabela przedmiotów — serce modalu -->
     <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
       letter-spacing:.05em;margin-bottom:8px">Przedmioty i sposób realizacji</div>
@@ -4331,7 +4340,9 @@ function genHoursUI() {
   sortTeachers(teachers).forEach(t => {
     const asgns = (t.assignments||[]).filter(a=>a.hours>0);
     if(!asgns.length) return;
-    const total = asgns.reduce((s,a)=>s+(a.hours||0),0);
+    const assignedH = asgns.reduce((s,a)=>s+(a.hours||0),0);
+    const niH = niPensumHours(t.id);
+    const total = assignedH + niH;
     const pensum = t.hoursTotal||0;
     const diff   = total - pensum;
     const diffCol = diff>0?'var(--orange)':diff<0?'var(--red)':'var(--accent)';
@@ -5911,6 +5922,16 @@ function genWorkerFn() {
 }
 
 
+
+// Godziny NI wliczane do pensum danego nauczyciela
+function niPensumHours(tchId) {
+  return (appState.niStudents||[]).reduce((sum, stud) => {
+    if(!stud.inPensum) return sum;
+    return sum + (stud.subjects||[])
+      .filter(r=>(r.mode==='indiv'||r.mode==='split') && r.teacherId===tchId)
+      .reduce((s,r)=>s+(r.hours||0), 0);
+  }, 0);
+}
 function renderStats() {
   if(!appState){ document.getElementById('statsContent').innerHTML=''; return; }
   const allLessons = Object.values(schedData);
@@ -5976,7 +5997,9 @@ function renderStats() {
       </div>`;
     appState.teachers.filter(t=>(t.assignments||[]).length||t.hoursTotal).forEach(t => {
       const actual = teacherHours[t.id] || 0;
-      const assigned = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
+      const assignedBase = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
+      const niInPensumH  = niPensumHours(t.id);
+      const assigned = assignedBase + niInPensumH;
       const pensum = t.hoursTotal || 0;
       const extra  = t.hoursExtra || 0;
       const target = pensum + extra;
@@ -6150,11 +6173,13 @@ function renderSettings() {
 
     const totalAssigned = (t.assignments||[]).reduce((sum,a)=>sum+(a.hours||0),0);
     const fullTarget = (t.hoursTotal||0) + (t.hoursExtra||0);
+    const totalWithNI = totalAssigned + niPenH;
     const etats = fullTarget
-      ? `${totalAssigned}/${fullTarget} godz.${t.hoursExtra ? ' ('+t.hoursTotal+'+'+t.hoursExtra+')' : ''}`
-      : `${totalAssigned} godz. przydzielonych`;
+      ? `${totalWithNI}/${fullTarget} godz.${niPenH?` (w tym ${niPenH}h NI)`:''}${t.hoursExtra ? ' ('+t.hoursTotal+'+'+t.hoursExtra+')' : ''}`
+      : `${totalWithNI} godz. przydzielonych`;
     const indivHours = (t.individualTeaching||[]).reduce((s,i)=>s+(i.hours||0),0);
     const indivCount = (t.individualTeaching||[]).length;
+    const niPenH = niPensumHours(t.id);
     const hoursColor = fullTarget
       ? (totalAssigned > fullTarget ? 'var(--red)' : totalAssigned === fullTarget ? 'var(--green)' : 'var(--yellow)')
       : 'var(--text-m)';
@@ -10154,6 +10179,7 @@ function niOpenEdit(studId, prefClsId) {
   document.getElementById('niStudName').value  = stud?.name || '';
   document.getElementById('niStudForm').value  = stud?.form || 'indywidualne';
   document.getElementById('niStudCount').value = stud?.studentCount || 1;
+  document.getElementById('niStudInPensum').checked = !!(stud?.inPensum);
 
   // Wypełnij select klas
   const clsSel = document.getElementById('niStudClass');
@@ -10413,6 +10439,7 @@ function niSaveStudent() {
     classId:      document.getElementById('niStudClass').value || null,
     form:         document.getElementById('niStudForm').value,
     studentCount: parseInt(document.getElementById('niStudCount').value)||1,
+    inPensum:     document.getElementById('niStudInPensum').checked,
     subjects:     _niSubjRows.map(r=>({
       subjId:           r.subjId,
       mode:             r.mode||'class',
@@ -10542,6 +10569,9 @@ function niSettingsSection() {
       const classRows = (stud.subjects||[]).filter(r=>r.mode==='class');
       const hours     = indivRows.reduce((s,r)=>s+(r.hours||0),0);
 
+      const pensumBadge = stud.inPensum
+        ? `<span style="font-size:.62rem;padding:1px 6px;border-radius:6px;background:var(--green)22;color:var(--green);border:1px solid var(--green)44;margin-left:4px">✓ w pensum</span>`
+        : '';
       const indivChips = indivRows.map(r => {
         const s = subjects.find(s=>s.id===r.subjId);
         const t = r.teacherId ? teachers.find(t=>t.id===r.teacherId) : null;
@@ -10569,6 +10599,7 @@ function niSettingsSection() {
             ${cls?`<span style="font-size:.68rem;background:var(--s3);padding:1px 6px;
               border-radius:5px;color:var(--text-m)">${cls.name}</span>`:''}
             <span style="font-size:.68rem;color:var(--accent);font-family:var(--mono)">${hours}h NI/tydz.</span>
+            ${pensumBadge}
           </div>
           ${indivChips?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px">
             <span style="font-size:.62rem;color:var(--text-d)">NI:</span>${indivChips}
