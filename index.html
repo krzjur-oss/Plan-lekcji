@@ -1244,9 +1244,9 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
                font-size:.68rem;font-family:var(--font);text-decoration:underline">
         Informacja o danych
       </button> ·
-      <a href="REGULAMIN.md" target="_blank" style="color:var(--accent);font-size:.68rem;text-decoration:underline">Regulamin</a> ·
-      <a href="LICENSE" target="_blank" style="color:var(--accent);font-size:.68rem;text-decoration:underline">Licencja</a> ·
-      <a href="README.md" target="_blank" style="color:var(--accent);font-size:.68rem;text-decoration:underline">Dokumentacja</a>
+      <button onclick="openDocModal('regulamin')" style="color:var(--accent);font-size:.68rem;text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font)">Regulamin</button> ·
+      <button onclick="openDocModal('licencja')" style="color:var(--accent);font-size:.68rem;text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font)">Licencja</button> ·
+      <button onclick="openDocModal('dokumentacja')" style="color:var(--accent);font-size:.68rem;text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font)">Dokumentacja</button>
     </div>
   </div>
 </div>
@@ -2094,9 +2094,9 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 
     <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div style="font-size:.7rem;color:var(--text-d)">
-        <a href="REGULAMIN.md" target="_blank" style="color:var(--accent)">Regulamin</a> ·
-        <a href="LICENSE" target="_blank" style="color:var(--accent)">Licencja</a> ·
-        <a href="README.md" target="_blank" style="color:var(--accent)">Dokumentacja</a>
+        <button onclick="openDocModal('regulamin')" style="color:var(--accent);font-size:.68rem;text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font)">Regulamin</button> ·
+        <button onclick="openDocModal('licencja')" style="color:var(--accent);font-size:.68rem;text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font)">Licencja</button> ·
+        <button onclick="openDocModal('dokumentacja')" style="color:var(--accent);font-size:.68rem;text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;font-family:var(--font)">Dokumentacja</button>
       </div>
       <button onclick="acceptConsent();closePrivacyModal()"
         style="padding:9px 22px;border-radius:var(--radius);border:none;
@@ -2105,6 +2105,37 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
         Rozumiem i akceptuję
       </button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL DOKUMENTÓW (Regulamin / Licencja / Dokumentacja) -->
+<div id="docOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+  z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
+  onclick="if(event.target===this)closeDocModal()">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);
+    width:680px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px 12px;
+      border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;gap:6px">
+        <button id="docTab-regulamin" onclick="showDoc('regulamin')"
+          style="padding:5px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;
+                 font-size:.78rem;font-family:var(--font);font-weight:600;
+                 background:var(--accent);color:#fff">Regulamin</button>
+        <button id="docTab-licencja" onclick="showDoc('licencja')"
+          style="padding:5px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;
+                 font-size:.78rem;font-family:var(--font);font-weight:600;
+                 background:var(--s2);color:var(--text-m)">Licencja</button>
+        <button id="docTab-dokumentacja" onclick="showDoc('dokumentacja')"
+          style="padding:5px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;
+                 font-size:.78rem;font-family:var(--font);font-weight:600;
+                 background:var(--s2);color:var(--text-m)">Dokumentacja</button>
+      </div>
+      <button onclick="closeDocModal()"
+        style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-m);
+               padding:4px 8px;border-radius:6px;line-height:1">×</button>
+    </div>
+    <div id="docContent" style="overflow-y:auto;padding:22px;flex:1;font-size:.82rem;
+      line-height:1.7;color:var(--text)"></div>
   </div>
 </div>
 
@@ -2558,7 +2589,7 @@ function wizStep1() {
 function wizStep2() {
   const tags = wData.classes.map((c,i) => `
     <div class="tag">
-      <span>${c.name}${c.groups&&c.groups.length?' (gr: '+c.groups.join(', ')+')':''}</span>
+      <span>${c.name}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?g.name:g).join(', ')+')':''}</span>
       <span class="tag-del" onclick="wRemoveClass(${i})">×</span>
     </div>`).join('');
   return `<div class="wcard">
@@ -2854,7 +2885,10 @@ function wizFinish() {
     mainAddress: wData.mainAddress||'',
     buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||'', floors:b.floors||[]})),
     classes: wData.classes.map((c,i)=>({
-      id:'cls'+i, name:c.name, groups:c.groups||[],
+      id:'cls'+i, name:c.name,
+      groups:(c.groups||[]).map((g,gi)=>typeof g==='string'
+        ? {id:'grp'+i+'_'+gi, name:g, type:'group', studentCount:0, teacherId:null, subjects:[], linkedWith:[]}
+        : g),
       studentCount:c.studentCount||0,
       homeroomTeacherId:null, homeRooms:[],
       optionalSubjects:[]
@@ -2893,7 +2927,12 @@ function wAddClass() {
   const n = document.getElementById('wClassName').value.trim();
   const g = document.getElementById('wClassGroups').value.trim();
   if(!n) return;
-  wData.classes.push({name:n, groups: g ? g.split(',').map(x=>x.trim()).filter(Boolean) : []});
+  wData.classes.push({name:n, groups: g
+    ? g.split(',').map(x=>x.trim()).filter(Boolean).map(gname=>({
+        id:'grp'+Date.now()+Math.random().toString(36).slice(2,5),
+        name:gname, type:'group', studentCount:0, teacherId:null, subjects:[], linkedWith:[]
+      }))
+    : []});
   document.getElementById('wClassName').value='';
   document.getElementById('wClassGroups').value='';
   renderWizStep();
@@ -9503,6 +9542,390 @@ function acceptConsent() {
   localStorage.setItem(LS.CONSENT, '1');
   const banner = document.getElementById('lsBanner');
   if(banner) banner.style.display = 'none';
+}
+
+
+// ================================================================
+//  MODAL DOKUMENTÓW
+// ================================================================
+const DOC_CONTENT = {
+  regulamin: `<h1 style="font-size:1.1rem;font-weight:700;margin:20px 0 6px;color:var(--text)">📄 Regulamin aplikacji PlanLekcji</h1>
+<br>
+<p style="margin:4px 0"><strong>Wersja 1.0 · obowiązuje od 1 marca 2025 r.</strong></p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§1. Postanowienia ogólne</h2>
+<br>
+<p style="margin:4px 0">Niniejszy Regulamin określa zasady korzystania z aplikacji internetowej <strong>PlanLekcji — Układanie planów lekcji</strong> (dalej: „Aplikacja"), udostępnianej pod adresem <strong>https://krzjur-oss.github.io/Plan-lekcji/</strong>.</p>
+<br>
+<p style="margin:4px 0">Właścicielem i twórcą Aplikacji jest <strong>Krzysztof Jureczek</strong> (dalej: „Autor"). Korzystanie z Aplikacji jest równoznaczne z akceptacją niniejszego Regulaminu.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§2. Przeznaczenie Aplikacji</h2>
+<br>
+<p style="margin:4px 0">Aplikacja przeznaczona jest wyłącznie do <strong>niekomercyjnego użytku w placówkach oświatowych</strong> (szkoły podstawowe, licea, technika, szkoły branżowe, przedszkola oraz inne placówki kształcenia). Umożliwia planowanie tygodniowego planu lekcji — przypisywanie nauczycieli, klas, sal i przedmiotów do poszczególnych godzin lekcyjnych.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§3. Warunki korzystania</h2>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Aplikacja jest bezpłatna i dostępna dla każdego użytkownika posiadającego dostęp do przeglądarki internetowej.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Użytkownik zobowiązuje się korzystać z Aplikacji zgodnie z jej przeznaczeniem oraz obowiązującym prawem.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Zabronione jest używanie Aplikacji w celach komercyjnych bez pisemnej zgody Autora.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Zabronione jest podejmowanie działań mogących zakłócić działanie Aplikacji lub narazić innych użytkowników na szkodę.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Użytkownik ponosi pełną odpowiedzialność za dane wprowadzone do Aplikacji.</div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§4. Prawa autorskie i licencja</h2>
+<br>
+<p style="margin:4px 0">Wszelkie prawa do Aplikacji — w tym kod źródłowy, interfejs graficzny, projekt wizualny oraz dokumentacja — należą wyłącznie do Autora i są chronione przepisami prawa autorskiego (ustawa z dnia 4 lutego 1994 r. o prawie autorskim i prawach pokrewnych).</p>
+<br>
+<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:.8rem">
+<tr><td style="border:1px solid var(--border);padding:5px 8px">❌ **Zabronione**</td><td style="border:1px solid var(--border);padding:5px 8px">Kopiowanie, modyfikowanie, dekompilowanie, rozpowszechnianie lub sprzedaż Aplikacji bądź jej części bez pisemnej zgody Autora</td></tr>
+<tr><th style="border:1px solid var(--border);padding:5px 8px">✅ **Dozwolone**</th><th style="border:1px solid var(--border);padding:5px 8px">Korzystanie z Aplikacji zgodnie z jej przeznaczeniem, zapisywanie i eksportowanie własnych danych, udostępnianie linku do Aplikacji innym osobom</th></tr>
+</table>
+<br>
+<p style="margin:4px 0">W sprawach licencjonowania komercyjnego prosimy o kontakt z Autorem poprzez repozytorium GitHub.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§5. Dane i prywatność</h2>
+<br>
+<p style="margin:4px 0">Aplikacja <strong>nie zbiera, nie przesyła ani nie przechowuje</strong> żadnych danych użytkownika na zewnętrznych serwerach. Wszelkie dane przechowywane są wyłącznie lokalnie w pamięci przeglądarki użytkownika (<code style="background:var(--s2);padding:1px 5px;border-radius:4px;font-size:.85em">localStorage</code>) na jego urządzeniu.</p>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">Zasady przetwarzania danych</h3>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Dane <strong>nie opuszczają</strong> urządzenia użytkownika.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Aplikacja <strong>nie używa</strong> plików cookie, narzędzi analitycznych, sieci reklamowych ani usług zewnętrznych (z wyjątkiem Google Fonts do ładowania czcionek Syne i DM Mono).</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Autor <strong>nie ma dostępu</strong> do żadnych danych wprowadzonych przez użytkownika.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Użytkownik może w każdej chwili usunąć swoje dane, czyszcząc dane witryny w ustawieniach przeglądarki lub korzystając z funkcji „Resetuj całą aplikację" w Ustawieniach aplikacji.</div>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">Klucze localStorage używane przez Aplikację</h3>
+<br>
+<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:.8rem">
+<tr><td style="border:1px solid var(--border);padding:5px 8px">Klucz</td><td style="border:1px solid var(--border);padding:5px 8px">Zawartość</td><td style="border:1px solid var(--border);padding:5px 8px">Kiedy zapisywany</td></tr>
+<tr><th style="border:1px solid var(--border);padding:5px 8px">\`pl_state\`</th><th style="border:1px solid var(--border);padding:5px 8px">Konfiguracja szkoły (klasy, nauczyciele, sale, przedmioty, godziny)</th><th style="border:1px solid var(--border);padding:5px 8px">Po każdej zmianie konfiguracji</th></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_sched\`</td><td style="border:1px solid var(--border);padding:5px 8px">Ułożony plan lekcji (przypisania lekcji do godzin)</td><td style="border:1px solid var(--border);padding:5px 8px">Po każdej zmianie planu</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_wiz\`</td><td style="border:1px solid var(--border);padding:5px 8px">Autozapis kreatora konfiguracji</td><td style="border:1px solid var(--border);padding:5px 8px">W trakcie korzystania z kreatora</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_theme\`</td><td style="border:1px solid var(--border);padding:5px 8px">Wybrany motyw kolorystyczny (ciemny/jasny)</td><td style="border:1px solid var(--border);padding:5px 8px">Po zmianie motywu</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_consent\`</td><td style="border:1px solid var(--border);padding:5px 8px">Potwierdzenie zapoznania się z informacją o danych</td><td style="border:1px solid var(--border);padding:5px 8px">Po kliknięciu „Rozumiem"</td></tr>
+</table>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">Dane osobowe nauczycieli</h3>
+<br>
+<p style="margin:4px 0">Plan lekcji zawiera imiona i nazwiska nauczycieli — stanowią one dane osobowe w rozumieniu RODO (Rozporządzenie Parlamentu Europejskiego i Rady (UE) 2016/679). Ponieważ dane są przetwarzane <strong>wyłącznie lokalnie na urządzeniu użytkownika</strong> i nie są przekazywane żadnej osobie trzeciej ani do żadnego serwera, zastosowanie ma wyłączenie z art. 2 ust. 2 lit. c RODO (przetwarzanie przez osobę fizyczną w ramach czynności o czysto osobistym lub domowym charakterze).</p>
+<br>
+<p style="margin:4px 0">Użytkownik, który przetwarza dane nauczycieli w imieniu szkoły jako instytucji, jest zobowiązany do przestrzegania wewnętrznych procedur ochrony danych osobowych obowiązujących w danej placówce.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§6. Odpowiedzialność</h2>
+<br>
+<p style="margin:4px 0">Aplikacja udostępniana jest w stanie „takim, jakim jest" (<em>as is</em>), bez jakichkolwiek gwarancji — w szczególności gwarancji przydatności do określonego celu, poprawności wygenerowanych planów ani nieprzerwanego działania.</p>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Autor nie ponosi odpowiedzialności za <strong>utratę danych</strong> wynikającą z wyczyszczenia danych przeglądarki, awarii urządzenia, aktualizacji systemu operacyjnego lub innych przyczyn niezależnych od Autora.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Autor nie ponosi odpowiedzialności za <strong>błędy w ułożonym planie lekcji</strong> — w tym konflikty, naruszenie przepisów oświatowych lub inne nieprawidłowości wynikające z niepoprawnie wprowadzonych danych lub ograniczeń algorytmu generatora.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Autor nie ponosi odpowiedzialności za szkody wynikające z <strong>nieprawidłowego korzystania</strong> z Aplikacji.</div>
+<br>
+<p style="margin:4px 0"><strong>Zalecenie:</strong> Regularnie twórz kopie zapasowe danych za pomocą funkcji <strong>Eksportuj JSON</strong> dostępnej w topbarze aplikacji.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§7. Dostępność i aktualizacje</h2>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Autor dokłada starań, aby Aplikacja działała poprawnie i była dostępna przez całą dobę, jednak nie gwarantuje ciągłości działania.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Autor zastrzega sobie prawo do <strong>modyfikowania, aktualizowania lub zaprzestania</strong> udostępniania Aplikacji w dowolnym momencie bez wcześniejszego powiadamiania.</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Aktualizacje Aplikacji są wdrażane automatycznie poprzez mechanizm Service Worker — użytkownik może być poproszony o odświeżenie strony w celu załadowania nowej wersji.</div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§8. Zmiany Regulaminu</h2>
+<br>
+<p style="margin:4px 0">Autor zastrzega sobie prawo do zmiany niniejszego Regulaminu. O istotnych zmianach użytkownicy będą informowani poprzez komunikat wyświetlany w Aplikacji lub aktualizację niniejszego pliku. Dalsze korzystanie z Aplikacji po opublikowaniu zmian oznacza akceptację nowej wersji Regulaminu.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">§9. Postanowienia końcowe</h2>
+<br>
+<p style="margin:4px 0">W sprawach nieuregulowanych niniejszym Regulaminem zastosowanie mają przepisy prawa polskiego, w szczególności:</p>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Kodeksu cywilnego (ustawa z dnia 23 kwietnia 1964 r.),</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Ustawy o prawie autorskim i prawach pokrewnych (ustawa z dnia 4 lutego 1994 r.),</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Rozporządzenia RODO (UE) 2016/679.</div>
+<br>
+<p style="margin:4px 0">Wszelkie pytania dotyczące Aplikacji lub niniejszego Regulaminu można kierować do Autora za pośrednictwem repozytorium GitHub projektu:</p>
+<br>
+<p style="margin:4px 0">🔗 <strong>https://github.com/krzjur-oss/Plan-lekcji</strong></p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<p style="margin:4px 0"><em>© 2025 Krzysztof Jureczek · Wszelkie prawa zastrzeżone</em></p>
+<br>`,
+  licencja: `<pre style="background:var(--s2);padding:14px;border-radius:8px;font-size:.75rem;line-height:1.6;white-space:pre-wrap;overflow-x:auto">Copyright (c) 2025 Krzysztof Jureczek. All rights reserved.
+
+PROJECT NAME: PlanLekcji
+AUTHOR: Krzysztof Jureczek
+URL: https://krzjur-oss.github.io/Plan-lekcji/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION:
+
+1. Ownership: All visual interfaces, graphics, design, compilation, information,
+   computer code (including source code or object code), products, software,
+   services, and all other elements of the PlanLekcji application provided by
+   the Author are protected by intellectual property and proprietary rights.
+
+2. Restriction of Use: Permission is hereby NOT granted to any person obtaining
+   a copy of this software and associated documentation files to deal in the
+   Software without restriction. This includes, without limitation, the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software.
+
+3. Personal Use: You may access and use the application strictly for its
+   intended purpose (creating school timetables / lesson plans). Any reverse
+   engineering or unauthorized reproduction of the source code is
+   strictly prohibited.
+
+4. Educational Use: The application is intended exclusively for non-commercial
+   use in educational institutions (schools, kindergartens, educational
+   facilities). Any commercial use requires prior written consent from the Author.
+
+5. No Warranty: THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+
+6. Data: The application stores all data exclusively in the user's browser
+   (localStorage). No data is transmitted to external servers. The Author
+   has no access to any data entered by users.
+
+For inquiries regarding commercial use or licensing, please contact the Author
+via the GitHub repository: https://github.com/krzjur-oss/Plan-lekcji
+</pre>`,
+  dokumentacja: `<h1 style="font-size:1.1rem;font-weight:700;margin:20px 0 6px;color:var(--text)">📅 PlanLekcji — Układanie planów lekcji</h1>
+<br>
+<p style="margin:4px 0">Aplikacja PWA do układania i zarządzania planem lekcji szkolnych. Działa w całości w przeglądarce — <strong>bez serwera, bez instalacji, bez zbierania danych</strong>. Można ją zainstalować na komputerze lub tablecie jak aplikację natywną.</p>
+<br>
+<p style="margin:4px 0">🔗 <strong>Aplikacja:</strong> https://krzjur-oss.github.io/Plan-lekcji/</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">✨ Funkcje</h2>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">🚀 Strona powitalna</h3>
+<br>
+<p style="margin:4px 0">Przy pierwszym uruchomieniu wyświetla się strona powitalna z opcjami:</p>
+<br>
+<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:.8rem">
+<tr><td style="border:1px solid var(--border);padding:5px 8px">Opcja</td><td style="border:1px solid var(--border);padding:5px 8px">Opis</td></tr>
+<tr><th style="border:1px solid var(--border);padding:5px 8px">✨ Nowy plan</th><th style="border:1px solid var(--border);padding:5px 8px">Kreator konfiguracji szkoły — 7 kroków</th></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">📋 Kontynuuj</td><td style="border:1px solid var(--border);padding:5px 8px">Wróć do istniejącego planu</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">🔄 Wróć do kreatora</td><td style="border:1px solid var(--border);padding:5px 8px">Kontynuuj przerwaną konfigurację (autozapis)</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">📂 Importuj</td><td style="border:1px solid var(--border);padding:5px 8px">Wczytaj plan z pliku \`.json\`</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">🎓 Demo</td><td style="border:1px solid var(--border);padding:5px 8px">Przykładowy plan szkoły — dane nie są zapisywane</td></tr>
+</table>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">📚 Widoki planu</h3>
+<br>
+<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:.8rem">
+<tr><td style="border:1px solid var(--border);padding:5px 8px">Widok</td><td style="border:1px solid var(--border);padding:5px 8px">Opis</td></tr>
+<tr><th style="border:1px solid var(--border);padding:5px 8px">📚 Klasy</th><th style="border:1px solid var(--border);padding:5px 8px">Plan wybranej klasy — cały tydzień lub wybrany dzień</th></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">👩‍🏫 Nauczyciele</td><td style="border:1px solid var(--border);padding:5px 8px">Plan wybranego nauczyciela z widokiem wszystkich klas</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">🏫 Sale</td><td style="border:1px solid var(--border);padding:5px 8px">Obłożenie wybranej sali w ciągu tygodnia</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">🔲 Macierz</td><td style="border:1px solid var(--border);padding:5px 8px">Przegląd całej szkoły (Klasy × Godziny lub Nauczyciele × Godziny)</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">🚨 Dyżury</td><td style="border:1px solid var(--border);padding:5px 8px">Zarządzanie dyżurami nauczycieli na przerwach</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">📊 Statystyki</td><td style="border:1px solid var(--border);padding:5px 8px">Realizacja etatu, obciążenie nauczycieli, rozkład przedmiotów</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">⚡ Generator</td><td style="border:1px solid var(--border);padding:5px 8px">Automatyczne układanie planu z konfigurowalną listą warunków</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">⚙️ Ustawienia</td><td style="border:1px solid var(--border);padding:5px 8px">Konfiguracja szkoły, klas, nauczycieli, sal i godzin</td></tr>
+</table>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">⚡ Generator planu</h3>
+<br>
+<p style="margin:4px 0">Automatyczny solver układający plan na podstawie zdefiniowanych warunków:</p>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Dostępność nauczycieli</strong> — blokady, okienka, godziny preferowane</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Bloki lekcji</strong> — podwójne lub potrójne godziny z rzędu</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Pozycja przedmiotów</strong> — WF na końcu dnia, religia na początku lub końcu (skrajne)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Podział na grupy</strong> — równoległe lekcje dla grup klasy</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Przedmioty opcjonalne</strong> — religia/etyka z automatycznym podziałem grupy, możliwość łączenia małych grup między klasami</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Analiza sal</strong> — sprawdza czy liczba sal wystarczy na szczyt obłożenia</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Max dziennie</strong> — ograniczenie liczby wystąpień przedmiotu w ciągu dnia</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Max dni z rzędu</strong> — ograniczenie kolejnych dni z tym samym przedmiotem</div>
+<br>
+<p style="margin:4px 0">Solver działa jako <strong>Web Worker</strong> (wątek w tle) — interfejs nie zamiera podczas generowania. Algorytm: Greedy + Simulated Annealing.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">🏫 Konfiguracja szkoły</h3>
+<br>
+<p style="margin:4px 0"><strong>Klasy:</strong></p>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Grupy (podgrupy klasy)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Liczba uczniów</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Wychowawca, sale gospodarz</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Przedmioty opcjonalne (religia, etyka, mniejszości) z liczbą uczniów i łączeniem grup między klasami</div>
+<br>
+<p style="margin:4px 0"><strong>Nauczyciele:</strong></p>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Pensum i nadgodziny stałe</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Wymiar etatu (pełny, pół, inny ułamek)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Przydział godzin do klas i przedmiotów</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Nauczanie indywidualne</div>
+<br>
+<p style="margin:4px 0"><strong>Przedmioty:</strong></p>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Kolor, skrót</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Czas realizacji (cały rok / semestr 1 / semestr 2)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Przypisanie do konkretnych klas</div>
+<br>
+<p style="margin:4px 0"><strong>Sale:</strong></p>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Typ (pełna klasa, grupowa, indywidualna, specjalistyczna)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Pojemność</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Przypisanie do budynku i piętra</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Opiekunowie, preferowane przedmioty (np. sala komputerowa → Informatyka)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Ograniczenia wiekowe (sala dla klas 1–3)</div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">🖨️ Drukowanie</h3>
+<br>
+<p style="margin:4px 0">Przycisk 🖨️ w topbarze otwiera panel drukowania:</p>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Aktualny widok</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Plan wybranej klasy / wszystkich klas po kolei</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Plan wybranego nauczyciela / wszystkich nauczycieli po kolei</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Macierz szkoły</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Statystyki</div>
+<br>
+<p style="margin:4px 0">Wydruk zawiera nagłówek z nazwą szkoły, rokiem szkolnym i nazwą klasy/nauczyciela.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">💾 Eksport i import danych</h3>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Eksportuj JSON</strong> — pełna kopia zapasowa planu i konfiguracji</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Importuj JSON</strong> — wczytaj plan z pliku <code style="background:var(--s2);padding:1px 5px;border-radius:4px;font-size:.85em">.json</code></div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Tryb demo — przeglądaj przykładowy plan bez zapisywania zmian</div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">🧙 Kreator konfiguracji (7 kroków)</h3>
+<br>
+<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:.8rem">
+<tr><td style="border:1px solid var(--border);padding:5px 8px">Krok</td><td style="border:1px solid var(--border);padding:5px 8px">Zawartość</td></tr>
+<tr><th style="border:1px solid var(--border);padding:5px 8px">1 — Szkoła</th><th style="border:1px solid var(--border);padding:5px 8px">Nazwa szkoły, rok szkolny</th></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">2 — Budynki</td><td style="border:1px solid var(--border);padding:5px 8px">Budynki, piętra, segmenty (opcjonalne)</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">3 — Klasy</td><td style="border:1px solid var(--border);padding:5px 8px">Lista klas z grupami, import masowy</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">4 — Przedmioty</td><td style="border:1px solid var(--border);padding:5px 8px">Nazwy, skróty, kolory, import masowy</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">5 — Nauczyciele</td><td style="border:1px solid var(--border);padding:5px 8px">Imię, nazwisko, skrót, pensum, import masowy</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">6 — Sale</td><td style="border:1px solid var(--border);padding:5px 8px">Nazwa, typ, pojemność, budynek</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">7 — Godziny</td><td style="border:1px solid var(--border);padding:5px 8px">Harmonogram godzin lekcyjnych lub generator automatyczny</td></tr>
+</table>
+<br>
+<p style="margin:4px 0">Kreator <strong>autozapisuje</strong> postęp — można bezpiecznie zamknąć przeglądarkę i wrócić do konfiguracji.</p>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">🔒 Prywatność i dane</h3>
+<br>
+<p style="margin:4px 0">Aplikacja <strong>nie zbiera, nie wysyła ani nie przechowuje</strong> żadnych danych zewnętrznie. Wszystkie dane wyłącznie w <code style="background:var(--s2);padding:1px 5px;border-radius:4px;font-size:.85em">localStorage</code> przeglądarki.</p>
+<br>
+<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:.8rem">
+<tr><td style="border:1px solid var(--border);padding:5px 8px">Klucz</td><td style="border:1px solid var(--border);padding:5px 8px">Zawartość</td></tr>
+<tr><th style="border:1px solid var(--border);padding:5px 8px">\`pl_state\`</th><th style="border:1px solid var(--border);padding:5px 8px">Konfiguracja szkoły (klasy, nauczyciele, sale, przedmioty)</th></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_sched\`</td><td style="border:1px solid var(--border);padding:5px 8px">Ułożony plan lekcji</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_wiz\`</td><td style="border:1px solid var(--border);padding:5px 8px">Autozapis kreatora</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_theme\`</td><td style="border:1px solid var(--border);padding:5px 8px">Wybrany motyw (ciemny/jasny)</td></tr>
+<tr><td style="border:1px solid var(--border);padding:5px 8px">\`pl_consent\`</td><td style="border:1px solid var(--border);padding:5px 8px">Potwierdzenie informacji o danych</td></tr>
+</table>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">📲 PWA — instalacja jako aplikacja</h2>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">Chrome / Edge (Windows, Android)</h3>
+<p style="margin:4px 0">Kliknij ikonę ⊕ w pasku adresu przeglądarki lub baner instalacji.</p>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">Safari (iOS / macOS)</h3>
+<p style="margin:4px 0">Udostępnij → <strong>Dodaj do ekranu głównego</strong></p>
+<br>
+<h3 style="font-size:.9rem;font-weight:700;margin:12px 0 6px;color:var(--text)">Po instalacji</h3>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Pełny tryb offline — Service Worker cache'uje wszystkie pliki</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span>Działa jak aplikacja natywna — bez paska przeglądarki</div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">📖 Jak zacząć</h2>
+<br>
+<div style="padding:2px 0 2px 16px">1. Otwórz aplikację → pojawi się strona powitalna</div>
+<div style="padding:2px 0 2px 16px">2. Wybierz <strong>✨ Nowy plan</strong> i przejdź przez kreator (7 kroków)</div>
+<div style="padding:2px 0 2px 16px">3. W Ustawieniach → Nauczyciele przypisz każdemu nauczycielowi klasy i godziny</div>
+<div style="padding:2px 0 2px 16px">4. Układaj plan ręcznie (przeciągaj lekcje) lub użyj Generatora</div>
+<div style="padding:2px 0 2px 16px">5. Regularnie eksportuj kopię zapasową: przycisk 💾 → <strong>Eksportuj JSON</strong></div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">🗂 Struktura repozytorium</h2>
+<br>
+<pre style="background:var(--s2);padding:10px 14px;border-radius:8px;font-size:.78rem;overflow-x:auto"><code>
+Plan-lekcji/
+├── index.html      # Cała aplikacja (HTML + CSS + JS, ~290 KB)
+├── manifest.json   # PWA manifest
+├── sw.js           # Service Worker (cache offline)
+├── icon-*.png      # Ikony PWA (72–512 px)
+├── LICENSE         # Licencja i prawa autorskie
+├── REGULAMIN.md    # Regulamin korzystania z aplikacji
+└── README.md       # Dokumentacja (ten plik)
+</code></pre>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">🛠 Technologie</h2>
+<br>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Frontend:</strong> czysty HTML + CSS + JavaScript — zero zewnętrznych bibliotek</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Dane:</strong> <code style="background:var(--s2);padding:1px 5px;border-radius:4px;font-size:.85em">localStorage</code> przeglądarki</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Offline:</strong> Service Worker (Cache API)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Standard:</strong> PWA (Web App Manifest)</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Solver:</strong> Web Worker + Greedy Algorithm + Simulated Annealing</div>
+<div style="padding:2px 0 2px 16px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">·</span><strong>Czcionki:</strong> Syne (800) + DM Mono — Google Fonts</div>
+<br>
+<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+<br>
+<h2 style="font-size:1rem;font-weight:700;margin:16px 0 6px;color:var(--text)">⚖️ Licencja i prawa autorskie</h2>
+<br>
+<p style="margin:4px 0">© 2025 Krzysztof Jureczek. Wszelkie prawa zastrzeżone.</p>
+<br>
+<p style="margin:4px 0">Szczegółowe warunki użytkowania w pliku <a href="javascript:void(0)" onclick="showDoc(\'licencja\')" style="color:var(--accent)"><code style="background:var(--s2);padding:1px 5px;border-radius:4px;font-size:.85em">LICENSE</code></a>. Aplikacja przeznaczona wyłącznie do niekomercyjnego użytku w placówkach oświatowych.</p>
+<br>`
+};
+
+function openDocModal(tab) {
+  const overlay = document.getElementById('docOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'flex';
+  showDoc(tab||'regulamin');
+}
+
+function closeDocModal() {
+  const overlay = document.getElementById('docOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+function showDoc(tab) {
+  // Aktywna zakładka
+  ['regulamin','licencja','dokumentacja'].forEach(t => {
+    const btn = document.getElementById('docTab-'+t);
+    if(!btn) return;
+    btn.style.background = t===tab ? 'var(--accent)' : 'var(--s2)';
+    btn.style.color = t===tab ? '#fff' : 'var(--text-m)';
+  });
+  const el = document.getElementById('docContent');
+  if(el) el.innerHTML = DOC_CONTENT[tab]||'';
 }
 
 function showPrivacyModal() {
