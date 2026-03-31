@@ -1,6 +1,8 @@
-const CACHE_NAME = 'planlekcji-v1';
+const CACHE_NAME = 'planlekcji-v2';
 const ASSETS = [
   './index.html',
+  './style.css',
+  './app.js',
   './manifest.json',
 ];
 
