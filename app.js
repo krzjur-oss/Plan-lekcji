@@ -2338,7 +2338,7 @@ function genGroupsUI(C) {
         },0);
         infoHtml += `<div style="display:flex;align-items:center;gap:6px;padding-left:8px">
           <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${s?.color||'#888'}"></span>
-          <strong>${escapeHtml(s?.name||'?'}</strong>:
+          <strong>${escapeHtml(s?.name||'?')}</strong>:
           ${clsNames.map(n=>`<span style="padding:1px 6px;background:var(--s3);border-radius:5px;font-size:.68rem">${n}</span>`).join(' + ')}
           ${total?`<span style="color:var(--accent);font-family:var(--mono)">${total} uczniów</span>`:''}
           → jeden nauczyciel, jedna sala
