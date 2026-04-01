@@ -4316,8 +4316,6 @@ function settingsNI() {
 function settingsDangerZone() {
   let html = '';
 
-  html += niSettingsSection();
-
   html+=`<div class="settings-card" style="grid-column:1/-1">`;
   html+=`<div class="settings-card-title" style="color:var(--red)">Strefa niebezpieczna</div>`;
   html+=`<div style="font-size:.82rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">Operacje, których nie można cofnąć.</div>`;
