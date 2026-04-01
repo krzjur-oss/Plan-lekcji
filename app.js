@@ -161,6 +161,7 @@ function undoExec() {
     }
   }
   _redoStack.push(redoBatch);
+  invalidateSlotIndex();
   persistAll();
   renderCurrentView();
   detectAndShowConflicts();
@@ -180,6 +181,7 @@ function redoExec() {
     }
   }
   _undoStack.push(undoBatch);
+  invalidateSlotIndex();
   persistAll();
   renderCurrentView();
   detectAndShowConflicts();
@@ -1066,7 +1068,7 @@ function wAddHour() {
   const [eh,em]=end.split(':').map(Number);
   const nm=eh*60+em+10;
   document.getElementById('wHStart').value=`${String(Math.floor(nm/60)).padStart(2,'0')}:${String(nm%60).padStart(2,'0')}`;
-  const len=parseInt(document.getElementById('wHAutoLen')||{value:45}.value)||45;
+  const len=parseInt(document.getElementById('wHAutoLen')?.value)||45;
   const nm2=nm+len;
   document.getElementById('wHEnd').value=`${String(Math.floor(nm2/60)).padStart(2,'0')}:${String(nm2%60).padStart(2,'0')}`;
   renderWizStep();
@@ -1150,14 +1152,6 @@ function populateModalSelects() {
     // Grupuj sale wg budynku jeśli budynki istnieją
     const hasBld = (appState.buildings||[]).length > 0;
     if(hasBld){
-      let roomOpts='<option value="">— brak / bez sali —</option>';
-      // Sale bez budynku
-      const noBld=sortByName(appState.rooms.filter(r=>!r.buildingId));
-      if(noBld.length){
-        const og=document.createElement('optgroup'); og.label='Budynek główny';
-        noBld.forEach(r=>{ const o=document.createElement('option');o.value=r.id;o.textContent=r.name; og.appendChild(o); });
-        // Dodamy przez innerHTML pomocnicze
-      }
       // Buduj przez innerHTML z optgroup
       let html='<option value="">— brak / bez sali —</option>';
       (appState.buildings||[]).forEach(b=>{
@@ -1241,6 +1235,7 @@ function setLesson(clsId, dayIdx, hourIdx, lesson) {
   undoRecordChange(k, schedData[k] !== undefined ? JSON.parse(JSON.stringify(schedData[k])) : null);
   if(lesson===null) delete schedData[k];
   else schedData[k]=lesson;
+  invalidateSlotIndex();
   persistAll();
 }
 
@@ -1297,18 +1292,24 @@ function renderGrid(columns, getLabel, getDays, opts={}) {
   }
   html += '</thead><tbody>';
 
+  // Pre-build lookup Maps for O(1) access
+  const subjMap  = new Map((appState.subjects||[]).map(s=>[s.id,s]));
+  const tchMap   = new Map((appState.teachers||[]).map(t=>[t.id,t]));
+  const roomMap  = new Map((appState.rooms||[]).map(r=>[r.id,r]));
+  const bldMap   = new Map((appState.buildings||[]).map(b=>[b.id,b]));
+
   // ── Helper: renderuj jedną komórkę ──
   const cellHtml = (col, di, h) => {
     const lesson = getLesson(col.id, di, h.num);
     if(lesson) {
-      const subj  = appState.subjects.find(s=>s.id===lesson.subjectId);
-      const tch   = appState.teachers.find(t=>t.id===lesson.teacherId);
-      const room  = appState.rooms.find(r=>r.id===lesson.roomId);
+      const subj  = subjMap.get(lesson.subjectId);
+      const tch   = tchMap.get(lesson.teacherId);
+      const room  = roomMap.get(lesson.roomId);
       const color = subj?.color||'#38bdf8';
       const bg    = hexToRgba(color,.18);
           const textC = isDarkColor(color)?'#fff':'#111';
       const hasC  = checkCellConflict(col.id, di, h.num, lesson);
-      const bldSuffix = room ? (()=>{ const b=(appState.buildings||[]).find(b=>b.id===room.buildingId); return b?' ('+escapeHtml(b.name)+')':''; })() : '';
+      const bldSuffix = room ? (()=>{ const b=bldMap.get(room.buildingId); return b?' ('+escapeHtml(b.name)+')':''; })() : '';
       return `<td data-clsid="${col.id}" data-day="${di}" data-hour="${h.num}"
           style="${hasC?'background:var(--red-g)':''}"
           ondragover="doDragOver(event,this)" ondrop="doDrop(event,'${col.id}',${di},${h.num})" ondragleave="doDragLeave(event)">
@@ -2020,22 +2021,6 @@ function genTeacherAvailUI(C) {
     let grid = '';
     if(isOpen) {
       let cols = '';
-      for(let di=0; di<5; di++) {
-        let cells = `<div class="gen-avail-day">${DSHORT[di]}</div>`;
-        hours.forEach(h => {
-          const k   = `${di}_${h.num}`;
-          const st  = avail[k]||'';
-          const cls = st==='blocked'?'blocked':st==='preferred'?'preferred':st==='window'?'window':'';
-          const lbl = st==='blocked'?'✕':st==='preferred'?'★':st==='window'?'◐':h.num;
-          const ttl = st==='blocked'?'Zablokowana':st==='preferred'?'Preferowana':st==='window'?'Przymusowe okienko':'Dostępna';
-          cells += `<div class="gen-avail-cell ${cls}" title="${DSHORT[di]} godz.${h.num} — ${ttl}"
-            onclick="genCycleAvail('${t.id}','${k}')">${lbl}</div>`;
-        });
-        cols += `<div class="gen-avail-col">${cols.length?'':''}"${cells}</div>`;
-        cols = cols.replace(`"${cells}`, `>${cells}`);
-      }
-      // Przepisz czysto
-      cols = '';
       for(let di=0; di<5; di++) {
         let cells = `<div class="gen-avail-day">${DSHORT[di]}</div>`;
         hours.forEach(h => {
@@ -3172,8 +3157,7 @@ function genHandleResult(newSched, warnings, stats) {
 }
 
 function genDiscard() {
-  // Odrzuć wygenerowany plan — wyczyść tymczasowy wynik
-  if(window._genResult) { window._genResult = null; }
+  window._genSched = null;
   renderGenerator();
 }
 
@@ -4331,71 +4315,6 @@ function settingsNI() {
 }
 function settingsDangerZone() {
   let html = '';
-  html+=`<div class="settings-card" style="grid-column:1/-1">
-    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>Szkoła — rok szkolny i harmonogram</span>
-      <button class="si-btn" onclick="saveSchoolSettings()">Zapisz</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
-      <div class="mfield">
-        <label>Rok szkolny</label>
-        <input class="minput" id="setSchoolYear" value="${escapeHtml(appState.schoolYear||appState.year||'')}" placeholder="2025/2026">
-      </div>
-      <div class="mfield">
-        <label>Aktywny semestr</label>
-        <select class="mselect" id="setActiveSem">
-          <option value="1" ${(appState.activeSem||1)===1?'selected':''}>Semestr 1</option>
-          <option value="2" ${(appState.activeSem||1)===2?'selected':''}>Semestr 2</option>
-        </select>
-      </div>
-      <div class="mfield">
-        <label style="font-size:.7rem;color:var(--text-m)">
-          Semestr określa które przedmioty (sem.1 / sem.2) są aktywne w planie.
-        </label>
-      </div>
-    </div>
-    <div>
-      <div style="font-size:.73rem;font-weight:700;color:var(--text-m);text-transform:uppercase;
-        letter-spacing:.04em;margin-bottom:8px">Okno czasowe szkoły (godziny lekcji per dzień)</div>
-      <div style="font-size:.72rem;color:var(--text-m);margin-bottom:8px">
-        Ustaw od której do której godziny (numer) mogą odbywać się lekcje.
-        Puste = bez ograniczeń (wszystkie godziny z harmonogramu).
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:.75rem">
-        <thead><tr>
-          <th style="text-align:left;padding:4px 8px;color:var(--text-m);font-weight:600">Dzień</th>
-          <th style="padding:4px 8px;color:var(--text-m);font-weight:600;text-align:center">Od godz.</th>
-          <th style="padding:4px 8px;color:var(--text-m);font-weight:600;text-align:center">Do godz.</th>
-          <th style="padding:4px 8px;color:var(--text-m);font-weight:600;text-align:center">Dzień wolny</th>
-        </tr></thead>
-        <tbody>
-          ${['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'].map((day,di)=>{
-            const w  = (appState.schoolWindow||{})[['mon','tue','wed','thu','fri'][di]]||[null,null];
-            const off = w[2]===true;
-            return `<tr style="border-top:1px solid var(--border)">
-              <td style="padding:5px 8px;font-weight:600">${day}</td>
-              <td style="padding:3px 6px;text-align:center">
-                <input class="minput" id="swFrom_${di}" type="number" min="0" max="20" style="width:60px;text-align:center;padding:4px"
-                  value="${w[0]??''}" placeholder="—" ${off?'disabled':''}>
-              </td>
-              <td style="padding:3px 6px;text-align:center">
-                <input class="minput" id="swTo_${di}" type="number" min="0" max="20" style="width:60px;text-align:center;padding:4px"
-                  value="${w[1]??''}" placeholder="—" ${off?'disabled':''}>
-              </td>
-              <td style="padding:3px 6px;text-align:center">
-                <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-                  <input type="checkbox" id="swOff_${di}" ${off?'checked':''}
-                    onchange="document.getElementById('swFrom_${di}').disabled=this.checked;document.getElementById('swTo_${di}').disabled=this.checked"
-                    style="accent-color:var(--accent);width:15px;height:15px">
-                  <span style="font-size:.7rem;color:var(--text-d)">wolny</span>
-                </label>
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>`;
 
   html += niSettingsSection();
 
@@ -4522,11 +4441,14 @@ function populateGroupsInModal(clsId, selectedGroups) {
   const field=document.getElementById('mGroupField');
   if(!cls||!cls.groups||!cls.groups.length){field.style.display='none';return;}
   field.style.display='';
-  container.innerHTML=cls.groups.map(g=>`
-    <label class="gchk ${selectedGroups.includes(g)?'checked':''}">
-      <input type="checkbox" value="${g}" ${selectedGroups.includes(g)?'checked':''} onchange="gChkChange(this)">
-      ${g}
-    </label>`).join('');
+  const sel = (selectedGroups||[]).map(g=>typeof g==='string'?g:g.name);
+  container.innerHTML=cls.groups.map(g=>{
+    const name = typeof g==='string'?g:g.name;
+    return `<label class="gchk ${sel.includes(name)?'checked':''}">
+      <input type="checkbox" value="${escapeHtml(name)}" ${sel.includes(name)?'checked':''} onchange="gChkChange(this)">
+      ${escapeHtml(name)}
+    </label>`;
+  }).join('');
 }
 
 // Gdy zmienia się klasa w modalu (tryb macierzy nauczyciela)
@@ -4775,31 +4697,27 @@ function detectConflicts() {
   if(!appState)return conflicts;
   const hours=appState.hours;
 
-  // Group all lessons by (dayIdx, hourNum)
-  const bySlot={};
-  Object.entries(schedData).forEach(([k,v])=>{
-    const parts=k.split('_');
-    const clsId=parts[0];
-    const dayIdx=parseInt(parts[1]);
-    const hourNum=parseInt(parts[2]);
-    const slotKey=`${dayIdx}_${hourNum}`;
-    if(!bySlot[slotKey])bySlot[slotKey]=[];
-    bySlot[slotKey].push({clsId,dayIdx,hourNum,lesson:v,k});
-  });
+  // Group all lessons by (dayIdx, hourNum) using pre-built index
+  const bySlot = getSlotIndex();
+
+  const tchMap  = new Map((appState.teachers||[]).map(t=>[t.id,t]));
+  const roomMap = new Map((appState.rooms||[]).map(r=>[r.id,r]));
+  const clsMap  = new Map((appState.classes||[]).map(c=>[c.id,c]));
 
   Object.entries(bySlot).forEach(([slot,entries])=>{
     const [dayIdx,hourNum]=slot.split('_').map(Number);
+    if(entries.length < 2) return;
     // Teacher conflict: same teacher in 2+ entries
     const byTeacher={};
     entries.forEach(e=>{
-      if(!e.lesson.teacherId)return;
-      if(!byTeacher[e.lesson.teacherId])byTeacher[e.lesson.teacherId]=[];
-      byTeacher[e.lesson.teacherId].push(e);
+      if(!e.teacherId)return;
+      if(!byTeacher[e.teacherId])byTeacher[e.teacherId]=[];
+      byTeacher[e.teacherId].push(e);
     });
     Object.entries(byTeacher).forEach(([tchId,ents])=>{
       if(ents.length>1){
-        const tch=appState.teachers.find(t=>t.id===tchId);
-        const clsNames=ents.map(e=>{const c=appState.classes.find(c=>c.id===e.clsId);return escapeHtml(c?.name)||'?';}).join(', ');
+        const tch=tchMap.get(tchId);
+        const clsNames=ents.map(e=>escapeHtml(clsMap.get(e.clsId)?.name)||'?').join(', ');
         conflicts.push({type:'teacher',tchId,dayIdx,hourNum,clsIds:ents.map(e=>e.clsId),
           text:`<strong>${escapeHtml(tch?.abbr)||'?'} ${escapeHtml(tch?.last)||''}</strong> <span>ma jednocześnie lekcje w klasach: ${clsNames} (${DAYS[dayIdx]}, godz. ${hourNum})</span>`});
       }
@@ -4807,14 +4725,14 @@ function detectConflicts() {
     // Room conflict: same room in 2+ entries
     const byRoom={};
     entries.forEach(e=>{
-      if(!e.lesson.roomId)return;
-      if(!byRoom[e.lesson.roomId])byRoom[e.lesson.roomId]=[];
-      byRoom[e.lesson.roomId].push(e);
+      if(!e.roomId)return;
+      if(!byRoom[e.roomId])byRoom[e.roomId]=[];
+      byRoom[e.roomId].push(e);
     });
     Object.entries(byRoom).forEach(([roomId,ents])=>{
       if(ents.length>1){
-        const room=appState.rooms.find(r=>r.id===roomId);
-        const clsNames=ents.map(e=>{const c=appState.classes.find(c=>c.id===e.clsId);return escapeHtml(c?.name)||'?';}).join(', ');
+        const room=roomMap.get(roomId);
+        const clsNames=ents.map(e=>escapeHtml(clsMap.get(e.clsId)?.name)||'?').join(', ');
         conflicts.push({type:'room',roomId,dayIdx,hourNum,clsIds:ents.map(e=>e.clsId),
           text:`<strong>Sala ${escapeHtml(room?.name)||'?'}</strong> <span>zajęta jednocześnie przez klasy: ${clsNames} (${DAYS[dayIdx]}, godz. ${hourNum})</span>`});
       }
@@ -4823,16 +4741,43 @@ function detectConflicts() {
   return conflicts;
 }
 
+// Pre-built slot index: {day_hour: [{clsId, teacherId, roomId}]}
+function buildSlotIndex() {
+  const idx = {};
+  Object.entries(schedData).forEach(([k, v]) => {
+    const parts = k.split('_');
+    const slotKey = parts[1] + '_' + parts[2];
+    if(!idx[slotKey]) idx[slotKey] = [];
+    idx[slotKey].push({ clsId: parts[0], teacherId: v.teacherId, roomId: v.roomId });
+  });
+  return idx;
+}
+
+let _cachedSlotIndex = null;
+let _slotIndexVersion = 0;
+let _schedVersion = 0;
+
+function invalidateSlotIndex() {
+  _cachedSlotIndex = null;
+  _schedVersion++;
+}
+
+function getSlotIndex() {
+  if(!_cachedSlotIndex) {
+    _cachedSlotIndex = buildSlotIndex();
+    _slotIndexVersion = _schedVersion;
+  }
+  return _cachedSlotIndex;
+}
+
 function checkCellConflict(clsId, dayIdx, hourIdx, lesson) {
   if(!lesson||!appState)return false;
-  // quick check: does teacher or room appear elsewhere in same slot?
-  const slotEntries=Object.entries(schedData).filter(([k,v])=>{
-    const parts=k.split('_');
-    return parseInt(parts[1])===dayIdx&&parseInt(parts[2])===hourIdx&&parts[0]!==clsId;
-  });
-  if(lesson.teacherId&&slotEntries.some(([,v])=>v.teacherId===lesson.teacherId))return true;
-  if(lesson.roomId&&slotEntries.some(([,v])=>v.roomId===lesson.roomId))return true;
-  return false;
+  const idx = getSlotIndex();
+  const entries = idx[dayIdx+'_'+hourIdx];
+  if(!entries) return false;
+  return entries.some(e => e.clsId !== clsId &&
+    ((lesson.teacherId && e.teacherId === lesson.teacherId) || (lesson.roomId && e.roomId === lesson.roomId))
+  );
 }
 
 function detectAndShowConflicts() {
@@ -5057,6 +5002,7 @@ function buildDemoSched(){
 // ================================================================
 let _tmId = null; // null = new teacher, id = edit existing
 let _tmAssignments = []; // [{classId, subjectId, hours}]
+let _tmIndiv = [];
 
 function openAddTeacherModal() {
   _tmId = null;
@@ -5072,7 +5018,6 @@ function openAddTeacherModal() {
   document.getElementById('tmFraction').value = '';
   document.getElementById('tmFractionWrap').style.display='none';
   _tmIndiv = [];
-  tmRenderIndiv();
   tmFillIndivSubject();
   document.getElementById('tmDeleteBtn').style.display = 'none';
   tmRenderAssignments();
@@ -5180,10 +5125,6 @@ function tmAddAssignment() {
 
 
 // ── Nauczanie indywidualne ──
-function tmRenderIndiv() {
-  // NI nauczyciela teraz zarządzane przez system niStudents (openNIModal)
-  // Ta funkcja jest zachowana dla kompatybilności
-}
 
 function tmFillIndivSubject() {
   const sel = document.getElementById('tmIndivSubject');
