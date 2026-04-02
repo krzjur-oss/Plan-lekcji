@@ -13,7 +13,7 @@ const SUBJ_COLORS = [
   '#a78bfa','#2dd4bf','#fb923c','#f472b6',
   '#818cf8','#4ade80','#e879f9','#67e8f9'
 ];
-const WIZ_STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny','NI / Grupy'];
+const WIZ_STEPS = ['Rok szkolny','Szkoła','Klasy','Nauczyciele','Budynki i sale','Godziny','Grupy'];
 const LS = {
   STATE:    'pl_state',
   SCHED:    'pl_sched',
@@ -72,8 +72,10 @@ function migrateAppState() {
     (t.individualTeaching||[]).forEach(i => { if(i.students===undefined) i.students=1; });
     if(t.hoursTotal === undefined) t.hoursTotal = 0;
     if(t.hoursExtra === undefined) t.hoursExtra = 0;
-    if(t.employment  === undefined) t.employment  = 'full'; // 'full'|'half'|'other'
+    if(t.employment  === undefined) t.employment  = 'full';
     if(t.employmentFraction === undefined) t.employmentFraction = 1.0;
+    if(t.isSpecialist === undefined) t.isSpecialist = false;
+    if(t.specialistRole === undefined) t.specialistRole = '';
   });
   // Zapewnij że każdy budynek ma floors
   appState.buildings.forEach(b => {
@@ -84,6 +86,9 @@ function migrateAppState() {
   if(!appState.schoolYear)   appState.schoolYear   = appState.year||'';
   if(!appState.activeSem)    appState.activeSem     = 1;
   if(!appState.schoolWindow) appState.schoolWindow  = {mon:[null,null],tue:[null,null],wed:[null,null],thu:[null,null],fri:[null,null]};
+  if(appState.schoolPhone === undefined) appState.schoolPhone = '';
+  if(appState.schoolEmail === undefined) appState.schoolEmail = '';
+  if(appState.schoolFixed === undefined) appState.schoolFixed = false;
   // Nowe pola klas
   (appState.classes||[]).forEach(c => {
     if(!c.optionalSubjects) c.optionalSubjects = [];
@@ -107,6 +112,11 @@ function migrateAppState() {
     if(s.level    === undefined) s.level    = '';
     if(s.duration === undefined) s.duration = 'year';
     if(!s.classes) s.classes = [];
+    if(s.hoursPerWeek === undefined) s.hoursPerWeek = 0;
+    if(s.position === undefined) s.position = 'any';
+    if(s.optional === undefined) s.optional = false;
+    if(s.fixed    === undefined) s.fixed    = false;
+    if(s.scope    === undefined) s.scope    = 'class';
   });
   appState.rooms.forEach(r => {
     if(!r.type)     r.type     = 'full';
@@ -330,7 +340,7 @@ function wlInit() {
     const rezCard = document.getElementById('wlResumeCard');
     const rezDesc = document.getElementById('wlResumeDesc');
     if(w && rezCard) {
-      const STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny','NI / Grupy'];
+      const STEPS = ['Rok szkolny','Szkoła','Klasy','Nauczyciele','Budynki i sale','Godziny','Grupy'];
       const stepName = STEPS[w.step]||'';
       rezCard.style.display='';
       if(rezDesc) rezDesc.textContent = 'Krok '+(w.step+1)+': '+stepName+(w.data?.name?' — '+w.data.name:'');
@@ -376,18 +386,19 @@ function openSettings() {
 //  WIZARD
 // ================================================================
 let wStep = 0;
-let wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
+let wData = { yearMode:'new', copyFrom:[], schoolContact:'', schoolAddress:'',
+  name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
 
 function startWizard(resume=false) {
   if(resume) {
-    // Przywróć zapisany stan
     try {
       const saved = JSON.parse(localStorage.getItem(LS.WIZ)||'null');
       if(saved) { wStep=saved.step||0; wData=saved.data; }
     } catch(_) { wStep=0; }
   } else {
     wStep = 0;
-    wData = { name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
+    wData = { yearMode:'new', copyFrom:[], schoolContact:'', schoolAddress:'',
+      name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
     localStorage.removeItem(LS.WIZ);
   }
   document.getElementById('wizardOverlay').classList.add('show');
@@ -429,87 +440,209 @@ function renderWizStep() {
   }
   const body = document.getElementById('wizBody');
   switch(wStep) {
-    case 0: body.innerHTML = wizStep0(); break;
-    case 1: body.innerHTML = wizStep1(); break;
-    case 2: body.innerHTML = wizStep2(); break;
-    case 3: body.innerHTML = wizStep3(); break;
-    case 4: body.innerHTML = wizStep4(); break;
-    case 5: body.innerHTML = wizStep5(); break;
-    case 6: body.innerHTML = wizStep6(); break;
-    case 7: body.innerHTML = wizStep7(); break;
+    case 0: body.innerHTML = wizStep0(); break;       // Rok szkolny
+    case 1: body.innerHTML = wizStep1(); break;       // Szkoła + przedmioty
+    case 2: body.innerHTML = wizStep2(); break;       // Klasy
+    case 3: body.innerHTML = wizStep4(); break;       // Nauczyciele
+    case 4: body.innerHTML = wizStep5(); break;       // Budynki + Sale
+    case 5: body.innerHTML = wizStep6(); break;       // Godziny
+    case 6: body.innerHTML = wizStep7(); break;       // Grupy + NI
   }
 }
+}
 
-// Step 0: School info
+// Step 0: Rok szkolny
 function wizStep0() {
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(LS.STATE)||'null'); } catch(_){return null;} })();
+  const mode = wData.yearMode || 'new';
+  const copyOpts = [
+    {key:'buildings',label:'Budynki i lokalizacje'},
+    {key:'classes',label:'Klasy i grupy'},
+    {key:'subjects',label:'Przedmioty'},
+    {key:'teachers',label:'Nauczyciele i przydziały'},
+    {key:'rooms',label:'Sale lekcyjne'},
+    {key:'hours',label:'Godziny lekcyjne'},
+    {key:'niStudents',label:'Uczniowie NI'},
+  ];
+  const copyChecks = mode==='continue' && saved ? copyOpts.map(o => {
+    const checked = (wData.copyFrom||[]).includes(o.key) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+      background:var(--s2);border-radius:6px;cursor:pointer;font-size:.82rem">
+      <input type="checkbox" value="${o.key}" ${checked}
+        style="accent-color:var(--accent);width:15px;height:15px"
+        onchange="wizToggleCopy('${o.key}',this.checked)">
+      ${o.label}
+    </label>`;
+  }).join('') : '';
+
   return `<div class="wcard">
-    <div class="wcard-title">Informacje o szkole</div>
-    <div class="wfield"><label>Nazwa szkoły</label>
-      <input class="winput" id="wName" value="${escapeHtml(wData.name)}" placeholder="np. Szkoła Podstawowa nr 1"></div>
+    <div class="wcard-title">Rok szkolny</div>
     <div class="wfield"><label>Rok szkolny</label>
       <input class="winput" id="wYear" value="${escapeHtml(wData.year||currentSchoolYear())}" placeholder="2025/2026"></div>
+
+    <div style="margin:16px 0 12px">
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+        background:${mode==='new'?'var(--accent-g)':'var(--s2)'};
+        border:2px solid ${mode==='new'?'var(--accent)':'var(--border)'};border-radius:8px;
+        cursor:pointer;margin-bottom:8px;font-size:.85rem"
+        onclick="wizSetYearMode('new')">
+        <input type="radio" name="yearMode" value="new" ${mode==='new'?'checked':''}
+          style="accent-color:var(--accent);width:16px;height:16px">
+        <div><strong>Nowy rok szkolny</strong><br>
+          <span style="font-size:.72rem;color:var(--text-m)">Tworzysz plan od zera — wszystkie dane wprowadzisz ręcznie</span></div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+        background:${mode==='continue'?'var(--accent-g)':'var(--s2)'};
+        border:2px solid ${mode==='continue'?'var(--accent)':'var(--border)'};border-radius:8px;
+        cursor:pointer;font-size:.85rem"
+        onclick="wizSetYearMode('continue')">
+        <input type="radio" name="yearMode" value="continue" ${mode==='continue'?'checked':''}
+          style="accent-color:var(--accent);width:16px;height:16px">
+        <div><strong>Kontynuacja z poprzedniego roku</strong><br>
+          <span style="font-size:.72rem;color:var(--text-m)">Skopiuj dane z aktualnego planu i edytuj co trzeba</span></div>
+      </label>
+    </div>
+
+    ${mode==='continue' && !saved ? `<div style="padding:10px 14px;background:var(--s2);border-radius:8px;
+      font-size:.78rem;color:var(--text-m);text-align:center">
+      Brak zapisanego planu z poprzedniego roku. Utwórz nowy rok szkolny.</div>` : ''}
+    ${mode==='continue' && saved ? `<div style="font-size:.72rem;font-weight:700;color:var(--text-m);
+      text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">
+      Co skopiować z roku ${escapeHtml(saved.schoolYear||saved.year||'')}?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${copyChecks}</div>` : ''}
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
   </div>`;
 }
 
-// Step 1: Buildings / Locations
+function wizSetYearMode(mode) {
+  wData.yearMode = mode;
+  if(mode==='new') wData.copyFrom = [];
+  renderWizStep();
+}
+
+function wizToggleCopy(key, checked) {
+  if(!wData.copyFrom) wData.copyFrom = [];
+  if(checked && !wData.copyFrom.includes(key)) wData.copyFrom.push(key);
+  else if(!checked) wData.copyFrom = wData.copyFrom.filter(k => k !== key);
+}
+
+// Step 1: Szkoła — dane szkoły + przedmioty
 function wizStep1() {
-  const BCOLORS = ['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
-  const rows = wData.buildings.map((b,i) => {
-    const swatches = BCOLORS.map(c =>
-      `<div class="color-swatch ${b.color===c?'sel':''}" style="background:${c};width:16px;height:16px" onclick="wSetBldColor(${i},'${c}')"></div>`
+  // ── Sekcja przedmiotów ──
+  const subjRows = wData.subjects.map((s,i) => {
+    const swatches = SUBJ_COLORS.map(c =>
+      `<div class="color-swatch ${s.color===c?'sel':''}" style="background:${c}" onclick="wSetSubjColor(${i},'${c}')"></div>`
     ).join('');
-    const floors = (b.floors||[]);
-    const floorsHtml = floors.map((fl,fi) => `
-      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;padding-left:12px">
-        <span style="font-size:.72rem;font-weight:700;flex:1">🏢 ${escapeHtml(fl.label)}</span>
-        <span style="font-size:.68rem;color:var(--text-m)">${fl.segments.map(s=>escapeHtml(s.label)).join(', ')||'brak segmentów'}</span>
-        <input class="winput" id="wSegInp_${i}_${fi}" placeholder="+ Segment" style="width:130px;padding:3px 6px;font-size:.72rem"
-          onkeydown="if(event.key==='Enter')wAddSegment(${i},${fi})">
-        <button class="tag-add-btn" style="padding:3px 8px;font-size:.68rem" onclick="wAddSegment(${i},${fi})">+</button>
-        ${fl.segments.map((s,si)=>`<span class="tag" style="font-size:.68rem;padding:2px 6px">${s.label}
-          <span class="tag-del" onclick="wRemoveSegment(${i},${fi},${si})">×</span></span>`).join('')}
-        <span class="tag-del" onclick="wRemoveFloor(${i},${fi})">✕</span>
-      </div>`).join('');
-    return `<div class="subj-row" style="flex-direction:column;align-items:stretch;gap:4px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="cdot" style="background:${b.color||'#38bdf8'}"></div>
-        <div class="subj-name" style="flex:1">${escapeHtml(b.name)}</div>
-        <div style="font-size:.72rem;color:var(--text-m);flex:2">${escapeHtml(b.address||'')}</div>
-        <div class="color-pick">${swatches}</div>
-        <input class="winput" id="wFloorInp_${i}" placeholder="+ Piętro / skrzydło"
-          style="width:150px;padding:3px 6px;font-size:.72rem"
-          onkeydown="if(event.key==='Enter')wAddFloor(${i})">
-        <button class="tag-add-btn" style="padding:3px 8px;font-size:.68rem" onclick="wAddFloor(${i})">+ Piętro</button>
-        <span class="tag-del" onclick="wRemoveBuilding(${i})">×</span>
+    const durLabel = s.duration==='sem1'?'I sem.':s.duration==='sem2'?'II sem.':'Cały rok';
+    const posLabel = s.position==='start'?'Na początku':s.position==='end'?'Na końcu':'Dowolnie';
+    const fixedBadge = s.fixed?'<span style="font-size:.58rem;padding:1px 5px;border-radius:6px;background:var(--green-g);color:var(--green);border:1px solid rgba(52,211,153,.2)">stały</span>':'';
+    const optBadge = s.optional?'<span style="font-size:.58rem;padding:1px 5px;border-radius:6px;background:var(--accent-g);color:var(--accent);border:1px solid rgba(56,189,248,.2)">opcjonalny</span>':'';
+    return `<div class="subj-row" style="flex-wrap:wrap;gap:4px" id="subjRow_${i}">
+      <div class="cdot" style="background:${s.color}"></div>
+      <div class="subj-name" style="min-width:100px">${escapeHtml(s.name)}</div>
+      <div class="subj-abbr">${escapeHtml(s.abbr)}</div>
+      <span style="font-size:.68rem;font-family:var(--mono);color:var(--text-m)">${s.hoursPerWeek||0}h/tydz.</span>
+      <span style="font-size:.68rem;color:var(--text-m)">${durLabel}</span>
+      <span style="font-size:.68rem;color:var(--text-m)">${posLabel}</span>
+      ${fixedBadge}${optBadge}
+      <div class="color-pick">${swatches}</div>
+      <span style="cursor:pointer;font-size:.72rem;color:var(--accent)" onclick="wToggleSubjDetails(${i})" title="Więcej opcji">⚙</span>
+      <span class="tag-del" onclick="wRemoveSubj(${i})">×</span>
+    </div>
+    <div id="subjDet_${i}" style="display:${s._expanded?'':'none'};padding:8px 12px;margin:-2px 0 6px;
+      background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:.72rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Godz./tydz. (na klasę)</label>
+          <input type="number" min="0" max="20" value="${s.hoursPerWeek||0}"
+            style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+            onchange="wUpdateSubj(${i},'hoursPerWeek',parseInt(this.value)||0)"></div>
+        <div><label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Semestr</label>
+          <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem"
+            onchange="wUpdateSubj(${i},'duration',this.value)">
+            <option value="year" ${s.duration==='year'?'selected':''}>Cały rok</option>
+            <option value="sem1" ${s.duration==='sem1'?'selected':''}>I semestr</option>
+            <option value="sem2" ${s.duration==='sem2'?'selected':''}>II semestr</option>
+          </select></div>
+        <div><label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Pozycja w planie</label>
+          <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem"
+            onchange="wUpdateSubj(${i},'position',this.value)">
+            <option value="any" ${s.position==='any'?'selected':''}>Dowolnie</option>
+            <option value="start" ${s.position==='start'?'selected':''}>Na początku zajęć</option>
+            <option value="end" ${s.position==='end'?'selected':''}>Na końcu zajęć</option>
+          </select></div>
       </div>
-      ${floorsHtml}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${s.optional?'checked':''} style="accent-color:var(--accent)"
+            onchange="wUpdateSubj(${i},'optional',this.checked)">
+          Przedmiot opcjonalny
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${s.scope==='group'?'checked':''} style="accent-color:var(--accent)"
+            onchange="wUpdateSubj(${i},'scope',this.checked?'group':'class')">
+          Tylko dla grup (nie cała klasa)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${s.fixed?'checked':''} style="accent-color:var(--green)"
+            onchange="wUpdateSubj(${i},'fixed',this.checked)">
+          Dane stałe (nie zmieniają się między latami)
+        </label>
+      </div>
     </div>`;
   }).join('');
 
   return `<div class="wcard">
-    <div class="wcard-title">Budynki i lokalizacje zajęć</div>
-    <p style="font-size:.82rem;color:var(--text-m);margin-bottom:16px;line-height:1.5">
-      Wpisz wszystkie miejsca, w których szkoła realizuje zajęcia. Do każdego budynku możesz od razu
-      dodać <strong>piętra</strong> i <strong>segmenty</strong> — będą służyć do przypisywania sal i miejsc dyżurów.
-    </p>
-    <div class="wfield"><label>Adres / siedziba główna szkoły</label>
-      <input class="winput" id="wMainAddress" value="${wData.mainAddress||''}" placeholder="np. ul. Szkolna 1, Warszawa"></div>
-    <div class="wrow" style="margin-top:4px">
-      <div class="wfield"><label>Nazwa budynku / lokalizacji</label>
-        <input class="winput" id="wBldName" placeholder="np. Budynek A, Hala sportowa, Basen"></div>
-      <div class="wfield"><label>Adres (opcjonalnie)</label>
-        <input class="winput" id="wBldAddress" placeholder="np. ul. Sportowa 5"></div>
+    <!-- ── Dane szkoły ── -->
+    <div class="wcard-title">Szkoła</div>
+    <div class="wrow">
+      <div class="wfield" style="flex:2"><label>Nazwa szkoły</label>
+        <input class="winput" id="wName" value="${escapeHtml(wData.name)}" placeholder="np. Szkoła Podstawowa nr 1"></div>
+      <div class="wfield" style="flex:1"><label>Adres</label>
+        <input class="winput" id="wMainAddress" value="${escapeHtml(wData.mainAddress||'')}" placeholder="np. ul. Szkolna 1"></div>
     </div>
-    <div class="wfield"><label>Uwagi (opcjonalnie)</label>
-      <input class="winput" id="wBldNote" placeholder="np. dojazd autobusem, 15 min od szkoły"></div>
-    <button class="tag-add-btn" style="width:100%;margin-bottom:12px" onclick="wAddBuilding()">+ Dodaj lokalizację</button>
-    ${rows}
-    ${!wData.buildings.length ? `<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">
-      Brak dodanych lokalizacji — krok opcjonalny, możesz kontynuować.
-    </div>` : ''}
+    <div class="wrow">
+      <div class="wfield" style="flex:1"><label>Telefon</label>
+        <input class="winput" id="wSchoolPhone" value="${escapeHtml(wData.schoolPhone||'')}" placeholder="np. 22 123 45 67"></div>
+      <div class="wfield" style="flex:1"><label>E-mail</label>
+        <input class="winput" id="wSchoolEmail" value="${escapeHtml(wData.schoolEmail||'')}" placeholder="np. sekretariat@sp1.pl"></div>
+      <div class="wfield" style="flex:0 0 auto;align-self:flex-end">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem;padding-bottom:6px">
+          <input type="checkbox" id="wSchoolFixed" ${wData.schoolFixed?'checked':''} style="accent-color:var(--green)">
+          Dane stałe
+        </label>
+      </div>
+    </div>
+
+    <!-- ── Separator ── -->
+    <div style="border-top:1px solid var(--border);margin:16px 0 12px"></div>
+
+    <!-- ── Przedmioty ── -->
+    <div class="wcard-title">Przedmioty nauczane w szkole</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Dodaj przedmioty realizowane w szkole. Dla każdego możesz ustalić godziny w tygodniu,
+      semestr, pozycję w planie oraz czy jest opcjonalny.
+    </p>
+    <div class="wrow">
+      <div class="wfield" style="flex:2"><label>Nazwa przedmiotu</label>
+        <input class="winput" id="wSubjName" placeholder="np. Matematyka"></div>
+      <div class="wfield" style="flex:0 0 80px"><label>Skrót</label>
+        <input class="winput" id="wSubjAbbr" placeholder="MAT" maxlength="5"></div>
+      <div class="wfield" style="flex:0 0 70px"><label>Godz./tydz.</label>
+        <input class="winput" id="wSubjHours" type="number" min="0" max="20" value="3" style="text-align:center"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddSubj()">+ Dodaj przedmiot</button>
+    ${subjRows}
+    ${!wData.subjects.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak przedmiotów — dodaj co najmniej jeden</div>':''}
+    <p class="import-hint">Szybkie dodawanie: <em>Matematyka;Język polski;Historia;Biologia</em></p>
+    <div class="tag-add-row">
+      <input class="winput" id="wSubjBulk" placeholder="Matematyka;Fizyka;Chemia — masowe dodawanie">
+      <button class="tag-add-btn" onclick="wAddSubjBulk()">Importuj</button>
+    </div>
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
@@ -517,46 +650,148 @@ function wizStep1() {
   </div>`;
 }
 
+function wToggleSubjDetails(i) {
+  if(wData.subjects[i]) {
+    wData.subjects[i]._expanded = !wData.subjects[i]._expanded;
+    renderWizStep();
+  }
+}
+
+function wUpdateSubj(i, field, value) {
+  if(wData.subjects[i]) {
+    wData.subjects[i][field] = value;
+  }
+}
+
 function wizStep2() {
-  const LEVELS = {wczesnoszkolne:'1–3 Wczesnoszkolne', podstawowa:'4–8 Edukacja podstawowa'};
-  const wczTags = wData.classes.filter(c=>c.level==='wczesnoszkolne').map((c,i)=>{
-    const gi = wData.classes.indexOf(c);
-    return `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${gi})">×</span></div>`;
+  const CLS_LETTERS = 'ABCDEFGHIJ'.split('');
+  // Poziomy nauczania — definiowane przez użytkownika
+  const levels = wData._classLevels || [{from:1, to:3, label:'Wczesnoszkolne', cat:'wczesnoszkolne'},{from:4, to:8, label:'Podstawowa', cat:'podstawowa'}];
+  if(!wData._classLevels) wData._classLevels = levels;
+
+  // Generuj podgląd klas z poziomów
+  const levelRows = levels.map((lv,li) => {
+    const count = lv.classCount || 2;
+    const letters = CLS_LETTERS.slice(0, count);
+    const generated = [];
+    for(let yr = lv.from; yr <= lv.to; yr++) {
+      letters.forEach(ltr => generated.push({name: yr+ltr.toLowerCase(), level: lv.cat}));
+    }
+    const genTags = generated.map(g =>
+      `<span class="tag" style="font-size:.68rem">${g.name}</span>`
+    ).join('');
+    return `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-size:.78rem;font-weight:700;color:${lv.cat==='wczesnoszkolne'?'var(--accent)':'var(--orange)'}">
+          ${lv.label||'Poziom '+(li+1)}
+        </span>
+        <span style="font-size:.68rem;color:var(--text-m)">Rok</span>
+        <input type="number" min="0" max="12" value="${lv.from}"
+          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'from',parseInt(this.value)||1)">
+        <span style="font-size:.68rem;color:var(--text-m)">do</span>
+        <input type="number" min="0" max="12" value="${lv.to}"
+          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'to',parseInt(this.value)||8)">
+        <span style="font-size:.68rem;color:var(--text-m)">Klas na rok:</span>
+        <input type="number" min="1" max="10" value="${count}"
+          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'classCount',parseInt(this.value)||2)">
+        <span style="font-size:.68rem;color:var(--text-m)">(${letters.join(', ')})</span>
+        <span class="tag-del" onclick="wRemoveLevel(${li})" title="Usuń poziom">✕</span>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${genTags}</div>
+      ${lv.studentCount!==undefined ? `<div style="margin-top:6px;display:flex;align-items:center;gap:4px">
+        <span style="font-size:.68rem;color:var(--text-m)">Uczniów w klasie:</span>
+        <input type="number" min="1" max="45" value="${lv.studentCount||28}"
+          style="width:50px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'studentCount',parseInt(this.value)||28)">
+      </div>` : `<button style="font-size:.65rem;color:var(--text-d);background:none;border:none;cursor:pointer;margin-top:4px"
+        onclick="wUpdateLevel(${li},'studentCount',28);renderWizStep()">+ Podaj liczbę uczniów</button>`}
+    </div>`;
   }).join('');
-  const podTags = wData.classes.filter(c=>c.level!=='wczesnoszkolne').map((c,i)=>{
-    const gi = wData.classes.indexOf(c);
-    return `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${gi})">×</span></div>`;
-  }).join('');
+
+  // Podsumowanie
+  let totalClasses = 0;
+  levels.forEach(lv => {
+    const count = lv.classCount || 2;
+    totalClasses += (lv.to - lv.from + 1) * count;
+  });
+
   return `<div class="wcard">
     <div class="wcard-title">Klasy</div>
-    <div class="wrow">
-      <div class="wfield"><label>Nazwa klasy</label><input class="winput" id="wClassName" placeholder="np. 1a, 2b, 3c"></div>
-      <div class="wfield" style="flex:.6"><label>Kategoria</label>
-        <select class="wselect" id="wClassLevel">
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Zdefiniuj poziomy nauczania — ile lat nauki i ile klas na każdy rok.
+      Nazwy klas wygenerują się automatycznie (np. 1a, 1b, 2a, 2b...).
+    </p>
+
+    ${levelRows}
+
+    <button class="tag-add-btn" style="width:100%;margin:8px 0" onclick="wAddLevel()">+ Dodaj poziom nauczania</button>
+
+    <div style="font-size:.72rem;color:var(--text-m);padding:8px 12px;background:var(--s2);border-radius:6px;text-align:center">
+      Łącznie: <strong>${totalClasses}</strong> klas
+    </div>
+
+    <!-- Ręczne dodawanie / import -->
+    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+      <div style="font-size:.72rem;font-weight:600;color:var(--text-m);margin-bottom:6px">
+        Lub dodaj klasy ręcznie / importem:
+      </div>
+      <div class="wrow">
+        <div class="wfield"><label>Nazwa klasy</label>
+          <input class="winput" id="wClassName" placeholder="np. 3a, 4b"></div>
+        <div class="wfield" style="flex:.6"><label>Kategoria</label>
+          <select class="wselect" id="wClassLevel">
+            <option value="wczesnoszkolne">1–3</option>
+            <option value="podstawowa">4–8</option>
+          </select></div>
+      </div>
+      <button class="tag-add-btn" style="width:100%;margin-bottom:8px" onclick="wAddClass()">+ Dodaj klasę</button>
+
+      <div class="tag-list">${wData.classes.map((c,i) =>
+        `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${i})">×</span></div>`
+      ).join('')||'<div class="tag-list"><span style="font-size:.72rem;color:var(--text-d)">Brak ręcznie dodanych klas</span></div>'}</div>
+
+      <p class="import-hint" style="margin-top:8px">Masowe dodawanie: <em>1a;1b;2a;2b</em></p>
+      <div class="tag-add-row">
+        <input class="winput" id="wClassBulk" placeholder="1a;1b;2a;2b">
+        <select class="wselect" id="wClassBulkLevel" style="flex:.5">
           <option value="wczesnoszkolne">1–3</option>
           <option value="podstawowa">4–8</option>
         </select>
+        <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
       </div>
-      <div class="wfield"><label>Grupy (opcjonalnie)</label><input class="winput" id="wClassGroups" placeholder="np. gr1, gr2"></div>
-    </div>
-    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddClass()">+ Dodaj klasę</button>
-    ${wczTags?`<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin:8px 0 4px">1–3 Nauczanie wczesnoszkolne</div><div class="tag-list">${wczTags}</div>`:''}
-    ${podTags?`<div style="font-size:.7rem;font-weight:700;color:var(--orange);text-transform:uppercase;margin:8px 0 4px">4–8 Edukacja podstawowa</div><div class="tag-list">${podTags}</div>`:''}
-    ${!wczTags&&!podTags?'<div class="tag-list"></div>':''}
-    <p class="import-hint">Możesz też wpisać wiele klas naraz w formacie: <em>1a;1b;2a;2b</em></p>
-    <div class="tag-add-row">
-      <input class="winput" id="wClassBulk" placeholder="1a;1b;2a;2b — masowe dodawanie">
-      <select class="wselect" id="wClassBulkLevel" style="flex:.5">
-        <option value="wczesnoszkolne">1–3</option>
-        <option value="podstawowa">4–8</option>
-      </select>
-      <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
     </div>
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
     <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
   </div>`;
+}
+
+function wAddLevel() {
+  if(!wData._classLevels) wData._classLevels = [];
+  const last = wData._classLevels[wData._classLevels.length-1];
+  const newFrom = last ? (last.to||0) + 1 : 1;
+  const newTo = newFrom + 2;
+  wData._classLevels.push({from:newFrom, to:newTo, label:'Poziom '+(wData._classLevels.length+1), cat:'podstawowa', classCount:2});
+  renderWizStep();
+}
+
+function wRemoveLevel(i) {
+  if(wData._classLevels) wData._classLevels.splice(i,1);
+  renderWizStep();
+}
+
+function wUpdateLevel(i, field, value) {
+  if(!wData._classLevels || !wData._classLevels[i]) return;
+  wData._classLevels[i][field] = value;
+  renderWizStep();
 }
 
 // Step 2: Subjects
@@ -594,50 +829,51 @@ function wizStep3() {
 }
 
 // Step 3: Teachers
+// Step 4: Budynki i Sale
 function wizStep4() {
-  const rows = wData.teachers.map((t,i) => `
-    <div class="subj-row">
-      <div class="subj-name" style="flex:2">${escapeHtml(t.first)} ${escapeHtml(t.last)}</div>
-      <div class="subj-abbr" style="font-family:var(--mono)">${escapeHtml(t.abbr)}</div>
-      ${t.hoursTotal ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${t.hoursTotal}${t.hoursExtra?'+'+t.hoursExtra:''} godz.</span>` : ''}
-      ${t.employment&&t.employment!=='full' ? `<span style="font-size:.68rem;padding:1px 6px;border-radius:8px;background:var(--orange-g);color:var(--orange)">${t.employment==='half'?'½ etatu':Math.round((t.employmentFraction||1)*100)+'%'}</span>` : ''}
-      <span class="tag-del" onclick="wRemoveTeacher(${i})">×</span>
-    </div>`).join('');
-  return `<div class="wcard">
-    <div class="wcard-title">Nauczyciele</div>
-    <div class="wrow">
-      <div class="wfield"><label>Imię</label><input class="winput" id="wTFirst" placeholder="Anna"></div>
-      <div class="wfield"><label>Nazwisko</label><input class="winput" id="wTLast" placeholder="Kowalska" oninput="wAutoAbbr()"></div>
-      <div class="wfield"><label>Skrót</label><input class="winput" id="wTAbbr" placeholder="AKow" maxlength="6"></div>
-    </div>
-    <div class="wrow">
-      <div class="wfield"><label>Pensum (godz./tydz.)</label>
-        <input class="winput" id="wTHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
-      <div class="wfield"><label>Nadgodziny stałe</label>
-        <input class="winput" id="wTHoursExtra" type="number" min="0" max="20" placeholder="np. 2"
-          title="Godziny ponad pensum wynikające z przydziału rocznego"></div>
-    </div>
-    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddTeacher()">+ Dodaj nauczyciela</button>
-    ${rows}
-    <p class="import-hint">Masowe: <em>Anna;Kowalska;AKow;18;0</em> — imię;nazwisko;skrót;pensum;nadgodz.</p>
-    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow;18;0&#10;Jan;Nowak;JNow;18;2&#10;Maria;Wiśniewska;MWis;20;0"></textarea>
-    <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wAddTeacherBulk()">Importuj z pola</button>
-  </div>
-  <div class="wbtn-row">
-    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
-    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
-  </div>`;
-}
+  const BCOLORS = ['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
 
-// Step 5: Rooms
-function wizStep5() {
+  // ── Sekcja 1: Budynki ──
+  const bldRows = wData.buildings.map((b,i) => {
+    const swatches = BCOLORS.map(c =>
+      `<div class="color-swatch ${b.color===c?'sel':''}" style="background:${c};width:16px;height:16px" onclick="wSetBldColor(${i},'${c}')"></div>`
+    ).join('');
+    const floors = (b.floors||[]);
+    const floorsHtml = floors.map((fl,fi) => `
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;padding-left:12px">
+        <span style="font-size:.72rem;font-weight:700;flex:1">🏢 ${escapeHtml(fl.label)}</span>
+        <span style="font-size:.68rem;color:var(--text-m)">${fl.segments.map(s=>escapeHtml(s.label)).join(', ')||'brak segmentów'}</span>
+        <input class="winput" id="wSegInp_${i}_${fi}" placeholder="+ Segment" style="width:130px;padding:3px 6px;font-size:.72rem"
+          onkeydown="if(event.key==='Enter')wAddSegment(${i},${fi})">
+        <button class="tag-add-btn" style="padding:3px 8px;font-size:.68rem" onclick="wAddSegment(${i},${fi})">+</button>
+        ${fl.segments.map((s,si)=>`<span class="tag" style="font-size:.68rem;padding:2px 6px">${s.label}
+          <span class="tag-del" onclick="wRemoveSegment(${i},${fi},${si})">×</span></span>`).join('')}
+        <span class="tag-del" onclick="wRemoveFloor(${i},${fi})">✕</span>
+      </div>`).join('');
+    return `<div class="subj-row" style="flex-direction:column;align-items:stretch;gap:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="cdot" style="background:${b.color||'#38bdf8'}"></div>
+        <div class="subj-name" style="flex:1">${escapeHtml(b.name)}</div>
+        <div style="font-size:.72rem;color:var(--text-m);flex:2">${escapeHtml(b.address||'')}</div>
+        <div class="color-pick">${swatches}</div>
+        <input class="winput" id="wFloorInp_${i}" placeholder="+ Piętro / skrzydło"
+          style="width:150px;padding:3px 6px;font-size:.72rem"
+          onkeydown="if(event.key==='Enter')wAddFloor(${i})">
+        <button class="tag-add-btn" style="padding:3px 8px;font-size:.68rem" onclick="wAddFloor(${i})">+ Piętro</button>
+        <span class="tag-del" onclick="wRemoveBuilding(${i})">×</span>
+      </div>
+      ${floorsHtml}
+    </div>`;
+  }).join('');
+
+  // ── Sekcja 2: Sale ──
   const hasBld = wData.buildings.length > 0;
   const bldOptions = hasBld
     ? '<option value="">— budynek główny / nieokreślony —</option>' +
       wData.buildings.map((b,i)=>`<option value="${i}">${escapeHtml(b.name)}</option>`).join('')
     : '';
 
-  const rows = wData.rooms.map((r,i) => {
+  const roomRows = wData.rooms.map((r,i) => {
     const bld = (r.buildingId !== null && r.buildingId !== undefined && r.buildingId !== '')
       ? wData.buildings[parseInt(r.buildingId)] : null;
     const rt = ROOM_TYPES[r.type]||ROOM_TYPES.full;
@@ -654,7 +890,34 @@ function wizStep5() {
     `<option value="${k}">${v.icon} ${v.label}</option>`).join('');
 
   return `<div class="wcard">
+    <!-- ── Budynki ── -->
+    <div class="wcard-title">Budynki i lokalizacje</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Wpisz wszystkie miejsca, w których szkoła realizuje zajęcia. Do każdego budynku możesz dodać
+      <strong>piętra</strong> i <strong>segmenty</strong> — będą służyć do przypisywania sal i miejsc dyżurów.
+    </p>
+    <div class="wfield"><label>Adres / siedziba główna szkoły</label>
+      <input class="winput" id="wMainAddress" value="${escapeHtml(wData.mainAddress||'')}" placeholder="np. ul. Szkolna 1, Warszawa"></div>
+    <div class="wrow" style="margin-top:8px">
+      <div class="wfield"><label>Nazwa budynku / lokalizacji</label>
+        <input class="winput" id="wBldName" placeholder="np. Budynek A, Hala sportowa, Basen"></div>
+      <div class="wfield"><label>Adres (opcjonalnie)</label>
+        <input class="winput" id="wBldAddress" placeholder="np. ul. Sportowa 5"></div>
+    </div>
+    <div class="wfield"><label>Uwagi (opcjonalnie)</label>
+      <input class="winput" id="wBldNote" placeholder="np. dojazd autobusem, 15 min od szkoły"></div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddBuilding()">+ Dodaj lokalizację</button>
+    ${bldRows}
+    ${!wData.buildings.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak dodanych lokalizacji — krok opcjonalny</div>':''}
+
+    <!-- ── Separator ── -->
+    <div style="border-top:1px solid var(--border);margin:16px 0 12px"></div>
+
+    <!-- ── Sale ── -->
     <div class="wcard-title">Sale lekcyjne</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Dodaj sale. Możesz przypisać je do budynku i określić typ (cała klasa, grupowa, specjalistyczna).
+    </p>
     <div class="wrow">
       <div class="wfield" style="flex:2"><label>Nazwa sali</label>
         <input class="winput" id="wRoomInput" placeholder="np. 101, Sala gimnastyczna, Basen" onkeydown="if(event.key==='Enter')wAddRoom()"></div>
@@ -668,8 +931,9 @@ function wizStep5() {
         <select class="wselect" id="wRoomBuilding">${bldOptions}</select></div>
     </div>` : ''}
     <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddRoom()">+ Dodaj salę</button>
-    ${rows}
-    <p class="import-hint">Masowe (tylko nazwy): <em>101;102;103;Aula</em> — typ i pojemność uzupełnisz w ustawieniach</p>
+    ${roomRows}
+    ${!wData.rooms.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak dodanych sal — możesz dodać później w Ustawieniach</div>':''}
+    <p class="import-hint" style="margin-top:8px">Masowe (tylko nazwy): <em>101;102;103;Aula</em></p>
     <div class="tag-add-row" style="margin-top:6px">
       <input class="winput" id="wRoomBulk" placeholder="101;102;103;Aula">
       <button class="tag-add-btn" onclick="wAddRoomBulk()">Importuj</button>
@@ -681,30 +945,145 @@ function wizStep5() {
   </div>`;
 }
 
-// Step 5: Hours
-function wizStep6() {
-  const tags = wData.hours.map((h,i) => `
-    <div class="tag">
-      <span>${h.num}. ${h.start}–${h.end}</span>
-      <span class="tag-del" onclick="wRemoveHour(${i})">×</span>
-    </div>`).join('');
+// Step 5: Nauczyciele
+// Step 5: Nauczyciele (rozbudowany)
+// Step 5: Nauczyciele (rozbudowany)
+function wizStep5() {
+  const subjects = wData.subjects||[];
+  const classes  = wData.classes||[];
+  const subjOpts = subjects.map(s =>
+    `<option value="${s.id}">${escapeHtml(s.name)} (${escapeHtml(s.abbr)})</option>`
+  ).join('');
+  const clsOpts = classes.map(c =>
+    `<option value="${c.id}">${escapeHtml(c.name)}</option>`
+  ).join('');
+
+  const rows = wData.teachers.map((t,i) => {
+    const subjList = (t.subjects||[]).map(sid => {
+      const s = subjects.find(ss=>ss.id===sid);
+      return s ? `<span class="cdot" style="background:${s.color}" title="${escapeHtml(s.name)}"></span>` : '';
+    }).join('');
+    const hoursTotal = t.hoursTotal||0;
+    const hoursExtra = t.hoursExtra||0;
+    const totalH = hoursTotal + hoursExtra;
+    const assignedH = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
+    const overH = assignedH - totalH;
+    const isSpecialist = t.isSpecialist ? '🔧' : '📚';
+    return `<div class="subj-row" style="flex-wrap:wrap;gap:4px" id="tchRow_${i}">
+      <span style="font-size:.8rem">${isSpecialist}</span>
+      <div class="subj-name" style="flex:1;min-width:120px">${escapeHtml(t.first)} ${escapeHtml(t.last)}</div>
+      <div class="subj-abbr" style="font-family:var(--mono)">${escapeHtml(t.abbr)}</div>
+      <span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">pensum: ${hoursTotal}h${hoursExtra?'+nadg. '+hoursExtra:''}</span>
+      <span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">przyp. ${assignedH}h</span>
+      ${overH>0?`<span style="font-size:.68rem;padding:1px 5px;border-radius:6px;background:var(--red-g);color:var(--red)">+${overH}h nad etat</span>`:''}
+      <div style="display:flex;gap:3px">${subjList}</div>
+      <span style="cursor:pointer;font-size:.72rem;color:var(--accent)" onclick="wToggleTchDetails(${i})" title="Edytuj przydziały">⚙</span>
+      <span class="tag-del" onclick="wRemoveTeacher(${i})">×</span>
+    </div>
+    <div id="tchDet_${i}" style="display:${t._expanded?'':'none'};padding:10px 12px;margin:-2px 0 6px;
+      background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:.72rem">
+      <!-- Typ nauczyciela -->
+      <div style="margin-bottom:8px">
+        <label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Typ nauczyciela</label>
+        <select style="width:100%;max-width:250px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem"
+          onchange="wUpdateTch(${i},'isSpecialist',this.value!=='subject')">
+          <option value="subject" ${!t.isSpecialist?'selected':''}>📚 Nauczyciel przedmiotu</option>
+          <option value="specialist" ${t.isSpecialist?'selected':''}>🔧 Specjalista</option>
+        </select>
+        ${t.isSpecialist?`<div style="margin-top:4px">
+          <select style="width:100%;max-width:250px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem"
+            onchange="wUpdateTch(${i},'specialistRole',this.value)">
+            <option value="">— wybierz rolę —</option>
+            <option value="bibliotekarz" ${t.specialistRole==='bibliotekarz'?'selected':''}>Bibliotekarz</option>
+            <option value="swietlica" ${t.specialistRole==='swietlica'?'selected':''}>Świetlica</option>
+            <option value="wspomaganie" ${t.specialistRole==='wspomaganie'?'selected':''}>Wspomaganie</option>
+            <option value="logopeda" ${t.specialistRole==='logopeda'?'selected':''}>Logopeda</option>
+            <option value="psycholog" ${t.specialistRole==='psycholog'?'selected':''}>Psycholog</option>
+            <option value="pedagog" ${t.specialistRole==='pedagog'?'selected':''}>Pedagog</option>
+            <option value="pedagog-specjalny" ${t.specialistRole==='pedagog-specjalny'?'selected':''}>Pedagog specjalny</option>
+            <option value="inne" ${t.specialistRole==='inne'?'selected':''}>Inne</option>
+          </select>
+        </div>`:''}
+      </div>
+      <!-- Uprawnienia do przedmiotów -->
+      <div style="margin-bottom:8px">
+        <label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Uprawnienia do przedmiotów</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${subjects.map(s => {
+            const has = (t.subjects||[]).includes(s.id);
+            return `<label style="display:flex;align-items:center;gap:4px;padding:3px 8px;
+              background:${has?'var(--accent-g)':'var(--s3)'};border:1px solid ${has?'rgba(56,189,248,.2)':'var(--border)'};
+              border-radius:5px;cursor:pointer;font-size:.72rem">
+              <input type="checkbox" ${has?'checked':''} style="accent-color:var(--accent)"
+                onchange="wToggleTchSubj(${i},'${s.id}',this.checked)">
+              <span class="cdot" style="background:${s.color}"></span>
+              ${escapeHtml(s.abbr)}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+      <!-- Przydziały godzin -->
+      <div style="margin-bottom:8px">
+        <label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Przydziały godzin (przedmiot → klasa → godz./tydz.)</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+          <select id="tchAsgnSubj_${i}" style="flex:1;min-width:100px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem">
+            <option value="">— przedmiot —</option>
+            ${subjOpts}
+          </select>
+          <select id="tchAsgnCls_${i}" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem">
+            <option value="">— klasa —</option>
+            ${clsOpts}
+          </select>
+          <input type="number" id="tchAsgnHrs_${i}" min="0" max="20" value="1"
+            style="width:50px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+            background:var(--s1);color:var(--text);font-size:.78rem;text-align:center">
+          <button class="tag-add-btn" style="padding:4px 10px;font-size:.72rem" onclick="wAddAssignment(${i})">+ Dodaj</button>
+        </div>
+        ${(t.assignments||[]).map((a,ai) => {
+          const s = subjects.find(ss=>ss.id===a.subjectId);
+          const c = classes.find(cc=>cc.id===a.classId);
+          return `<div style="display:flex;align-items:center;gap:6px;padding:3px 6px;
+            background:var(--s3);border-radius:5px;margin-bottom:3px;font-size:.72rem">
+            <span class="cdot" style="background:${s?s.color:'#888'}"></span>
+            <span style="font-weight:600">${s?s.abbr:'?'}</span>
+            <span>→</span>
+            <span style="font-weight:600">${c?c.name:'?'}</span>
+            <span style="font-family:var(--mono)">${a.hours||0}h/tydz.</span>
+            <span class="tag-del" onclick="wRemoveAssignment(${i},${ai})">×</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
   return `<div class="wcard">
-    <div class="wcard-title">Godziny lekcyjne</div>
+    <div class="wcard-title">Nauczyciele</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Dodaj nauczycieli. Skrót generuje się automatycznie (np. AKow dla Anna Kowalska).
+      Po dodaniu możesz ustalić uprawnienia i przydziały godzin.
+    </p>
     <div class="wrow">
-      <div class="wfield"><label>Nr lekcji</label><input class="winput" id="wHNum" type="number" min="1" max="15" placeholder="1" style="width:70px"></div>
-      <div class="wfield"><label>Początek</label><input class="winput" id="wHStart" type="time" value="08:00"></div>
-      <div class="wfield"><label>Koniec</label><input class="winput" id="wHEnd" type="time" value="08:45"></div>
+      <div class="wfield"><label>Imię</label><input class="winput" id="wTFirst" placeholder="Anna"></div>
+      <div class="wfield"><label>Nazwisko</label><input class="winput" id="wTLast" placeholder="Kowalska" oninput="wAutoAbbr()"></div>
+      <div class="wfield"><label>Skrót</label><input class="winput" id="wTAbbr" placeholder="AKow" maxlength="6"></div>
     </div>
-    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddHour()">+ Dodaj godzinę</button>
-    <div class="tag-list">${tags}</div>
-    <p class="import-hint">Lub wygeneruj automatycznie:</p>
-    <div class="wrow" style="margin-top:6px">
-      <div class="wfield"><label>Lekcja 1 od</label><input class="winput" id="wHAutoFrom" type="time" value="08:00"></div>
-      <div class="wfield"><label>Czas lekcji (min)</label><input class="winput" id="wHAutoLen" type="number" value="45" min="30" max="90"></div>
-      <div class="wfield"><label>Przerwa (min)</label><input class="winput" id="wHAutoBreak" type="number" value="10" min="0" max="30"></div>
-      <div class="wfield"><label>Liczba lekcji</label><input class="winput" id="wHAutoCount" type="number" value="8" min="1" max="12"></div>
+    <div class="wrow">
+      <div class="wfield"><label>Pensum (godz./tydz.)</label>
+        <input class="winput" id="wTHoursTotal" type="number" min="0" max="40" placeholder="np. 18"></div>
+      <div class="wfield"><label>Nadgodziny stałe</label>
+        <input class="winput" id="wTHoursExtra" type="number" min="0" max="20" placeholder="np. 2"
+          title="Godziny ponad pensum wynikające z przydziału rocznego"></div>
     </div>
-    <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wGenerateHours()">⚡ Generuj godziny</button>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddTeacher()">+ Dodaj nauczyciela</button>
+    ${rows}
+    ${!wData.teachers.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak nauczycieli — dodaj co najmniej jednego</div>':''}
+    <p class="import-hint" style="margin-top:8px">Masowe: <em>Anna;Kowalska;AKow;18;0</em> — imię;nazwisko;skrót;pensum;nadgodz.</p>
+    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow;18;0&#10;Jan;Nowak;JNow;18;2&#10;Maria;Wiśniewska;MWis;20;0"></textarea>
+    <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wAddTeacherBulk()">Importuj z pola</button>
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
@@ -712,52 +1091,354 @@ function wizStep6() {
   </div>`;
 }
 
-// Step 7: NI / Grupy
-function wizStep7() {
-  // Inicjuj niStudents jeśli nie istnieje
-  if(!wData.niStudents) wData.niStudents = [];
+function wToggleTchDetails(i) {
+  if(wData.teachers[i]) {
+    wData.teachers[i]._expanded = !wData.teachers[i]._expanded;
+    renderWizStep();
+  }
+}
 
-  const studs = wData.niStudents||[];
-  const subjects = wData.subjects||[];
-  const teachers = wData.teachers||[];
-  const classes  = wData.classes||[];
+function wUpdateTch(i, field, value) {
+  if(wData.teachers[i]) {
+    wData.teachers[i][field] = value;
+    renderWizStep();
+  }
+}
 
-  const rows = studs.map((s,i) => {
-    const cls  = classes.find(c=>c.id===s.classId);
-    const hours= (s.subjects||[]).filter(r=>r.mode==='indiv').reduce((h,r)=>h+(r.hours||0),0);
-    const niSubjs = (s.subjects||[]).filter(r=>r.mode==='indiv')
-      .map(r=>{ const subj=subjects.find(ss=>ss.id===r.subjId); return escapeHtml(subj?.abbr||'?'); }).join(', ');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
-      background:var(--s2);border-radius:7px;border:1px solid var(--border);margin-bottom:5px">
-      <span style="font-weight:600;flex:1">👤 ${escapeHtml(s.name)}</span>
-      ${cls?`<span style="font-size:.7rem;color:var(--text-m)">${escapeHtml(cls.name)}</span>`:''}
-      ${niSubjs?`<span style="font-size:.7rem;color:var(--accent)">${niSubjs}</span>`:''}
-      ${hours?`<span style="font-size:.7rem;font-family:var(--mono);color:var(--accent)">${hours}h</span>`:''}
-      <button onclick="wNIRemove(${i})"
-        style="background:none;border:none;cursor:pointer;color:var(--text-d);font-size:.9rem">×</button>
+function wToggleTchSubj(i, subjId, checked) {
+  const t = wData.teachers[i];
+  if(!t) return;
+  if(!t.subjects) t.subjects = [];
+  if(checked && !t.subjects.includes(subjId)) t.subjects.push(subjId);
+  else if(!checked) t.subjects = t.subjects.filter(s => s !== subjId);
+  renderWizStep();
+}
+
+function wAddAssignment(i) {
+  const t = wData.teachers[i];
+  if(!t) return;
+  const subjId = document.getElementById('tchAsgnSubj_'+i)?.value;
+  const classId = document.getElementById('tchAsgnCls_'+i)?.value;
+  const hours = parseInt(document.getElementById('tchAsgnHrs_'+i)?.value)||0;
+  if(!subjId || !classId || !hours) { notify('Wybierz przedmiot, klasę i podaj godziny'); return; }
+  if(!t.assignments) t.assignments = [];
+  t.assignments.push({subjectId:subjId, classId, hours});
+  renderWizStep();
+}
+
+function wRemoveAssignment(ti, ai) {
+  if(wData.teachers[ti] && wData.teachers[ti].assignments) {
+    wData.teachers[ti].assignments.splice(ai, 1);
+    renderWizStep();
+  }
+}
+
+function wToggleTchDetails(i) {
+  if(wData.teachers[i]) {
+    wData.teachers[i]._expanded = !wData.teachers[i]._expanded;
+    renderWizStep();
+  }
+}
+
+function wUpdateTch(i, field, value) {
+  if(wData.teachers[i]) {
+    wData.teachers[i][field] = value;
+    renderWizStep();
+  }
+}
+
+function wToggleTchSubj(i, subjId, checked) {
+  const t = wData.teachers[i];
+  if(!t) return;
+  if(!t.subjects) t.subjects = [];
+  if(checked && !t.subjects.includes(subjId)) t.subjects.push(subjId);
+  else if(!checked) t.subjects = t.subjects.filter(s => s !== subjId);
+  renderWizStep();
+}
+
+function wAddAssignment(i) {
+  const t = wData.teachers[i];
+  if(!t) return;
+  const subjId = document.getElementById('tchAsgnSubj_'+i)?.value;
+  const classId = document.getElementById('tchAsgnCls_'+i)?.value;
+  const hours = parseInt(document.getElementById('tchAsgnHrs_'+i)?.value)||0;
+  if(!subjId || !classId || !hours) { notify('Wybierz przedmiot, klasę i podaj godziny'); return; }
+  if(!t.assignments) t.assignments = [];
+  t.assignments.push({subjectId:subjId, classId, hours});
+  renderWizStep();
+}
+
+function wRemoveAssignment(ti, ai) {
+  if(wData.teachers[ti] && wData.teachers[ti].assignments) {
+    wData.teachers[ti].assignments.splice(ai, 1);
+    renderWizStep();
+  }
+}
+
+// Step 5: Hours
+// Step 6: Godziny lekcyjne (rozbudowany)
+function wizStep6() {
+  const hrs = wData.hours.sort((a,b)=>a.num-b.num);
+
+  // Podgląd planu dnia
+  const dayPreview = hrs.map((h,i) => {
+    const prevEnd = i > 0 ? hrs[i-1].end : null;
+    const breakMin = prevEnd && h.start ? (() => {
+      const [peH, peM] = prevEnd.split(':').map(Number);
+      const [hH, hM] = h.start.split(':').map(Number);
+      return (hH*60+hM) - (peH*60+peM);
+    })() : null;
+    const breakStr = breakMin !== null ? `<span style="font-size:.68rem;color:var(--text-d)">przerwa ${breakMin} min</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+      background:var(--s2);border-radius:6px;font-size:.78rem">
+      <span style="font-weight:700;font-family:var(--mono);min-width:30px;text-align:center">${h.num}.</span>
+      <span style="font-family:var(--mono);min-width:100px">${h.start} – ${h.end}</span>
+      <span style="font-size:.68rem;color:var(--text-m)">(${(() => {
+        const [sH,sM] = h.start.split(':').map(Number);
+        const [eH,eM] = h.end.split(':').map(Number);
+        return (eH*60+eM)-(sH*60+sM);
+      })()} min)</span>
+      ${breakStr}
+      <span class="tag-del" onclick="wRemoveHour(${i})">×</span>
     </div>`;
   }).join('');
 
   return `<div class="wcard">
-    <div class="wcard-title">Nauczanie indywidualne i grupy do 5 os. <span style="font-weight:400;font-size:.72rem;color:var(--text-m)">(opcjonalne — możesz uzupełnić po stworzeniu planu)</span></div>
-    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:14px;line-height:1.5">
-      Dodaj uczniów objętych nauczaniem indywidualnym lub uczęszczających na zajęcia w małych grupach.
-      Dla każdego ucznia możesz określić które przedmioty realizuje indywidualnie a które z klasą.
+    <div class="wcard-title">Godziny lekcyjne</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Zdefiniuj godziny zajęć. Lekcje mogą zaczynać się od godziny 0:00.
+      Długość lekcji i przerw może być różna dla każdej godziny.
     </p>
-    ${rows || `<div style="padding:16px;text-align:center;color:var(--text-d);
+
+    <div style="margin-bottom:16px">${dayPreview || '<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:12px">Brak godzin — dodaj je ręcznie lub wygeneruj automatycznie</div>'}</div>
+
+    <!-- ── Separator ── -->
+    <div style="border-top:1px solid var(--border);margin:12px 0"></div>
+
+    <!-- Ręczne dodawanie -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.04em;margin-bottom:8px">Dodaj ręcznie</div>
+    <div class="wrow">
+      <div class="wfield" style="flex:.6"><label>Nr lekcji</label>
+        <input class="winput" id="wHNum" type="number" min="0" max="15" placeholder="1" style="width:60px;text-align:center"></div>
+      <div class="wfield"><label>Początek</label>
+        <input class="winput" id="wHStart" type="time" value="08:00"></div>
+      <div class="wfield"><label>Koniec</label>
+        <input class="winput" id="wHEnd" type="time" value="08:45"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:12px" onclick="wAddHour()">+ Dodaj godzinę</button>
+
+    <!-- ── Separator ── -->
+    <div style="border-top:1px solid var(--border);margin:12px 0"></div>
+
+    <!-- Generator automatyczny -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.04em;margin-bottom:8px">Generuj automatycznie</div>
+    <div class="wrow">
+      <div class="wfield"><label>Pierwsza lekcja od</label>
+        <input class="winput" id="wHAutoFrom" type="time" value="08:00"></div>
+      <div class="wfield"><label>Czas lekcji (min)</label>
+        <input class="winput" id="wHAutoLen" type="number" value="45" min="15" max="90"></div>
+      <div class="wfield"><label>Przerwa (min)</label>
+        <input class="winput" id="wHAutoBreak" type="number" value="10" min="0" max="60"></div>
+      <div class="wfield"><label>Liczba lekcji</label>
+        <input class="winput" id="wHAutoCount" type="number" value="8" min="1" max="15"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wGenerateHours()">⚡ Generuj godziny</button>
+
+    <!-- ── Separator ── -->
+    <div style="border-top:1px solid var(--border);margin:12px 0"></div>
+
+    <!-- Długość poszczególnych przerw -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.04em;margin-bottom:8px">Długość poszczególnych przerw</div>
+    <p style="font-size:.72rem;color:var(--text-m);margin-bottom:8px">
+      Możesz ustawić różne długości przerw między poszczególnymi lekcjami.
+    </p>
+    ${hrs.length > 1 ? hrs.slice(0, -1).map((h,i) => {
+      const nextH = hrs[i+1];
+      const [peH, peM] = (h.end||'00:00').split(':').map(Number);
+      const [nH, nM] = (nextH.start||'00:00').split(':').map(Number);
+      const breakMin = (nH*60+nM) - (peH*60+peM);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:.78rem">
+        <span style="color:var(--text-m)">Przerwa po lekcji ${h.num}:</span>
+        <input type="number" min="0" max="60" value="${breakMin}"
+          style="width:50px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wSetBreak(${i},parseInt(this.value)||0)">
+        <span style="color:var(--text-d)">min</span>
+      </div>`;
+    }).join('') : '<div style="font-size:.72rem;color:var(--text-d)">Dodaj co najmniej 2 godziny aby ustawić przerwy</div>'}
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+function wSetBreak(afterHourIdx, minutes) {
+  // Dostosuj godzinę rozpoczęcia następnej lekcji
+  if(!wData.hours || afterHourIdx >= wData.hours.length - 1) return;
+  const sorted = wData.hours.sort((a,b)=>a.num-b.num);
+  const current = sorted[afterHourIdx];
+  const next = sorted[afterHourIdx + 1];
+  if(!current || !next) return;
+  const [cH, cM] = current.end.split(':').map(Number);
+  const totalMin = cH * 60 + cM + minutes;
+  const nH = Math.floor(totalMin / 60) % 24;
+  const nM = totalMin % 60;
+  next.start = nH.toString().padStart(2,'0') + ':' + nM.toString().padStart(2,'0');
+  renderWizStep();
+}
+
+// Step 7: NI / Grupy
+function wizStep7() {
+  if(!wData.niStudents) wData.niStudents = [];
+  const subjects = wData.subjects||[];
+  const classes  = wData.classes||[];
+
+  // ── Sekcja 1: Grupy w klasach ──
+  const classGroupsHtml = classes.map((c,ci) => {
+    if(!c.groups) c.groups = [];
+    const grpTags = c.groups.map((g,gi) => {
+      const gName = typeof g === 'object' ? g.name : g;
+      const gType = typeof g === 'object' ? (g.type||'group') : 'group';
+      const gCount = typeof g === 'object' ? (g.studentCount||0) : 0;
+      const linked = typeof g === 'object' ? (g.linkedWith||[]) : [];
+      const typeBadge = gType==='small'?'<span style="font-size:.58rem;padding:1px 4px;border-radius:4px;background:var(--accent-g);color:var(--accent)">2-5</span>':'';
+      const linkedBadge = linked.length?`<span style="font-size:.58rem;padding:1px 4px;border-radius:4px;background:var(--green-g);color:var(--green)">⇄ ${linked.length} kl.</span>`:'';
+      const countBadge = gCount?`<span style="font-size:.62rem;color:var(--text-m)">${gCount} os.</span>`:'';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;
+        background:var(--s3);border-radius:6px;font-size:.78rem">
+        <span style="font-weight:600">${escapeHtml(gName)}</span>
+        ${typeBadge}${linkedBadge}${countBadge}
+        <span style="cursor:pointer;font-size:.68rem;color:var(--accent)" onclick="wEditGroup(${ci},${gi})" title="Edytuj">⚙</span>
+        <span class="tag-del" onclick="wRemoveGroup(${ci},${gi})">×</span>
+      </div>`;
+    }).join('');
+
+    return `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-weight:700;font-size:.82rem">${escapeHtml(c.name)}</span>
+        <span style="font-size:.68rem;color:var(--text-m)">${c.groups.length?c.groups.length+' grup':'bez grup'}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${grpTags||'<span style="font-size:.72rem;color:var(--text-d)">Brak grup</span>'}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="winput" id="wGrpName_${ci}" placeholder="np. gr1, jęz.A" style="flex:1;padding:4px 8px;font-size:.72rem">
+        <select class="wselect" id="wGrpType_${ci}" style="flex:0 0 90px;padding:4px 6px;font-size:.72rem">
+          <option value="group">Grupa</option>
+          <option value="small">2–5 os.</option>
+        </select>
+        <button class="tag-add-btn" style="padding:4px 10px;font-size:.72rem" onclick="wAddGroup(${ci})">+</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // ── Sekcja 2: Grupy łączone między klasami ──
+  const allGroups = [];
+  classes.forEach((c,ci) => {
+    (c.groups||[]).forEach((g,gi) => {
+      const gName = typeof g === 'object' ? g.name : g;
+      allGroups.push({clsIdx:ci, grpIdx:gi, clsName:c.name, grpName:gName, obj:g});
+    });
+  });
+  const linkedPairs = [];
+  allGroups.forEach(g => {
+    if(typeof g.obj === 'object' && g.obj.linkedWith) {
+      g.obj.linkedWith.forEach(lw => {
+        const other = allGroups.find(og => og.clsName === lw.classId || og.clsName === lw);
+        if(other) linkedPairs.push({from:g, to:other});
+      });
+    }
+  });
+
+  let linkedHtml = '';
+  if(allGroups.length >= 2) {
+    linkedHtml = `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <div style="font-size:.78rem;font-weight:700;margin-bottom:6px">Grupy łączone między klasami</div>
+      <p style="font-size:.72rem;color:var(--text-m);margin-bottom:8px;line-height:1.4">
+        Zaznacz pary grup, które mogą mieć wspólne zajęcia (np. religia, języki obce).
+        Solver będzie umieszczał je w tej samej godzinie.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        ${allGroups.map(g => {
+          const linked = typeof g.obj==='object' && g.obj.linkedWith ? g.obj.linkedWith : [];
+          const isLinked = linked.length > 0;
+          return `<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;
+            background:${isLinked?'var(--accent-g)':'var(--s3)'};border:1px solid ${isLinked?'rgba(56,189,248,.2)':'var(--border)'};border-radius:6px;
+            cursor:pointer;font-size:.72rem">
+            <input type="checkbox" ${isLinked?'checked':''} style="accent-color:var(--accent)"
+              onchange="wToggleLinked(${g.clsIdx},${g.grpIdx},this.checked)">
+            ${escapeHtml(g.clsName)} / ${escapeHtml(g.grpName)}
+          </label>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ── Sekcja 3: NI / Uczniowie specjalni ──
+  const niRows = (wData.niStudents||[]).map((s,i) => {
+    const cls = classes.find(c=>c.id===s.classId);
+    const hours = (s.subjects||[]).filter(r=>r.mode==='indiv').reduce((h,r)=>h+(r.hours||0),0);
+    const niSubjs = (s.subjects||[]).filter(r=>r.mode==='indiv')
+      .map(r=>{const subj=subjects.find(ss=>ss.id===r.subjId);return escapeHtml(subj?.abbr||'?');}).join(', ');
+    const formLabel = s.form==='rewalidacja'?'🔄':s.form==='logopedia'?'🗣️':s.form==='grupowe-2-5'?'👥':'👤';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
+      background:var(--s2);border-radius:7px;border:1px solid var(--border);margin-bottom:5px">
+      <span style="font-weight:600;flex:1">${formLabel} ${escapeHtml(s.name)}</span>
+      ${cls?`<span style="font-size:.7rem;color:var(--text-m)">${escapeHtml(cls.name)}</span>`:''}
+      <span style="font-size:.68rem;color:var(--text-d)">${s.form||'indywidualne'}</span>
+      ${niSubjs?`<span style="font-size:.7rem;color:var(--accent)">${niSubjs}</span>`:''}
+      ${hours?`<span style="font-size:.7rem;font-family:var(--mono);color:var(--accent)">${hours}h</span>`:''}
+      <span class="tag-del" onclick="wNIRemove(${i})">×</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="wcard">
+    <div class="wcard-title">Grupy i nauczanie indywidualne</div>
+
+    <!-- Grupy w klasach -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.04em;margin-bottom:8px">Grupy w klasach</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Dla każdej klasy zdefiniuj grupy (np. do języków obcych, religii).
+      Grupy typu "2–5 os." to małe grupy nauczania indywidualnego.
+    </p>
+    ${classGroupsHtml}
+
+    <!-- Grupy łączone -->
+    ${linkedHtml}
+
+    <!-- Separator -->
+    <div style="border-top:1px solid var(--border);margin:16px 0 12px"></div>
+
+    <!-- NI -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
+      letter-spacing:.04em;margin-bottom:8px">Uczniowie ze specjalnymi potrzebami</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Dodaj uczniów objętych nauczaniem indywidualnym, rewalidacją, logopedią lub zajęciami w małych grupach.
+    </p>
+    ${niRows || `<div style="padding:16px;text-align:center;color:var(--text-d);
       border:1px dashed var(--border);border-radius:8px;font-size:.78rem;margin-bottom:12px">
-      Brak uczniów NI — możesz dodać ich tutaj lub później w Ustawieniach
-    </div>`}
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <input class="winput" id="wNIName" placeholder="Imię Nazwisko ucznia" style="flex:2">
-      <select class="wselect" id="wNIClass" style="flex:1">
+      Brak uczniów — możesz dodać ich tutaj lub później w Ustawieniach</div>`}
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <input class="winput" id="wNIName" placeholder="Imię Nazwisko ucznia" style="flex:2;min-width:150px">
+      <select class="wselect" id="wNIClass" style="flex:1;min-width:100px">
         <option value="">— klasa —</option>
         ${classes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
       </select>
+      <select class="wselect" id="wNIForm" style="flex:0 0 120px">
+        <option value="indywidualne">Indywidualne</option>
+        <option value="grupowe-2-5">Grupowe 2-5</option>
+        <option value="rewalidacja">Rewalidacja</option>
+        <option value="logopedia">Logopedia</option>
+        <option value="zajęcia wyrównawcze">Wyrównawcze</option>
+        <option value="inne">Inne</option>
+      </select>
       <button class="tag-add-btn" onclick="wNIAdd()">+ Dodaj</button>
     </div>
-    <p style="font-size:.7rem;color:var(--text-d);margin-top:8px">
-      💡 Szczegóły (które przedmioty NI, nauczyciel, godziny) ustaw po stworzeniu planu
+    <p style="font-size:.68rem;color:var(--text-d);margin-top:8px">
+      💡 Szczegóły (przedmioty, nauczyciel, godziny per przedmiot) ustaw po stworzeniu planu
       w <strong>Ustawieniach → 👤 NI / Grupy</strong>.
     </p>
   </div>
@@ -767,14 +1448,50 @@ function wizStep7() {
   </div>`;
 }
 
+function wAddGroup(ci) {
+  const nameEl = document.getElementById('wGrpName_'+ci);
+  const typeEl = document.getElementById('wGrpType_'+ci);
+  const name = (nameEl||{}).value?.trim();
+  if(!name) return;
+  if(!wData.classes[ci].groups) wData.classes[ci].groups = [];
+  wData.classes[ci].groups.push({id:'grp'+ci+'_'+Date.now(), name, type:typeEl?.value||'group', studentCount:0, subjects:[], linkedWith:[]});
+  if(nameEl) nameEl.value = '';
+  renderWizStep();
+}
+
+function wRemoveGroup(ci, gi) {
+  if(wData.classes[ci] && wData.classes[ci].groups) {
+    wData.classes[ci].groups.splice(gi, 1);
+    renderWizStep();
+  }
+}
+
+function wEditGroup(ci, gi) {
+  // Placeholder — szczegóły grupy można edytować w Ustawieniach
+  notify('Szczegóły grupy edytuj w Ustawieniach → Klasy');
+}
+
+function wToggleLinked(ci, gi, checked) {
+  const g = wData.classes[ci]?.groups?.[gi];
+  if(!g || typeof g !== 'object') return;
+  if(!g.linkedWith) g.linkedWith = [];
+  if(checked) {
+    // Dodaj oznaczenie że grupa jest łączona
+    if(!g.linkedWith.includes('__linked__')) g.linkedWith.push('__linked__');
+  } else {
+    g.linkedWith = [];
+  }
+}
+
 function wNIAdd() {
   const name = document.getElementById('wNIName').value.trim();
   const classId = document.getElementById('wNIClass').value || null;
+  const form = document.getElementById('wNIForm')?.value || 'indywidualne';
   if(!name) { notify('Podaj imię ucznia'); return; }
   if(!wData.niStudents) wData.niStudents = [];
   wData.niStudents.push({
     id: 'ni_' + Date.now() + Math.random().toString(36).slice(2,6),
-    name, classId, form: 'indywidualne', studentCount: 1, subjects: []
+    name, classId, form, studentCount: 1, subjects: []
   });
   document.getElementById('wNIName').value = '';
   renderWizStep();
@@ -802,22 +1519,56 @@ function wizPrev() {
 function wizCollectStep() {
   switch(wStep) {
     case 0:
-      wData.name = document.getElementById('wName').value.trim();
+      // Rok szkolny
       wData.year = document.getElementById('wYear').value.trim();
-      if(!wData.name) { notify('Podaj nazwę szkoły'); return false; }
+      if(!wData.year) { notify('Podaj rok szkolny'); return false; }
+      if(wData.yearMode === 'continue' && (!wData.copyFrom || !wData.copyFrom.length)) {
+        notify('Zaznacz co najmniej jedną kategorię danych do skopiowania');
+        return false;
+      }
       break;
     case 1:
-      // Budynki — opcjonalne, zbieramy przez wAddBuilding, tu tylko zapisujemy opis głównego
+      // Szkoła — nazwa, adres, kontakt, przedmioty
+      wData.name = (document.getElementById('wName')||{}).value?.trim()||'';
       wData.mainAddress = (document.getElementById('wMainAddress')||{}).value||'';
+      wData.schoolPhone = (document.getElementById('wSchoolPhone')||{}).value||'';
+      wData.schoolEmail = (document.getElementById('wSchoolEmail')||{}).value||'';
+      wData.schoolFixed = !!(document.getElementById('wSchoolFixed')||{}).checked;
+      if(!wData.name) { notify('Podaj nazwę szkoły'); return false; }
+      if(!wData.subjects.length) { notify('Dodaj co najmniej jeden przedmiot'); return false; }
       break;
     case 2:
+      // Klasy — generuj z poziomów i połącz z ręcznie dodanymi
+      if(wData._classLevels && wData._classLevels.length) {
+        const CLS_LETTERS = 'ABCDEFGHIJ';
+        const generated = [];
+        wData._classLevels.forEach(lv => {
+          const count = lv.classCount || 2;
+          const letters = CLS_LETTERS.split('').slice(0, count);
+          for(let yr = lv.from; yr <= lv.to; yr++) {
+            letters.forEach(ltr => {
+              const name = yr + ltr.toLowerCase();
+              if(!wData.classes.find(c=>c.name===name) && !generated.find(c=>c.name===name)) {
+                generated.push({name, level: lv.cat, groups:[], studentCount: lv.studentCount||0});
+              }
+            });
+          }
+        });
+        wData.classes = [...wData.classes, ...generated];
+      }
       if(!wData.classes.length) { notify('Dodaj co najmniej jedną klasę'); return false; }
       break;
     case 3:
-      if(!wData.subjects.length) { notify('Dodaj co najmniej jeden przedmiot'); return false; }
+      // Nauczyciele
+      if(!wData.teachers.length) { notify('Dodaj co najmniej jednego nauczyciela'); return false; }
       break;
     case 4:
-      if(!wData.teachers.length) { notify('Dodaj co najmniej jednego nauczyciela'); return false; }
+      // Budynki i Sale — zbierz mainAddress
+      wData.mainAddress = (document.getElementById('wMainAddress')||{}).value||'';
+      break;
+    case 5:
+      // Godziny
+      if(!wData.hours.length) { notify('Dodaj co najmniej jedną godzinę lekcyjną'); return false; }
       break;
   }
   return true;
@@ -830,6 +1581,9 @@ function wizFinish() {
     name: wData.name,
     year: wData.year,
     mainAddress: wData.mainAddress||'',
+    schoolPhone: wData.schoolPhone||'',
+    schoolEmail: wData.schoolEmail||'',
+    schoolFixed: !!wData.schoolFixed,
     buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||'', floors:b.floors||[]})),
     classes: wData.classes.map((c,i)=>({
       id:'cls'+i, name:c.name,
@@ -843,14 +1597,24 @@ function wizFinish() {
     subjects: wData.subjects.map((s,i)=>({
       id:'subj'+i, name:s.name, abbr:s.abbr,
       color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length],
-      duration:'year', classes:[], level:''
+      hoursPerWeek:s.hoursPerWeek||0,
+      duration:s.duration||'year',
+      position:s.position||'any',
+      optional:!!s.optional,
+      fixed:!!s.fixed,
+      scope:s.scope||'class',
+      classes:[], level:''
     })),
     teachers: wData.teachers.map((t,i)=>({
       id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr,
       hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0,
       employment:t.employment||'full',
       employmentFraction:t.employmentFraction||1,
-      subjects:[], assignments:[], individualTeaching:[]
+      isSpecialist:!!t.isSpecialist,
+      specialistRole:t.specialistRole||'',
+      subjects:t.subjects||[],
+      assignments:t.assignments||[],
+      individualTeaching:[]
     })),
     rooms: wData.rooms.map((r,i)=>({
       id:'room'+i, name:r.name, type:r.type||'full',
@@ -861,9 +1625,37 @@ function wizFinish() {
     hours: wData.hours.sort((a,b)=>a.num-b.num),
   };
   appState.niStudents = wData.niStudents||[];
+
+  // Tryb kontynuacji — kopiuj wybrane dane z poprzedniego roku
+  if(wData.yearMode==='continue' && wData.copyFrom?.length) {
+    try {
+      const prev = JSON.parse(localStorage.getItem(LS.STATE)||'null');
+      if(prev) {
+        const copyMap = {
+          buildings:    'buildings',
+          classes:      'classes',
+          subjects:     'subjects',
+          teachers:     'teachers',
+          rooms:        'rooms',
+          hours:        'hours',
+          niStudents:   'niStudents',
+        };
+        wData.copyFrom.forEach(key => {
+          const asKey = copyMap[key];
+          if(asKey && prev[asKey] && prev[asKey].length) {
+            appState[asKey] = JSON.parse(JSON.stringify(prev[asKey]));
+          }
+        });
+        if(wData.copyFrom.includes('teachers') && prev.schoolYear) {
+          // Zresetuj przydziały solvera ale zachowaj dane nauczycieli
+        }
+      }
+    } catch(_) {}
+  }
+
   schedData = {};
   _demoMode = false;
-  localStorage.removeItem(LS.WIZ); // wyczyść autozapis
+  localStorage.removeItem(LS.WIZ);
   persistAll();
   showApp();
   notify('Plan został utworzony!');
@@ -897,10 +1689,13 @@ function wRemoveClass(i){wData.classes.splice(i,1);renderWizStep();}
 function wAddSubj() {
   const n = document.getElementById('wSubjName').value.trim();
   const a = document.getElementById('wSubjAbbr').value.trim()||n.slice(0,3).toUpperCase();
+  const h = parseInt(document.getElementById('wSubjHours').value)||0;
   if(!n) return;
-  wData.subjects.push({name:n,abbr:a,color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length]});
+  wData.subjects.push({name:n,abbr:a,color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
+    hoursPerWeek:h, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
   document.getElementById('wSubjName').value='';
   document.getElementById('wSubjAbbr').value='';
+  document.getElementById('wSubjHours').value='3';
   renderWizStep();
 }
 function wAddSubjBulk() {
@@ -909,7 +1704,8 @@ function wAddSubjBulk() {
   raw.split(';').forEach(n=>{
     n=n.trim(); if(!n)return;
     if(!wData.subjects.find(s=>s.name===n))
-      wData.subjects.push({name:n,abbr:n.slice(0,3).toUpperCase(),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length]});
+      wData.subjects.push({name:n,abbr:n.slice(0,3).toUpperCase(),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
+        hoursPerWeek:0, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
   });
   renderWizStep();
 }
@@ -949,14 +1745,13 @@ function buildAbbr(first, last) {
   if(!useParts.length) {
     ls = '';
   } else if(useParts.length === 1) {
-    // Jedno nazwisko — pierwsze 3 litery z formatowaniem
-    ls = useParts[0].slice(0,3);
+    // Jedno nazwisko — pierwsze 4 litery
+    ls = useParts[0].slice(0,4);
     ls = ls ? ls[0].toUpperCase() + ls.slice(1).toLowerCase() : '';
   } else {
-    // Dwu- lub więcej-członowe — pierwsza litera każdego członu (max 3)
-    ls = useParts.slice(0,3).map((p,i) =>
-      i===0 ? p[0].toUpperCase() : p[0].toLowerCase()
-    ).join('');
+    // Dwu- lub więcej-członowe — 2 pierwsze litery pierwszego członu + 2 pierwsze litery drugiego
+    ls = (useParts[0].slice(0,2) + (useParts[1].slice(0,2)||''));
+    ls = ls ? ls[0].toUpperCase() + ls.slice(1).toLowerCase() : '';
   }
 
   return fi + ls;
@@ -7056,14 +7851,13 @@ const HELP = {
 
 // Pomoc w kreatorze
 const WIZ_HELP = [
-  {t:'Szkoła', items:['Podaj nazwę i rok szkolny — pojawią się w nagłówku wydruku','Rok szkolny ustaw też w Ustawieniach → Szkoła po zakończeniu kreatora']},
-  {t:'Budynki', items:['Budynki są opcjonalne — pomiń jeśli szkoła jest w jednym budynku','Dodaj budynki jeśli chcesz przypisywać sale do konkretnych lokalizacji']},
-  {t:'Klasy', items:['Wpisz nazwy klas jak: 1a, 1b, 2a... lub importuj listą: 1a;1b;2a;2b','Grupy dodaj teraz lub później w Ustawieniach → Klasy','Liczbę uczniów i wychowawcę ustaw w Ustawieniach po zakończeniu']},
-  {t:'Przedmioty', items:['Każdy przedmiot dostaje unikalny kolor — ułatwia czytanie planu','Skrót (np. MAT, POL) pojawia się w komórkach planu','Religia, etyka i inne opcjonalne dodaj tutaj — szczegóły (które klasy) ustaw później']},
-  {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny','Skrót generuje się automatycznie (np. AKow dla Anna Kowalska)','Przydział godzin (kto uczy co w której klasie) ustaw po zakończeniu kreatora w kartach nauczycieli']},
-  {t:'Sale', items:['Możesz dodać sale teraz i uzupełnić szczegóły (pojemność, typ) później w Ustawieniach','Sale specjalistyczne (komputerowa, gimnastyczna) oznacz odpowiednim typem']},
-  {t:'Godziny', items:['Użyj "Generuj godziny" wpisując godzinę startu, czas lekcji i przerwy','Typowo: lekcja 45 min, przerwa 10 min, 8 lekcji od 8:00']},
-  {t:'NI / Grupy', items:['Nauczanie indywidualne (NI) — uczniowie realizujący część przedmiotów poza klasą','Możesz dodać uczniów NI teraz lub później w Ustawieniach → NI / Grupy','Grupy międzyklasowe (języki, religia) ustaw w Ustawieniach → Klasy → grupy z połączeniami']},
+  {t:'Rok szkolny', items:['Wybierz rok szkolny w formacie np. 2025/2026','Nowy rok — tworzysz plan od zera','Kontynuacja — kopiujesz dane z poprzedniego roku i edytujesz co trzeba','Zaznacz które dane skopiować: budynki, klasy, przedmioty, nauczyciele, sale, godziny, NI']},
+  {t:'Szkoła', items:['Podaj nazwę, adres i dane kontaktowe szkoły','Dodaj przedmioty nauczane w szkole — dla każdego ustal godziny/tydzień, semestr, pozycję','Przedmioty opcjonalne (religia, etyka) zaznacz checkboxem','Zmienne per rok odznacz "Dane stałe" — łatwiej edytować w kolejnym roku']},
+  {t:'Klasy', items:['Zdefiniuj poziomy nauczania — zakres lat (np. 1–8) i liczbę klas na rok (np. A, B, C)','Nazwy klas generują się automatycznie: 1a, 1b, 2a, 2b...','Możesz też dodać klasy ręcznie lub importem: 1a;1b;2a;2b','Opcjonalnie podaj liczbę uczniów w każdej klasie']},
+  {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny','Skrót generuje się automatycznie — pierwsza litera imienia + 4 litery nazwiska (dla dwuczłonowych: 2+2)','Zaznacz uprawnienia do przedmiotów — które przedmioty może prowadzić','Dodaj przydziały godzin: przedmiot → klasa → godz./tydz.','Nauczyciel specjalista: bibliotekarz, logopeda, psycholog, pedagog itp.','Solver automatycznie obliczy nadgodziny na podstawie przydziałów']},
+  {t:'Budynki i sale', items:['Budynki są opcjonalne — pomiń jeśli szkoła jest w jednym budynku','Dodaj piętra i segmenty do budynków — pomogą w organizacji sal','Sale możesz dodać teraz lub uzupełnić później w Ustawieniach','Sale specjalistyczne (komputerowa, gimnastyczna) oznacz odpowiednim typem','Przypisz sale do budynków i określ pojemność']},
+  {t:'Godziny', items:['Lekcje mogą zaczynać się od godziny 0:00','Generator automatyczny: podaj start, czas lekcji, przerwę i liczbę lekcji','Możesz dodać godziny ręcznie z dowolnymi czasami','Ustaw różne długości przerw między poszczególnymi lekcjami','Podgląd dnia pokazuje przerwy i czasy trwania każdej lekcji']},
+  {t:'Grupy', items:['Dla każdej klasy zdefiniuj grupy — np. jęz.A, jęz.B, religia','Grupy typu "2–5 os." to małe grupy NI','Zaznacz grupy łączone — solver umieści je w tej samej godzinie','Dodaj uczniów NI, rewalidację, logopedię — wybierz formę i klasę','Szczegóły (przedmioty, godziny per uczeń) ustawisz w Ustawieniach po stworzeniu planu']},
 ];
 
 function openHelp(view) {
@@ -7803,9 +8597,9 @@ function renderNISubjTable(clsSubjs, teachers) {
     // Helper: input godzin
     const hrsInput = (fieldName, val, title) =>
       `<input type="number" min="0" max="30" value="${val||0}"
-        style="width:40px;padding:3px 4px;border:1px solid var(--border);
+        style="width:56px;padding:5px 6px;border:1px solid var(--border);
                border-radius:5px;background:var(--s2);color:var(--text);
-               font-size:.72rem;text-align:center"
+               font-size:.78rem;text-align:center;font-weight:600"
         onchange="niSetField('${subj.id}','${fieldName}',parseInt(this.value)||0)"
         title="${escapeHtml(title)}">`;
 
@@ -7855,24 +8649,27 @@ function renderNISubjTable(clsSubjs, teachers) {
         border-top:1px solid ${border};align-items:center;font-size:.7rem">
 
         ${isIndiv ? `
-          <span style="color:var(--text-m)">Nauczyciel NI:</span>
+          <span style="color:var(--text-m);font-weight:600">Nauczyciel NI:</span>
           ${tchSelect('teacherId', row.teacherId, 'nauczyciel NI')}
+          <span style="color:var(--text-m);font-weight:600;margin-left:4px">Godz.:</span>
           ${hrsInput('hours', row.hours||1, 'Godziny NI/tydz.')}
-          <span style="color:var(--text-d)">h NI/tydz.</span>
+          <span style="color:var(--text-d)">h/tydz.</span>
         ` : ''}
 
         ${isSplit ? `
           <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-            <span style="color:var(--accent);font-weight:600">NI:</span>
+            <span style="color:var(--accent);font-weight:600">👤 NI:</span>
             ${tchSelect('teacherId', row.teacherId, 'nauczyciel NI', true)}
+            <span style="color:var(--text-m);font-weight:600">Godz.:</span>
             ${hrsInput('hours', row.hours||1, 'Godziny NI/tydz.')}
-            <span style="color:var(--text-d)">h</span>
+            <span style="color:var(--text-d)">h/tydz.</span>
           </div>
-          <span style="color:var(--text-d)">+</span>
+          <span style="font-size:1rem;color:var(--text-d)">+</span>
           <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-            <span style="color:var(--text-m);font-weight:600">Z klasą:</span>
+            <span style="color:var(--text-m);font-weight:600">🏫 Z klasą:</span>
+            <span style="color:var(--text-m);font-weight:600">Godz.:</span>
             ${hrsInput('hoursClass', row.hoursClass||1, 'Godziny z klasą/tydz.')}
-            <span style="color:var(--text-d)">h</span>
+            <span style="color:var(--text-d)">h/tydz.</span>
           </div>
         ` : ''}
 
@@ -7882,6 +8679,14 @@ function renderNISubjTable(clsSubjs, teachers) {
             <span style="color:var(--text-m)">Wspomagający:</span>
             ${tchSelect('supportTeacherId', row.supportTeacherId, 'naucz. wspomagający', true)}
             <span style="font-size:.62rem;color:var(--text-d)">(opcjonalnie)</span>
+          </div>
+        ` : ''}
+        ${isClass ? `
+          <div style="display:flex;align-items:center;gap:4px;margin-left:8px;
+            padding-left:8px;border-left:1px solid ${border}">
+            <span style="color:var(--text-m);font-weight:600">Godz. z klasą:</span>
+            ${hrsInput('hours', row.hours||0, 'Godziny z klasą/tydz.')}
+            <span style="color:var(--text-d)">h/tydz.</span>
           </div>
         ` : ''}
 
