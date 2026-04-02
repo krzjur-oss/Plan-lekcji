@@ -6277,12 +6277,7 @@ document.getElementById('subjectModal').addEventListener('click', function(e){
 // ================================================================
 //  ROOM MODAL
 // ================================================================
-const ROOM_TYPES = {
-  full:    { label:'Cała klasa',       icon:'🏫', cls:'full'  },
-  group:   { label:'Grupowa',          icon:'👥', cls:'group' },
-  indiv:   { label:'Indywidualna',     icon:'👤', cls:'indiv' },
-  special: { label:'Specjalistyczna',  icon:'⚗️', cls:'group' },
-};
+// ROOM_TYPES jest zdefiniowany na początku pliku (linia 4)
 let _rmId = null;
 let _rmType = 'full';
 
