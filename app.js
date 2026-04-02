@@ -1234,16 +1234,6 @@ function renderCurrentView() {
 
 function updateHelpBtn() {
   document.querySelectorAll('.view-help-btn').forEach(el=>el.remove());
-  const activePanel = document.querySelector('.view-panel.active');
-  if(!activePanel) return;
-  const sel = activePanel.querySelector('.view-selector');
-  if(!sel || !HELP[_currentView]) return;
-  const btn = document.createElement('button');
-  btn.className = 'wbtn wbtn-ghost view-help-btn no-print';
-  btn.style.cssText = 'padding:4px 10px;font-size:.72rem;margin-left:auto';
-  btn.innerHTML = '❓ Pomoc';
-  btn.onclick = () => openHelp(_currentView);
-  sel.appendChild(btn);
 }
 
 // ================================================================
