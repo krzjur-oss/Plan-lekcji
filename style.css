@@ -20,6 +20,7 @@
   --purple-g:  rgba(167,139,250,.12);
   --teal:      #2dd4bf;
   --orange:    #fb923c;
+  --orange-g:  rgba(251,146,60,.12);
   --pink:      #f472b6;
   --text:      #e2eaf8;
   --text-m:    #5a7098;
@@ -1030,7 +1031,7 @@ td.m-empty:hover .m-add-btn{opacity:1;color:var(--text-m)}
 .help-section-title{font-size:.72rem;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px}
 .help-item{font-size:.78rem;color:var(--text-m);line-height:1.55;margin-bottom:5px;padding-left:10px;border-left:2px solid var(--border)}
 .help-item strong{color:var(--text)}
-.help-tip{font-size:.72rem;background:var(--accent-g);border:1px solid var(--accent)33;border-radius:7px;padding:7px 10px;color:var(--text-m);margin-top:8px;line-height:1.5}
+.help-tip{font-size:.72rem;background:var(--accent-g);border:1px solid rgba(56,189,248,.2);border-radius:7px;padding:7px 10px;color:var(--text-m);margin-top:8px;line-height:1.5}
 
 /* ── DRUKOWANIE ── */
 @media print {

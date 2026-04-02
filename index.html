@@ -147,7 +147,7 @@
       <button class="icon-btn no-print" title="Pomoc" onclick="openHelp()">❓</button>
       <button class="icon-btn" title="Eksportuj JSON" onclick="exportJSON()">💾</button>
       <button class="icon-btn" title="Motyw" onclick="toggleTheme()" id="themeBtn">☀️</button>
-      <button class="icon-btn" title="Ustawienia" onclick="switchView('settings',document.querySelector('[data-view=settings]'))">⚙️</button>
+      <button class="icon-btn" title="Ustawienia" data-view="settings" onclick="switchView('settings',this)">⚙️</button>
       <button class="icon-btn" title="Nowy plan / zmień konfigurację" onclick="openSettings()">🔄</button>
     </div>
   </div>
@@ -244,6 +244,10 @@
 
     <!-- VIEW: USTAWIENIA -->
     <div class="view-panel" id="view-settings">
+      <div class="view-selector">
+        <span class="view-selector-label" style="font-size:.82rem;font-weight:700">⚙️ Ustawienia</span>
+        <button class="vs-help-btn" onclick="openHelp('settings')">❓ Pomoc</button>
+      </div>
       <div id="settingsContent"></div>
     </div>
 
@@ -337,7 +341,7 @@
     <!-- Nauczanie indywidualne — link do dedykowanego modalu -->
     <div class="mfield" style="margin-top:4px">
       <div id="tmIndivSummaryBox" style="display:none;padding:8px 12px;background:var(--accent-g);
-        border:1px solid var(--accent)44;border-radius:8px;font-size:.78rem;margin-bottom:8px">
+        border:1px solid rgba(56,189,248,.27);border-radius:8px;font-size:.78rem;margin-bottom:8px">
       </div>
       <button onclick="openNIModal(_tmId)"
         style="width:100%;padding:9px 16px;border-radius:var(--radius);
@@ -907,7 +911,7 @@
 
     <div style="font-size:.82rem;color:var(--text-m);line-height:1.7;display:flex;flex-direction:column;gap:14px">
 
-      <div style="padding:12px 16px;background:var(--accent-g);border:1px solid var(--accent)44;border-radius:var(--radius)">
+      <div style="padding:12px 16px;background:var(--accent-g);border:1px solid rgba(56,189,248,.27);border-radius:var(--radius)">
         <strong style="color:var(--accent)">✓ Brak ciasteczek (cookies)</strong><br>
         PlanLekcji nie używa plików cookies. Nie wysyła żadnych danych do serwerów,
         nie profiluje użytkowników i nie korzysta z zewnętrznych usług analitycznych.
@@ -1050,5 +1054,12 @@
 </div>
 
 <script src="app.js"></script>
+<script>
+  if('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed:', err));
+    });
+  }
+</script>
 </body>
 </html>

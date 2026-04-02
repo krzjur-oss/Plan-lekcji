@@ -330,7 +330,7 @@ function wlInit() {
     const rezCard = document.getElementById('wlResumeCard');
     const rezDesc = document.getElementById('wlResumeDesc');
     if(w && rezCard) {
-      const STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny'];
+      const STEPS = ['Szkoła','Budynki','Klasy','Przedmioty','Nauczyciele','Sale','Godziny','NI / Grupy'];
       const stepName = STEPS[w.step]||'';
       rezCard.style.display='';
       if(rezDesc) rezDesc.textContent = 'Krok '+(w.step+1)+': '+stepName+(w.data?.name?' — '+w.data.name:'');
@@ -600,7 +600,7 @@ function wizStep4() {
       <div class="subj-name" style="flex:2">${escapeHtml(t.first)} ${escapeHtml(t.last)}</div>
       <div class="subj-abbr" style="font-family:var(--mono)">${escapeHtml(t.abbr)}</div>
       ${t.hoursTotal ? `<span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${t.hoursTotal}${t.hoursExtra?'+'+t.hoursExtra:''} godz.</span>` : ''}
-      ${t.employment&&t.employment!=='full' ? `<span style="font-size:.68rem;padding:1px 6px;border-radius:8px;background:var(--orange)22;color:var(--orange)">${t.employment==='half'?'½ etatu':Math.round((t.employmentFraction||1)*100)+'%'}</span>` : ''}
+      ${t.employment&&t.employment!=='full' ? `<span style="font-size:.68rem;padding:1px 6px;border-radius:8px;background:var(--orange-g);color:var(--orange)">${t.employment==='half'?'½ etatu':Math.round((t.employmentFraction||1)*100)+'%'}</span>` : ''}
       <span class="tag-del" onclick="wRemoveTeacher(${i})">×</span>
     </div>`).join('');
   return `<div class="wcard">
@@ -1467,8 +1467,8 @@ function renderTeacherView() {
       return escapeHtml(c?.name||'?');
     }).join(', ');
     const info = document.createElement('div');
-    info.style.cssText = 'margin-bottom:10px;padding:7px 12px;background:var(--teal)15;'+
-      'border:1px solid var(--teal)44;border-radius:8px;font-size:.72rem;color:var(--text-m)';
+    info.style.cssText = 'margin-bottom:10px;padding:7px 12px;background:rgba(45,212,191,.08);'+
+      'border:1px solid rgba(45,212,191,.27);border-radius:8px;font-size:.72rem;color:var(--text-m)';
     info.innerHTML = `👥 Pełni rolę <strong>nauczyciela wspomagającego</strong> w klasach: <strong>${clsNames}</strong>`+
       ` — lekcje oznaczone <span style="color:var(--teal);font-weight:700">+W</span> i zielonym paskiem.`;
     wrap.insertBefore(info, wrap.firstChild);
@@ -2274,7 +2274,7 @@ function genPositionUI(C) {
         <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">
           ${dot}${escapeHtml(s.name)}
           <span style="font-size:.66rem;padding:2px 8px;border-radius:10px;
-            background:var(--accent-g);color:var(--accent);border:1px solid var(--accent)44">
+            background:var(--accent-g);color:var(--accent);border:1px solid rgba(56,189,248,.27)">
             ⇔ skrajne godziny (z ustawień klasy)
           </span>
         </span>
@@ -2335,7 +2335,7 @@ function genGroupsUI(C) {
 
   // Info o auto-grupach i połączeniach
   if(Object.keys(autoGroups).length || mergeList.length) {
-    let infoHtml = `<div style="padding:8px 12px;background:var(--accent-g);border:1px solid var(--accent)44;
+    let infoHtml = `<div style="padding:8px 12px;background:var(--accent-g);border:1px solid rgba(56,189,248,.27);
       border-radius:8px;margin-bottom:12px;font-size:.72rem;color:var(--text-m)">
       <strong style="color:var(--accent)">◑ Grupy automatyczne</strong> —
       przedmioty opcjonalne klas są automatycznie traktowane jako równoległe grupy.`;
@@ -2697,7 +2697,7 @@ function genCapacityUI() {
     html += `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">`;
     ageRooms.forEach(r => {
       html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;
-        border-radius:6px;background:var(--orange)0d;border:1px solid var(--orange)33">
+        border-radius:6px;background:var(--orange-g);border:1px solid rgba(251,146,60,.2)">
         <span style="font-size:.72rem;font-weight:600">${r.name}</span>
         <span style="font-size:.68rem;color:var(--text-m)">${r.note||''}</span>
         <button onclick="openEditRoomModal('${r.id}')"
@@ -2752,7 +2752,7 @@ function genMaxConsecutiveUI(C) {
     const dot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
                   background:${s.color||'#888'};flex-shrink:0"></span>`;
     return `<div class="gen-subj-row">
-      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${s.name}</span>
+      <span class="gen-subj-name" style="display:flex;align-items:center;gap:6px">${dot}${escapeHtml(s.name)}</span>
       <div class="gen-field-row">
         <span class="gen-label">Max dni pod rząd:</span>
         <select class="gen-mini-select" onchange="genSetMaxConsecutive('${s.id}',+this.value)">
@@ -2826,7 +2826,7 @@ function genIndivTeachUI() {
   // ── Panel: nauczyciel łączy NI i regularne lekcje ──
   if(combinedTeachers.length) {
     html += `<div style="margin-bottom:14px;padding:10px 12px;
-      background:var(--orange)10;border:1px solid var(--orange)40;border-radius:8px">
+      background:var(--orange-g);border:1px solid rgba(251,146,60,.25);border-radius:8px">
       <div style="font-size:.72rem;font-weight:700;color:var(--orange);margin-bottom:8px">
         ⚠ Nauczyciel prowadzi NI i regularne lekcje z tego samego przedmiotu
       </div>`;
@@ -2844,7 +2844,7 @@ function genIndivTeachUI() {
       </div>`;
     });
     html += `<div style="font-size:.68rem;color:var(--text-d);margin-top:6px;padding-top:6px;
-      border-top:1px solid var(--orange)30">
+      border-top:1px solid rgba(251,146,60,.19)">
       💡 Jeśli uczeń NI ma tego samego nauczyciela co klasa z danego przedmiotu —
       klasa w godzinie NI ucznia po prostu ma o jednego ucznia mniej.
       To poprawna sytuacja pedagogiczna, solver sobie z tym radzi.
@@ -3094,7 +3094,7 @@ function genRunWorker(payload) {
   };
   worker.onerror = (e) => { genLog('Worker error: '+e.message); };
   worker.postMessage(payload);
-  URL.revokeObjectURL(url);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
   return worker;
 }
 
@@ -3181,7 +3181,7 @@ function genHandleResult(newSched, warnings, stats) {
   if(ra) ra.innerHTML = html;
 
   // Zapisz w localStorage jako backup
-  try { localStorage.setItem('pl_sched_generated', JSON.stringify({sched:newSched,ts:Date.now()})); }
+  try { localStorage.setItem('pl_sched_generated', JSON.stringify({sched:newSched,placed,total,pct,ts:Date.now()})); }
   catch(_) {}
 }
 
@@ -3791,7 +3791,7 @@ function renderStats() {
     const cnt=subjCount[s.id]||0;
     const pct=Math.round(cnt/maxS*100);
     html+=`<div class="tlt-row">
-      <div class="tlt-name"><span class="cdot" style="background:${s.color};margin-right:6px"></span>${s.name}</div>
+      <div class="tlt-name"><span class="cdot" style="background:${s.color};margin-right:6px"></span>${escapeHtml(s.name)}</div>
       <div class="tlt-hours">${cnt}</div>
       <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${s.color}"></div></div>
     </div>`;
@@ -4866,7 +4866,7 @@ function exportJSON() {
   const a=document.createElement('a');
   const y=(appState.year||'').replace('/','_');
   a.href=url;a.download=`planlekcji_${y}_${Date.now()}.json`;
-  a.click();URL.revokeObjectURL(url);
+  a.click();setTimeout(()=>URL.revokeObjectURL(url), 1000);
   notify('Wyeksportowano plan do JSON');
 }
 
@@ -4880,6 +4880,7 @@ function handleImportFile(file) {
       appState=data.appState;
       schedData=data.schedData||{};
       _demoMode=false;
+      migrateAppState();
       persistAll();
       document.getElementById('welcomeScreen').classList.remove('show');
       showApp();
@@ -4935,15 +4936,19 @@ function escapeHtml(str) {
 //  COLOR UTILS
 // ================================================================
 function hexToRgba(hex,alpha){
+  if(!hex||hex[0]!=='#'||hex.length<7) return `rgba(128,128,128,${alpha})`;
   const r=parseInt(hex.slice(1,3),16);
   const g=parseInt(hex.slice(3,5),16);
   const b=parseInt(hex.slice(5,7),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b)) return `rgba(128,128,128,${alpha})`;
   return `rgba(${r},${g},${b},${alpha})`;
 }
 function isDarkColor(hex){
+  if(!hex||hex[0]!=='#'||hex.length<7) return false;
   const r=parseInt(hex.slice(1,3),16);
   const g=parseInt(hex.slice(3,5),16);
   const b=parseInt(hex.slice(5,7),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b)) return false;
   return (r*299+g*587+b*114)/1000 < 128;
 }
 
@@ -5107,7 +5112,7 @@ function tmRenderSubjects(selected) {
       <input type="checkbox" value="${s.id}" ${selected.includes(s.id) ? 'checked' : ''}
         onchange="this.parentElement.classList.toggle('checked',this.checked)">
       <span class="schk-dot" style="background:${s.color}"></span>
-      ${s.name}
+      ${escapeHtml(s.name)}
     </label>`).join('');
 }
 
@@ -6382,7 +6387,7 @@ function rmFillSubjects(selected) {
                           cursor:pointer;font-size:.72rem;user-select:none;transition:background .15s"
                    onclick="this.style.background=this.querySelector('input').checked?'transparent':'${color}22'">
       <input type="checkbox" value="${s.id}" ${checked} style="accent-color:${color};width:13px;height:13px">
-      <span style="color:var(--text)">${s.name}</span>
+      <span style="color:var(--text)">${escapeHtml(s.name)}</span>
     </label>`;
   }).join('');
 }
@@ -6549,7 +6554,7 @@ function cmRenderGroups() {
     ).join('');
     const modeLabel = isNI && grpSubjects.length > 0
       ? `<span style="font-size:.62rem;color:var(--orange);padding:1px 5px;border-radius:6px;
-           background:var(--orange)15">NI tylko: ${subjChips}</span>
+           background:var(--orange-g)">NI tylko: ${subjChips}</span>
          <span style="font-size:.62rem;color:var(--text-d)">· reszta z klasą</span>`
       : isNI ? `<span style="font-size:.62rem;color:var(--text-d)">wszystkie przedmioty NI</span>` : '';
 
@@ -6561,7 +6566,7 @@ function cmRenderGroups() {
       return cls&&grp
         ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:.65rem;
             padding:1px 6px;border-radius:8px;background:var(--accent-g);color:var(--accent);
-            border:1px solid var(--accent)33">
+            border:1px solid rgba(56,189,248,.2)">
             ${escapeHtml(cls.name)} / ${escapeHtml(grp.name)}
             <span onclick="cmUnlinkGroup(${i},'${lw.clsId}','${lw.grpId}')"
               style="cursor:pointer;margin-left:2px;color:var(--red);font-size:.75rem;line-height:1">×</span>
@@ -6601,7 +6606,7 @@ function cmRenderGroups() {
 
     return `<div style="display:flex;flex-direction:column;gap:5px;padding:8px 10px;
       background:var(--s2);border-radius:8px;
-      border:1px solid ${isNI?'var(--accent)33':linked.length?'var(--green)44':'var(--border)'}">
+      border:1px solid ${isNI?'rgba(56,189,248,.2)':linked.length?'rgba(52,211,153,.27)':'var(--border)'}">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:.85rem">${icon}</span>
         <span style="font-weight:600;font-size:.8rem">${escapeHtml(g.name)}</span>
@@ -6690,7 +6695,7 @@ function cmEditGroupSubjects(grpIdx) {
           <input type="checkbox" value="${s.id}" ${selected.includes(s.id)?'checked':''}
             style="accent-color:${s.color};width:16px;height:16px">
           <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.color};flex-shrink:0"></span>
-          <span style="font-size:.8rem;font-weight:600">${s.name}</span>
+          <span style="font-size:.8rem;font-weight:600">${escapeHtml(s.name)}</span>
           <span style="font-size:.7rem;color:var(--text-d);font-family:var(--mono)">${s.abbr||''}</span>
         </label>`).join('')}
     </div>
@@ -7048,7 +7053,7 @@ const HELP = {
         '<strong>Klasy × Godziny</strong> — kolumny to klasy, wiersze to godziny. Idealny do sprawdzenia kolizji sal',
         '<strong>Nauczyciele × Godziny</strong> — kolumny to nauczyciele. Widać kto kiedy ma lekcje i kto ma okienka',
       ]},
-      {t:'Wskazówka', tip:'Macierz jest tylko do przeglądania i edycji. Drukuj ją jako "Przegląd szkoły".'},
+      {t:'Wskazówka', tip:'Macierz pozwala przeglądać i edytować lekcje — kliknij komórkę aby dodać lub zmienić. Drukuj ją jako "Przegląd szkoły".'},
     ]
   },
   duty: {
@@ -7122,6 +7127,7 @@ const WIZ_HELP = [
   {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny','Skrót generuje się automatycznie (np. AKow dla Anna Kowalska)','Przydział godzin (kto uczy co w której klasie) ustaw po zakończeniu kreatora w kartach nauczycieli']},
   {t:'Sale', items:['Możesz dodać sale teraz i uzupełnić szczegóły (pojemność, typ) później w Ustawieniach','Sale specjalistyczne (komputerowa, gimnastyczna) oznacz odpowiednim typem']},
   {t:'Godziny', items:['Użyj "Generuj godziny" wpisując godzinę startu, czas lekcji i przerwy','Typowo: lekcja 45 min, przerwa 10 min, 8 lekcji od 8:00']},
+  {t:'NI / Grupy', items:['Nauczanie indywidualne (NI) — uczniowie realizujący część przedmiotów poza klasą','Możesz dodać uczniów NI teraz lub później w Ustawieniach → NI / Grupy','Grupy międzyklasowe (języki, religia) ustaw w Ustawieniach → Klasy → grupy z połączeniami']},
 ];
 
 function openHelp(view) {
@@ -7226,7 +7232,7 @@ function openPrintPanel() {
           const cls = classes.find(c=>c.id===s.classId);
           return btnRow(
             `doPrintNI('${s.id}')`,
-            `👤 ${s.name}${cls?' ('+cls.name+')':''}`
+            `👤 ${escapeHtml(s.name)}${cls?' ('+escapeHtml(cls.name)+')':''}`
           );
         }).join('')
       : `<div style="font-size:.75rem;color:var(--text-d);padding:6px">Brak uczniów NI w systemie</div>`,
@@ -7869,7 +7875,7 @@ function renderNISubjTable(clsSubjs, teachers) {
 
     // Kolorystyka wiersza
     const bg = isIndiv ? 'var(--accent-g2)' : isSplit ? 'rgba(251,191,36,.06)' : 'var(--s2)';
-    const border = isIndiv ? 'var(--accent)33' : isSplit ? 'rgba(251,191,36,.3)' : 'var(--border)';
+    const border = isIndiv ? 'rgba(56,189,248,.2)' : isSplit ? 'rgba(251,191,36,.3)' : 'var(--border)';
 
     return `<div style="padding:8px 10px;background:${bg};
       border:1px solid ${border};border-radius:8px;margin-bottom:4px">
@@ -8153,7 +8159,7 @@ function niSettingsSection() {
       const hours     = indivRows.reduce((s,r)=>s+(r.hours||0),0);
 
       const pensumBadge = stud.inPensum
-        ? `<span style="font-size:.62rem;padding:1px 6px;border-radius:6px;background:var(--green)22;color:var(--green);border:1px solid var(--green)44;margin-left:4px">✓ w pensum</span>`
+        ? `<span style="font-size:.62rem;padding:1px 6px;border-radius:6px;background:var(--green-g);color:var(--green);border:1px solid rgba(52,211,153,.27);margin-left:4px">✓ w pensum</span>`
         : '';
       const indivChips = indivRows.map(r => {
         const s = subjects.find(s=>s.id===r.subjId);
