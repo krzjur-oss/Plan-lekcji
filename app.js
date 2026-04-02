@@ -7837,15 +7837,21 @@ function closeHelp() {
 
 function openWizHelp(step) {
   const data = WIZ_HELP[step];
-  if(!data) return;
+  if(!data) { console.log('openWizHelp: brak danych dla kroku', step, 'WIZ_HELP.length:', WIZ_HELP.length); return; }
+  const overlay = document.getElementById('helpOverlay');
+  if(!overlay) { console.log('openWizHelp: brak helpOverlay'); return; }
   document.getElementById('helpTitle').textContent = '❓ Pomoc — '+data.t;
   document.getElementById('helpSub').textContent = 'Kreator — krok '+(step+1);
   let html = `<div class="help-section"><div class="help-section-title">Wskazówki</div>`;
   (data.items||[]).forEach(item => { html += `<div class="help-item">${item}</div>`; });
   html += '</div>';
   document.getElementById('helpContent').innerHTML = html;
-  document.getElementById('helpOverlay').classList.add('show');
+  overlay.classList.add('show');
 }
+// Upewnij się że funkcja jest dostępna globalnie
+window.openWizHelp = openWizHelp;
+// Upewnij się że funkcja jest dostępna globalnie
+window.openWizHelp = openWizHelp;
 
 
 // ================================================================
