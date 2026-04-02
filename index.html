@@ -352,6 +352,11 @@
       </div>
     </div>
 
+    <!-- Lista przedmiotów (ukryta — używana przez tmRenderSubjects) -->
+    <div id="tmSubjectList" style="display:none"></div>
+    <!-- Select przedmiotów NI (ukryty — używany przez tmFillIndivSubject) -->
+    <select id="tmIndivSubject" style="display:none"></select>
+
     <div class="modal-actions">
       <button class="mbtn mbtn-danger" id="tmDeleteBtn" onclick="tmDeleteTeacher()" style="display:none;margin-right:auto">Usuń nauczyciela</button>
       <button class="mbtn mbtn-ghost" onclick="closeTeacherModal()">Anuluj</button>
@@ -730,6 +735,13 @@
     </div>
 
 
+
+    <!-- Przedmioty opcjonalne -->
+    <div class="mfield">
+      <label>Przedmioty opcjonalne (religia, etyka, dodatkowe)</label>
+      <div id="cmOptSubjList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+      <button class="mbtn mbtn-ghost" style="font-size:.74rem;padding:5px 12px" onclick="cmAddOptSubj()">+ dodaj przedmiot opcjonalny</button>
+    </div>
 
     <!-- Nauczyciele — tylko podgląd -->
     <div class="mfield">

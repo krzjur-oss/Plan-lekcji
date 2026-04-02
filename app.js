@@ -3374,11 +3374,7 @@ function genWorkerFn() {
     const seenGrpSlots = new Set();
 
     classes.forEach(cls => {
-      (cls.niGroups||[]).concat(
-        // niGroups zawiera tylko NI — dla zwykłych grup czytamy z cls.groups przez payload
-        // Payload klas ma groups z linkedWith
-        []
-      );
+      // Grupy z linkedWith — buduj zbiory powiązanych slotów
     });
 
     // Czytamy linkedWith bezpośrednio z payload classes (mamy je przez cls.groups)
@@ -3701,12 +3697,18 @@ function genWorkerFn() {
       // Zamień
       newSched[k1]={...l1,teacherId:l2.teacherId};
       newSched[k2]={...l2,teacherId:l1.teacherId};
+      // Zaktualizuj tchSlots
+      if(tchSlots[l1.teacherId]) { tchSlots[l1.teacherId].delete(`${d1}_${h1}`); tchSlots[l1.teacherId].add(`${d2}_${h2}`); }
+      if(tchSlots[l2.teacherId]) { tchSlots[l2.teacherId].delete(`${d2}_${h2}`); tchSlots[l2.teacherId].add(`${d1}_${h1}`); }
       const after = countGaps(l1.teacherId)+countGaps(l2.teacherId);
 
       // Akceptuj jeśli lepiej lub z prawdopodobieństwem SA
       if(after>before && Math.random()>Math.exp((before-after)/temp)) {
         // Cofnij
         newSched[k1]=l1; newSched[k2]=l2;
+        // Cofnij też tchSlots
+        if(tchSlots[l1.teacherId]) { tchSlots[l1.teacherId].delete(`${d2}_${h2}`); tchSlots[l1.teacherId].add(`${d1}_${h1}`); }
+        if(tchSlots[l2.teacherId]) { tchSlots[l2.teacherId].delete(`${d1}_${h1}`); tchSlots[l2.teacherId].add(`${d2}_${h2}`); }
       }
       if(step%200===0) prg(60+Math.round(step/SA_STEPS*35));
     }
@@ -5760,7 +5762,7 @@ function bmRefreshLocSelect(roomId, checked) {
   if(checked && _bmFloors.length) {
     row.style.display = '';
     if(!row.querySelector('select')) {
-      row.innerHTML = `<select class="mselect" style="font-size:.74px;padding:4px 8px"
+      row.innerHTML = `<select class="mselect" style="font-size:.74rem;padding:4px 8px"
         id="bmLocSel_${roomId}" onchange="bmRoomLocChange('${roomId}',this.value)">
         ${bmLocOptions(roomId)}
       </select>`;
