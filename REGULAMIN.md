@@ -61,6 +61,8 @@ Aplikacja **nie zbiera, nie przesyła ani nie przechowuje** żadnych danych uży
 | `pl_wiz` | Autozapis kreatora konfiguracji | W trakcie korzystania z kreatora |
 | `pl_theme` | Wybrany motyw kolorystyczny (ciemny/jasny) | Po zmianie motywu |
 | `pl_consent` | Potwierdzenie zapoznania się z informacją o danych | Po kliknięciu „Rozumiem" |
+| `pl_sched_generated` | Backup ostatnio wygenerowanego planu (ze statystykami placed/failed) | Po każdym uruchomieniu generatora |
+| `pl_sched_generated` | Backup ostatnio wygenerowanego planu (ze statystykami placed/failed) | Po każdym uruchomieniu generatora |
 
 ### Dane osobowe nauczycieli
 

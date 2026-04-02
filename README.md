@@ -57,28 +57,34 @@ Solver działa jako **Web Worker** (wątek w tle) — interfejs nie zamiera podc
 ### 🏫 Konfiguracja szkoły
 
 **Klasy:**
-- Grupy (podgrupy klasy)
+- Poziomy nauczania — zakres lat i liczba klas na rok, automatyczne generowanie nazw (np. 1a, 1b, 2a…)
+- Grupy (podgrupy klasy) z łączeniem międzyklasami
 - Liczba uczniów
 - Wychowawca, sale gospodarz
-- Przedmioty opcjonalne (religia, etyka, mniejszości) z liczbą uczniów i łączeniem grup między klasami
 
 **Nauczyciele:**
 - Pensum i nadgodziny stałe
 - Wymiar etatu (pełny, pół, inny ułamek)
+- Auto-skrót (pierwsza litera imienia + 4 litery nazwiska; dla dwuczłonowych: 2+2)
+- Uprawnienia do przedmiotów
 - Przydział godzin do klas i przedmiotów
+- Typ: nauczyciel przedmiotu lub specjalista (bibliotekarz, logopeda, psycholog, pedagog itp.)
 - Nauczanie indywidualne
 
 **Przedmioty:**
-- Kolor, skrót
+- Kolor, skrót (auto-generowany: jedno słowo → 3 litery, wielosłowowe → pierwsze litery + pełne spójniki)
+- Godziny w tygodniu (na klasę)
 - Czas realizacji (cały rok / semestr 1 / semestr 2)
-- Przypisanie do konkretnych klas
+- Pozycja w planie (dowolnie / na początku / na końcu)
+- Przedmiot opcjonalny (religia, etyka)
+- Tylko dla grup (nie cała klasa)
+- Dane stałe (nie zmieniają się między latami)
 
 **Sale:**
 - Typ (pełna klasa, grupowa, indywidualna, specjalistyczna)
 - Pojemność
 - Przypisanie do budynku i piętra
 - Opiekunowie, preferowane przedmioty (np. sala komputerowa → Informatyka)
-- Ograniczenia wiekowe (sala dla klas 1–3)
 
 ---
 
@@ -108,13 +114,13 @@ Wydruk zawiera nagłówek z nazwą szkoły, rokiem szkolnym i nazwą klasy/naucz
 
 | Krok | Zawartość |
 |------|-----------|
-| 1 — Szkoła | Nazwa szkoły, rok szkolny |
-| 2 — Budynki | Budynki, piętra, segmenty (opcjonalne) |
-| 3 — Klasy | Lista klas z grupami, import masowy |
-| 4 — Przedmioty | Nazwy, skróty, kolory, import masowy |
-| 5 — Nauczyciele | Imię, nazwisko, skrót, pensum, import masowy |
-| 6 — Sale | Nazwa, typ, pojemność, budynek |
-| 7 — Godziny | Harmonogram godzin lekcyjnych lub generator automatyczny |
+| 1 — Rok szkolny | Nowy rok lub kontynuacja z kopiowaniem danych z poprzedniego roku |
+| 2 — Szkoła | Nazwa, adres, telefon, e-mail, dane stałe + przedmioty z godzinami, semestrami, pozycją w planie |
+| 3 — Klasy | Poziomy nauczania (zakres lat, klasy na rok), automatyczne generowanie nazw, liczba uczniów |
+| 4 — Nauczyciele | Imię, nazwisko, auto-skrót, pensum, uprawnienia do przedmiotów, przydziały godzin, typ (przedmiot/specjalista) |
+| 5 — Budynki i sale | Budynki z piętrami/segmentami + sale z typem, pojemnością i przypisaniem do budynku |
+| 6 — Godziny | Ręczne dodawanie lub generator automatyczny, różne długości przerw, lekcje od godziny 0 |
+| 7 — Grupy | Grupy w klasach, grupy łączone międzyklasami, uczniowie NI/rewalidacja/logopeda |
 
 Kreator **autozapisuje** postęp — można bezpiecznie zamknąć przeglądarkę i wrócić do konfiguracji.
 
@@ -126,11 +132,12 @@ Aplikacja **nie zbiera, nie wysyła ani nie przechowuje** żadnych danych zewnę
 
 | Klucz | Zawartość |
 |-------|-----------|
-| `pl_state` | Konfiguracja szkoły (klasy, nauczyciele, sale, przedmioty) |
+| `pl_state` | Konfiguracja szkoły (klasy, nauczyciele, sale, przedmioty, godziny, budynki, NI) |
 | `pl_sched` | Ułożony plan lekcji |
 | `pl_wiz` | Autozapis kreatora |
 | `pl_theme` | Wybrany motyw (ciemny/jasny) |
 | `pl_consent` | Potwierdzenie informacji o danych |
+| `pl_sched_generated` | Backup ostatnio wygenerowanego planu (ze statystykami) |
 
 ---
 
@@ -151,7 +158,14 @@ Udostępnij → **Dodaj do ekranu głównego**
 ## 📖 Jak zacząć
 
 1. Otwórz aplikację → pojawi się strona powitalna
-2. Wybierz **✨ Nowy plan** i przejdź przez kreator (7 kroków)
+2. Wybierz **✨ Nowy plan** i przejdź przez kreator (7 kroków):
+   - **Rok szkolny** — nowy rok lub kontynuacja z kopiowaniem danych
+   - **Szkoła** — dane kontaktowe + przedmioty z godzinami
+   - **Klasy** — poziomy nauczania, automatyczne generowanie
+   - **Nauczyciele** — dane, uprawnienia, przydziały
+   - **Budynki i sale** — lokalizacje i sale lekcyjne
+   - **Godziny** — harmonogram zajęć
+   - **Grupy** — grupy w klasach, łączone, NI
 3. W Ustawieniach → Nauczyciele przypisz każdemu nauczycielowi klasy i godziny
 4. Układaj plan ręcznie (przeciągaj lekcje) lub użyj Generatora
 5. Regularnie eksportuj kopię zapasową: przycisk 💾 → **Eksportuj JSON**
