@@ -449,7 +449,6 @@ function renderWizStep() {
     case 6: body.innerHTML = wizStep7(); break;       // Grupy + NI
   }
 }
-}
 
 // Step 0: Rok szkolny
 function wizStep0() {
@@ -795,40 +794,6 @@ function wUpdateLevel(i, field, value) {
 }
 
 // Step 2: Subjects
-function wizStep3() {
-  const rows = wData.subjects.map((s,i) => {
-    const swatches = SUBJ_COLORS.map(c => 
-      `<div class="color-swatch ${s.color===c?'sel':''}" style="background:${c}" onclick="wSetSubjColor(${i},'${c}')"></div>`
-    ).join('');
-    return `<div class="subj-row">
-      <div class="cdot" style="background:${s.color}"></div>
-      <div class="subj-name">${escapeHtml(s.name)}</div>
-      <div class="subj-abbr">${escapeHtml(s.abbr)}</div>
-      <div class="color-pick">${swatches}</div>
-      <span class="tag-del" onclick="wRemoveSubj(${i})">×</span>
-    </div>`;
-  }).join('');
-  return `<div class="wcard">
-    <div class="wcard-title">Przedmioty</div>
-    <div class="wrow">
-      <div class="wfield"><label>Nazwa przedmiotu</label><input class="winput" id="wSubjName" placeholder="np. Matematyka"></div>
-      <div class="wfield"><label>Skrót</label><input class="winput" id="wSubjAbbr" placeholder="np. MAT" maxlength="5"></div>
-    </div>
-    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddSubj()">+ Dodaj przedmiot</button>
-    ${rows}
-    <p class="import-hint">Szybkie dodawanie: <em>Matematyka;Język polski;Historia;Biologia</em></p>
-    <div class="tag-add-row">
-      <input class="winput" id="wSubjBulk" placeholder="Matematyka;Fizyka;Chemia — masowe dodawanie">
-      <button class="tag-add-btn" onclick="wAddSubjBulk()">Importuj</button>
-    </div>
-  </div>
-  <div class="wbtn-row">
-    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
-    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
-  </div>`;
-}
-
-// Step 3: Teachers
 // Step 4: Budynki i Sale
 function wizStep4() {
   const BCOLORS = ['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
@@ -945,8 +910,6 @@ function wizStep4() {
   </div>`;
 }
 
-// Step 5: Nauczyciele
-// Step 5: Nauczyciele (rozbudowany)
 // Step 5: Nauczyciele (rozbudowany)
 function wizStep5() {
   const subjects = wData.subjects||[];
@@ -1133,49 +1096,6 @@ function wRemoveAssignment(ti, ai) {
   }
 }
 
-function wToggleTchDetails(i) {
-  if(wData.teachers[i]) {
-    wData.teachers[i]._expanded = !wData.teachers[i]._expanded;
-    renderWizStep();
-  }
-}
-
-function wUpdateTch(i, field, value) {
-  if(wData.teachers[i]) {
-    wData.teachers[i][field] = value;
-    renderWizStep();
-  }
-}
-
-function wToggleTchSubj(i, subjId, checked) {
-  const t = wData.teachers[i];
-  if(!t) return;
-  if(!t.subjects) t.subjects = [];
-  if(checked && !t.subjects.includes(subjId)) t.subjects.push(subjId);
-  else if(!checked) t.subjects = t.subjects.filter(s => s !== subjId);
-  renderWizStep();
-}
-
-function wAddAssignment(i) {
-  const t = wData.teachers[i];
-  if(!t) return;
-  const subjId = document.getElementById('tchAsgnSubj_'+i)?.value;
-  const classId = document.getElementById('tchAsgnCls_'+i)?.value;
-  const hours = parseInt(document.getElementById('tchAsgnHrs_'+i)?.value)||0;
-  if(!subjId || !classId || !hours) { notify('Wybierz przedmiot, klasę i podaj godziny'); return; }
-  if(!t.assignments) t.assignments = [];
-  t.assignments.push({subjectId:subjId, classId, hours});
-  renderWizStep();
-}
-
-function wRemoveAssignment(ti, ai) {
-  if(wData.teachers[ti] && wData.teachers[ti].assignments) {
-    wData.teachers[ti].assignments.splice(ai, 1);
-    renderWizStep();
-  }
-}
-
-// Step 5: Hours
 // Step 6: Godziny lekcyjne (rozbudowany)
 function wizStep6() {
   const hrs = wData.hours.sort((a,b)=>a.num-b.num);
@@ -1291,7 +1211,7 @@ function wSetBreak(afterHourIdx, minutes) {
   renderWizStep();
 }
 
-// Step 7: NI / Grupy
+// Step 7: Grupy i NI
 function wizStep7() {
   if(!wData.niStudents) wData.niStudents = [];
   const subjects = wData.subjects||[];
