@@ -1606,9 +1606,29 @@ function wAddClassBulk() {
 }
 function wRemoveClass(i){wData.classes.splice(i,1);renderWizStep();}
 
+function buildSubjAbbr(name) {
+  const CONJUNCTIONS = new Set(['i','lub','oraz','czy','a']);
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return '';
+  if(words.length === 1) return words[0].slice(0,3).toUpperCase();
+  // Wielosłowowa — pierwsze litery słów + pełne spójniki między nimi
+  let abbr = '';
+  words.forEach(w => {
+    const lower = w.toLowerCase();
+    if(CONJUNCTIONS.has(lower)) {
+      // Spójnik — dodaj w całości (wielkimi literami)
+      abbr += lower.toUpperCase();
+    } else {
+      // Zwykłe słowo — pierwsza litera
+      abbr += w[0].toUpperCase();
+    }
+  });
+  return abbr;
+}
+
 function wAddSubj() {
   const n = document.getElementById('wSubjName').value.trim();
-  const a = document.getElementById('wSubjAbbr').value.trim()||n.slice(0,3).toUpperCase();
+  const a = document.getElementById('wSubjAbbr').value.trim()||buildSubjAbbr(n);
   const h = parseInt(document.getElementById('wSubjHours').value)||0;
   if(!n) return;
   wData.subjects.push({name:n,abbr:a,color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
@@ -1624,7 +1644,18 @@ function wAddSubjBulk() {
   raw.split(';').forEach(n=>{
     n=n.trim(); if(!n)return;
     if(!wData.subjects.find(s=>s.name===n))
-      wData.subjects.push({name:n,abbr:n.slice(0,3).toUpperCase(),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
+      wData.subjects.push({name:n,abbr:buildSubjAbbr(n),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
+        hoursPerWeek:0, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
+  });
+  renderWizStep();
+}
+function wAddSubjBulk() {
+  const raw = document.getElementById('wSubjBulk').value.trim();
+  if(!raw) return;
+  raw.split(';').forEach(n=>{
+    n=n.trim(); if(!n)return;
+    if(!wData.subjects.find(s=>s.name===n))
+      wData.subjects.push({name:n,abbr:buildSubjAbbr(n),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
         hoursPerWeek:0, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
   });
   renderWizStep();
