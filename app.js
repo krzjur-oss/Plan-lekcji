@@ -3752,20 +3752,43 @@ function renderStats() {
   </div>`;
 
   html += `<div class="teacher-load-table">
-    <div class="tlt-header"><div class="tlt-name">Nauczyciel</div><div class="tlt-hours">Godz.</div><div class="tlt-bar-wrap" style="padding:0">Obciążenie</div></div>`;
+    <div class="tlt-header"><div class="tlt-name">Nauczyciel</div><div class="tlt-hours" style="min-width:110px;text-align:left">Plan / Przydział</div><div class="tlt-bar-wrap" style="padding:0;flex:3">Realizacja etatu</div></div>`;
+
   appState.teachers.sort((a,b)=>(teacherHours[b.id]||0)-(teacherHours[a.id]||0)).forEach(t=>{
-    const h=teacherHours[t.id]||0;
-    const pct=Math.round(h/maxH*100);
-    const barColor = pct>80?'var(--red)':pct>60?'var(--yellow)':'var(--green)';
-    const niH = (t.individualTeaching||[]).reduce((s,i)=>s+(i.hours||0),0);
+    const actual=teacherHours[t.id]||0;
+    const assignedBase=(t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
+    const niInPensumH=niPensumHours(t.id);
+    const assigned=assignedBase+niInPensumH;
+    const pensum=t.hoursTotal||0;
+    const extra=t.hoursExtra||0;
+    const target=pensum+extra;
+    const refVal=target||assigned||1;
+    const pct=Math.min(100,Math.round(actual/refVal*100));
+    let barColor='var(--green)';
+    if(target>0){
+      if(actual>target) barColor='var(--red)';
+      else if(actual<target*0.8) barColor='var(--yellow)';
+    }
+    const diff=target?actual-target:actual-assigned;
+    const diffStr=(target||assigned)?(diff>0?`+${diff}`:`${diff}`):'';
+    const diffColor=diff>0?'var(--red)':diff<0?'var(--yellow)':'var(--green)';
+    const targetLabel=target
+      ?(extra?`${pensum}+${extra}=${target}`:`${target}`)
+      :(assigned?`przyd. ${assigned}`:'');
+    const niH=(t.individualTeaching||[]).reduce((s,i)=>s+(i.hours||0),0);
+
     html+=`<div class="tlt-row">
       <div class="tlt-name">${t.first} ${t.last}
-        <span style="color:var(--text-m);font-family:var(--mono);font-size:.72rem">${t.abbr}</span>
+        <span style="color:var(--text-m);font-family:var(--mono);font-size:.7rem">${t.abbr}</span>
         ${niH?`<span style="font-size:.62rem;padding:1px 5px;border-radius:6px;
           background:var(--accent-g);color:var(--accent);margin-left:4px"
           title="Godziny NI/grupowe poza planem klasy">+${niH}h NI</span>`:''}
+        ${extra?`<span style="font-size:.68rem;color:var(--orange);margin-left:4px" title="Nadgodziny stałe: ${extra} godz.">+${extra} nadg.</span>`:''}
       </div>
-      <div class="tlt-hours" title="W planie lekcji${niH?' + '+niH+'h NI':''}">${h}</div>
+      <div class="tlt-hours" style="min-width:130px;text-align:left;font-family:var(--mono)">
+        ${actual}${targetLabel?' / '+targetLabel:''} godz.
+        ${diffStr?`<span style="color:${diffColor};margin-left:3px">(${diffStr})</span>`:''}
+      </div>
       <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${barColor}"></div></div>
     </div>`;
   });
@@ -3787,83 +3810,6 @@ function renderStats() {
     </div>`;
   });
   html += '</div>';
-
-  // ── Przydziały vs rzeczywistość ──
-  const hasAssignments = appState.teachers.some(t => (t.assignments||[]).length > 0);
-  if (hasAssignments) {
-    html += `<div class="teacher-load-table" style="margin-top:0">
-      <div class="tlt-header">
-        <div class="tlt-name">Nauczyciel</div>
-        <div class="tlt-hours" style="min-width:110px;text-align:left">Plan / Przydział</div>
-        <div class="tlt-bar-wrap" style="padding:0;flex:3">Realizacja etatu</div>
-      </div>`;
-    appState.teachers.filter(t=>(t.assignments||[]).length||t.hoursTotal).forEach(t => {
-      const actual = teacherHours[t.id] || 0;
-      const assignedBase = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
-      const niInPensumH  = niPensumHours(t.id);
-      const assigned = assignedBase + niInPensumH;
-      const pensum = t.hoursTotal || 0;
-      const extra  = t.hoursExtra || 0;
-      const target = pensum + extra;
-      const refVal = target || assigned || 1;
-      const pct    = Math.min(100, Math.round(actual / refVal * 100));
-      let barColor = 'var(--green)';
-      if (target > 0) {
-        if (actual > target)           barColor = 'var(--red)';
-        else if (actual < target * 0.8) barColor = 'var(--yellow)';
-      }
-      const diff = target ? actual - target : actual - assigned;
-      const diffStr = (target || assigned) ? (diff > 0 ? `+${diff}` : `${diff}`) : '';
-      const diffColor = diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--yellow)' : 'var(--green)';
-      // Label: "15 / 18+2=20 godz." or "15 / 18 godz."
-      const targetLabel = target
-        ? (extra ? `${pensum}+${extra}=${target}` : `${target}`)
-        : (assigned ? `przyd. ${assigned}` : '');
-
-      html += `<div class="tlt-row">
-        <div class="tlt-name">${t.first} ${t.last}
-          <span style="color:var(--text-m);font-family:var(--mono);font-size:.7rem">${t.abbr}</span>
-          ${extra ? `<span style="font-size:.68rem;color:var(--orange);margin-left:4px" title="Nadgodziny stałe: ${extra} godz.">+${extra} nadg.</span>` : ''}
-        </div>
-        <div class="tlt-hours" style="min-width:130px;text-align:left;font-family:var(--mono)">
-          ${actual}${targetLabel ? ' / '+targetLabel : ''} godz.
-          ${diffStr ? `<span style="color:${diffColor};margin-left:3px">(${diffStr})</span>` : ''}
-        </div>
-        <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${pct}%;background:${barColor}"></div></div>
-      </div>`;
-
-      // Per-class breakdown
-      if ((t.assignments||[]).length) {
-        const byClass = {};
-        (t.assignments||[]).forEach(a => {
-          const cls = appState.classes.find(c=>c.id===a.classId);
-          const subj = appState.subjects.find(s=>s.id===a.subjectId);
-          if (!byClass[a.classId]) byClass[a.classId] = {cls, items:[]};
-          byClass[a.classId].items.push({subj, hours:a.hours});
-        });
-        Object.values(byClass).forEach(({cls, items}) => {
-          items.forEach(({subj, hours}) => {
-            const realH = Object.entries(schedData).filter(([k,v])=>{
-              const parts=k.split('_');
-              return parts[0]===(cls?.id||'') && v.teacherId===t.id && v.subjectId===(subj?.id||'');
-            }).length;
-            const rowPct = Math.min(100, Math.round(realH/hours*100));
-            const rowColor = realH > hours ? 'var(--red)' : realH === hours ? 'var(--green)' : 'var(--yellow)';
-            html += `<div class="tlt-row" style="padding-left:28px;background:var(--s2);font-size:.76rem">
-              <div class="tlt-name" style="color:var(--text-m)">
-                ${cls?cls.name:'?'} —
-                <span class="cdot" style="background:${subj?subj.color:'#888'};margin-right:3px;margin-left:4px"></span>
-                ${subj?subj.name:'?'}
-              </div>
-              <div class="tlt-hours" style="min-width:110px;font-family:var(--mono);text-align:left;color:var(--text-m)">${realH}/${hours} godz.</div>
-              <div class="tlt-bar-wrap"><div class="tlt-bar" style="width:${rowPct}%;background:${rowColor}"></div></div>
-            </div>`;
-          });
-        });
-      }
-    });
-    html += '</div>';
-  }
 
   document.getElementById('statsContent').innerHTML = html;
 }
