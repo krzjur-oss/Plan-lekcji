@@ -432,7 +432,7 @@ function renderWizStep() {
   // Przycisk pomocy w headerze kreatora
   const autoSaveEl = document.getElementById('wizAutoSaveInfo');
   if(autoSaveEl) {
-    autoSaveEl.innerHTML = `<button onclick="openWizHelp(${0}+wStep)"
+    autoSaveEl.innerHTML = `<button onclick="openWizHelp(${wStep})"
       style="background:none;border:1px solid var(--border);border-radius:6px;
              padding:2px 8px;font-size:.7rem;cursor:pointer;color:var(--text-m)">
       ❓ Pomoc
