@@ -430,9 +430,9 @@ function renderWizStepsIndicator() {
 function renderWizStep() {
   renderWizStepsIndicator();
   // Przycisk pomocy w headerze kreatora
-  const autoSaveEl = document.getElementById('wizAutoSaveInfo');
-  if(autoSaveEl) {
-    autoSaveEl.innerHTML = `<button onclick="openWizHelp(${wStep})"
+  const helpEl = document.getElementById('wizHelpBtn');
+  if(helpEl) {
+    helpEl.innerHTML = `<button onclick="openWizHelp(${wStep})"
       style="background:none;border:1px solid var(--border);border-radius:6px;
              padding:2px 8px;font-size:.7rem;cursor:pointer;color:var(--text-m)">
       ❓ Pomoc
