@@ -7832,21 +7832,60 @@ function openHelp(view) {
 }
 
 function closeHelp() {
-  document.getElementById('helpOverlay').classList.remove('show');
+  const el = document.getElementById('helpOverlay');
+  if(el) {
+    el.classList.remove('show');
+    el.style.display = 'none';
+  }
+}
+window.closeHelp = closeHelp;
+
+function openHelp(view) {
+  const v = view || _currentView || 'class';
+  const data = HELP[v];
+  if(!data) return;
+  document.getElementById('helpTitle').textContent = data.title;
+  document.getElementById('helpSub').textContent = data.sub||'';
+  let html = '';
+  (data.sections||[]).forEach(sec => {
+    html += `<div class="help-section">`;
+    if(sec.t) html += `<div class="help-section-title">${sec.t}</div>`;
+    if(sec.items) sec.items.forEach(item => {
+      html += `<div class="help-item">${item}</div>`;
+    });
+    if(sec.tip) html += `<div class="help-tip">💡 ${sec.tip}</div>`;
+    html += `</div>`;
+  });
+  document.getElementById('helpContent').innerHTML = html;
+  const overlay = document.getElementById('helpOverlay');
+  overlay.classList.add('show');
+  overlay.style.display = 'flex';
 }
 
 function openWizHelp(step) {
   const data = WIZ_HELP[step];
-  if(!data) { console.log('openWizHelp: brak danych dla kroku', step, 'WIZ_HELP.length:', WIZ_HELP.length); return; }
+  if(!data) { console.log('openWizHelp: brak danych dla kroku', step); return; }
+  
   const overlay = document.getElementById('helpOverlay');
+  const panel = document.getElementById('helpPanel');
+  const title = document.getElementById('helpTitle');
+  const sub = document.getElementById('helpSub');
+  const content = document.getElementById('helpContent');
+  
   if(!overlay) { console.log('openWizHelp: brak helpOverlay'); return; }
-  document.getElementById('helpTitle').textContent = '❓ Pomoc — '+data.t;
-  document.getElementById('helpSub').textContent = 'Kreator — krok '+(step+1);
+  if(!panel) { console.log('openWizHelp: brak helpPanel'); return; }
+  if(!title) { console.log('openWizHelp: brak helpTitle'); return; }
+  
+  title.textContent = '❓ Pomoc — '+data.t;
+  sub.textContent = 'Kreator — krok '+(step+1);
+  
   let html = `<div class="help-section"><div class="help-section-title">Wskazówki</div>`;
   (data.items||[]).forEach(item => { html += `<div class="help-item">${item}</div>`; });
   html += '</div>';
-  document.getElementById('helpContent').innerHTML = html;
-  overlay.classList.add('show');
+  content.innerHTML = html;
+  
+  // Force display instead of just adding class
+  overlay.style.display = 'flex';
 }
 // Upewnij się że funkcja jest dostępna globalnie
 window.openWizHelp = openWizHelp;
