@@ -1,6 +1,12 @@
 // ================================================================
 //  CONSTANTS & PALETTE
 // ================================================================
+const ROOM_TYPES = {
+  full:    { label:'Cała klasa',       icon:'🏫', cls:'full'  },
+  group:   { label:'Grupowa',          icon:'👥', cls:'group' },
+  indiv:   { label:'Indywidualna',     icon:'👤', cls:'indiv' },
+  special: { label:'Specjalistyczna',  icon:'⚗️', cls:'group' },
+};
 const DAYS = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek'];
 const SUBJ_COLORS = [
   '#38bdf8','#34d399','#fbbf24','#f87171',
@@ -90,6 +96,11 @@ function migrateAppState() {
       );
     }
     if(!c.studentCount)     c.studentCount = 0;
+    // Auto-detect level z nazwy jeśli brak
+    if(!c.level) {
+      const m = (c.name||'').match(/\d+/);
+      c.level = m && parseInt(m[0]) <= 3 ? 'wczesnoszkolne' : 'podstawowa';
+    }
     (c.optionalSubjects||[]).forEach(o => { if(!o.mergeWith) o.mergeWith = []; });
   });
   (appState.subjects||[]).forEach(s => {
@@ -507,22 +518,38 @@ function wizStep1() {
 }
 
 function wizStep2() {
-  const tags = wData.classes.map((c,i) => `
-    <div class="tag">
-      <span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span>
-      <span class="tag-del" onclick="wRemoveClass(${i})">×</span>
-    </div>`).join('');
+  const LEVELS = {wczesnoszkolne:'1–3 Wczesnoszkolne', podstawowa:'4–8 Edukacja podstawowa'};
+  const wczTags = wData.classes.filter(c=>c.level==='wczesnoszkolne').map((c,i)=>{
+    const gi = wData.classes.indexOf(c);
+    return `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${gi})">×</span></div>`;
+  }).join('');
+  const podTags = wData.classes.filter(c=>c.level!=='wczesnoszkolne').map((c,i)=>{
+    const gi = wData.classes.indexOf(c);
+    return `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${gi})">×</span></div>`;
+  }).join('');
   return `<div class="wcard">
     <div class="wcard-title">Klasy</div>
     <div class="wrow">
       <div class="wfield"><label>Nazwa klasy</label><input class="winput" id="wClassName" placeholder="np. 1a, 2b, 3c"></div>
-      <div class="wfield"><label>Grupy (opcjonalnie, rozdziel przecinkami)</label><input class="winput" id="wClassGroups" placeholder="np. gr1, gr2"></div>
+      <div class="wfield" style="flex:.6"><label>Kategoria</label>
+        <select class="wselect" id="wClassLevel">
+          <option value="wczesnoszkolne">1–3</option>
+          <option value="podstawowa">4–8</option>
+        </select>
+      </div>
+      <div class="wfield"><label>Grupy (opcjonalnie)</label><input class="winput" id="wClassGroups" placeholder="np. gr1, gr2"></div>
     </div>
     <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddClass()">+ Dodaj klasę</button>
-    <div class="tag-list">${tags}</div>
+    ${wczTags?`<div style="font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;margin:8px 0 4px">1–3 Nauczanie wczesnoszkolne</div><div class="tag-list">${wczTags}</div>`:''}
+    ${podTags?`<div style="font-size:.7rem;font-weight:700;color:var(--orange);text-transform:uppercase;margin:8px 0 4px">4–8 Edukacja podstawowa</div><div class="tag-list">${podTags}</div>`:''}
+    ${!wczTags&&!podTags?'<div class="tag-list"></div>':''}
     <p class="import-hint">Możesz też wpisać wiele klas naraz w formacie: <em>1a;1b;2a;2b</em></p>
     <div class="tag-add-row">
       <input class="winput" id="wClassBulk" placeholder="1a;1b;2a;2b — masowe dodawanie">
+      <select class="wselect" id="wClassBulkLevel" style="flex:.5">
+        <option value="wczesnoszkolne">1–3</option>
+        <option value="podstawowa">4–8</option>
+      </select>
       <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
     </div>
   </div>
@@ -846,8 +873,9 @@ function wizFinish() {
 function wAddClass() {
   const n = document.getElementById('wClassName').value.trim();
   const g = document.getElementById('wClassGroups').value.trim();
+  const lv = document.getElementById('wClassLevel').value || 'podstawowa';
   if(!n) return;
-  wData.classes.push({name:n, groups: g
+  wData.classes.push({name:n, level:lv, groups: g
     ? g.split(',').map(x=>x.trim()).filter(Boolean).map(gname=>({
         id:'grp'+Date.now()+Math.random().toString(36).slice(2,5),
         name:gname, type:'group', studentCount:0, teacherId:null, subjects:[], linkedWith:[]
@@ -860,7 +888,8 @@ function wAddClass() {
 function wAddClassBulk() {
   const raw = document.getElementById('wClassBulk').value.trim();
   if(!raw) return;
-  raw.split(';').forEach(n=>{n=n.trim();if(n&&!wData.classes.find(c=>c.name===n))wData.classes.push({name:n,groups:[]});});
+  const lv = document.getElementById('wClassBulkLevel')?.value || 'podstawowa';
+  raw.split(';').forEach(n=>{n=n.trim();if(n&&!wData.classes.find(c=>c.name===n))wData.classes.push({name:n,level:lv,groups:[]});});
   renderWizStep();
 }
 function wRemoveClass(i){wData.classes.splice(i,1);renderWizStep();}
@@ -3383,9 +3412,6 @@ function genWorkerFn() {
 
         // Stary system optionalSubjects (pozycja skrajna)
         const optEntry = (cls.optionalSubjects||[]).find(o=>o.subjId===a.subjectId);
-        // Nowy system: edgePosition z grupy (ustawiane przez checkbox w modalu klasy)
-        const isEdge   = optEntry?.position==='edge' || !!(linkedGrp?.edgePosition);
-        const effectivePos = isEdge ? 'edge' : pos;
 
         // Nowy system: sprawdź czy nauczyciel prowadzi przedmiot dla grupy z linkedWith
         // Grupa łączona = nauczyciel ma przydział do tej klasy I istnieje grupa tej klasy
@@ -3400,6 +3426,10 @@ function genWorkerFn() {
           // lub czy nie ma przypisanego nauczyciela (wtedy bierzemy dowolny z przydziałem)
           (!g.teacherId || g.teacherId===t.id)
         );
+
+        // Nowy system: edgePosition z grupy (ustawiane przez checkbox w modalu klasy)
+        const isEdge   = optEntry?.position==='edge' || !!(linkedGrp?.edgePosition);
+        const effectivePos = isEdge ? 'edge' : pos;
 
         // Jeśli klasa ma grupę łączoną i nauczyciel ma przydział — to zadanie grupowe
         const isInterclass = !!(linkedGrp);
@@ -3663,8 +3693,8 @@ function genWorkerFn() {
       if(l1.teacherId===l2.teacherId) continue;
 
       // Sprawdź czy zamiana jest możliwa
-      const ok1 = isTchFree(l2.teacherId,+d1,+h1) && tchAvail(l2.teacherId,+d1,+h1);
-      const ok2 = isTchFree(l1.teacherId,+d2,+h2) && tchAvail(l1.teacherId,+d2,+h2);
+      const ok1 = isTchFree(l2.teacherId,+d1,+h1) && tchAvail(l2.teacherId,+d1,+h1) && inWindow(+d1,+h1);
+      const ok2 = isTchFree(l1.teacherId,+d2,+h2) && tchAvail(l1.teacherId,+d2,+h2) && inWindow(+d2,+h2);
       if(!ok1||!ok2) continue;
 
       const before = countGaps(l1.teacherId)+countGaps(l2.teacherId);
@@ -3821,11 +3851,6 @@ function renderStats() {
         });
         Object.values(byClass).forEach(({cls, items}) => {
           items.forEach(({subj, hours}) => {
-            const actH = Object.entries(schedData).filter(([k,v])=>{
-              const parts=k.split('_');
-              return parts[0]===cls?.id && v.teacherId===t.id && v.subjectId===subj?.id;
-            }).length;
-            // Count unique days x hours (not just per-day)
             const realH = Object.entries(schedData).filter(([k,v])=>{
               const parts=k.split('_');
               return parts[0]===(cls?.id||'') && v.teacherId===t.id && v.subjectId===(subj?.id||'');
@@ -3913,16 +3938,25 @@ function renderSettings(tab) {
 function settingsKlasy() {
   let html = `<div style="grid-column:1/-1">`;
   html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">`;
-  html+=`<div class="settings-card">
-    <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>Klasy</span>
-    </div>`;
 
-  if (!appState.classes.length) {
-    html += `<div style="color:var(--text-m);font-size:.82rem;padding:8px 0">Brak klas.</div>`;
-  }
+  const LEVELS = [
+    {id:'wczesnoszkolne', label:'1–3 Nauczanie wczesnoszkolne', color:'var(--accent)'},
+    {id:'podstawowa',     label:'4–8 Edukacja podstawowa',      color:'var(--orange)'}
+  ];
 
-  appState.classes.forEach(c => {
+  LEVELS.forEach(lv => {
+    const classes = appState.classes.filter(c => (c.level||'podstawowa') === lv.id);
+    html+=`<div class="settings-card">
+      <div class="settings-card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span style="color:${lv.color}">${lv.label}</span>
+        <span style="font-size:.7rem;color:var(--text-d)">${classes.length} klas</span>
+      </div>`;
+
+    if (!classes.length) {
+      html += `<div style="color:var(--text-m);font-size:.82rem;padding:8px 0">Brak klas w tej kategorii.</div>`;
+    }
+
+    classes.forEach(c => {
     // Zbierz nauczycieli przypisanych do tej klasy (mają przydział z tą klasą)
     const assignedTeachers = appState.teachers.filter(t =>
       (t.assignments||[]).some(a => a.classId === c.id)
@@ -3978,8 +4012,11 @@ function settingsKlasy() {
         ${tchBadges || '<div style="color:var(--text-m);font-size:.78rem">Brak przypisanych nauczycieli — przypisz ich w kartach nauczycieli.</div>'}
       </div>
     </div>`;
+    });
+    html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
+    html += `</div>`;
   });
-  html += `<button class="wbtn wbtn-ghost" style="width:100%;margin-top:10px;padding:10px;font-size:.82rem;border-style:dashed" onclick="openAddClassModal()">+ Dodaj nową klasę</button>`;
+
   html += `</div>`;
   html += `</div>`;
   return html;
@@ -6414,6 +6451,7 @@ function openAddClassModal() {
   try {
     document.getElementById('classModalTitle').innerHTML = 'Dodaj <span>klasę</span>';
     document.getElementById('cmName').value = '';
+    document.getElementById('cmLevel').value = 'podstawowa';
     document.getElementById('cmDeleteBtn').style.display = 'none';
     document.getElementById('cmStudentCount').value = '';
     cmRenderGroups();
@@ -6441,6 +6479,7 @@ function openEditClassModal(id) {
   );
   document.getElementById('classModalTitle').innerHTML = `Edytuj klasę <span>${escapeHtml(c.name)}</span>`;
   document.getElementById('cmName').value = c.name || '';
+  document.getElementById('cmLevel').value = c.level || 'podstawowa';
   document.getElementById('cmStudentCount').value = c.studentCount || '';
   document.getElementById('cmDeleteBtn').style.display = '';
   cmRenderGroups();
@@ -6791,6 +6830,7 @@ function saveClassModal() {
   const name = document.getElementById('cmName').value.trim();
   if (!name) { notify('Podaj nazwę klasy'); return; }
   const studentCount = parseInt(document.getElementById('cmStudentCount').value)||0;
+  const level = document.getElementById('cmLevel').value || 'podstawowa';
   const homeroomTeacherId = document.getElementById('cmHomeroom').value || null;
   const homeRooms = [...document.querySelectorAll('#cmRoomList input:checked')].map(i => i.value);
 
@@ -6798,6 +6838,7 @@ function saveClassModal() {
     const c = appState.classes.find(c => c.id === _cmId);
     if (c) {
       c.name = name;
+      c.level = level;
       c.studentCount = studentCount;
       c.groups = _cmGroups;
       c.homeroomTeacherId = homeroomTeacherId;
@@ -6808,6 +6849,7 @@ function saveClassModal() {
     appState.classes.push({
       id: 'cls' + Date.now(),
       name,
+      level,
       studentCount,
       groups: _cmGroups,
       homeroomTeacherId,
