@@ -45,13 +45,6 @@ function loadAll() {
 }
 
 function migrateAppState() {
-  // Migracja pozycji: start/end -> edge
-  (appState.subjects||[]).forEach(s => {
-    if(s.position==='start' || s.position==='end') s.position = 'edge';
-  });
-  (wData?.subjects||[]).forEach(s => {
-    if(s.position==='start' || s.position==='end') s.position = 'edge';
-  });
   // Zapewnij że wszystkie pola tablicowe istnieją
   if(!appState.buildings)   appState.buildings = [];
   if(!appState.teachers)    appState.teachers  = [];
@@ -542,7 +535,7 @@ function wizStep1() {
       `<div class="color-swatch ${s.color===c?'sel':''}" style="background:${c}" onclick="wSetSubjColor(${i},'${c}')"></div>`
     ).join('');
     const durLabel = s.duration==='sem1'?'I sem.':s.duration==='sem2'?'II sem.':'Cały rok';
-    const posLabel = s.position==='edge'?'Na krańcu dnia':'Dowolnie';
+    const posLabel = s.position==='start'?'Na początku':s.position==='end'?'Na końcu':'Dowolnie';
     const fixedBadge = s.fixed?'<span style="font-size:.58rem;padding:1px 5px;border-radius:6px;background:var(--green-g);color:var(--green);border:1px solid rgba(52,211,153,.2)">stały</span>':'';
     const optBadge = s.optional?'<span style="font-size:.58rem;padding:1px 5px;border-radius:6px;background:var(--accent-g);color:var(--accent);border:1px solid rgba(56,189,248,.2)">opcjonalny</span>':'';
     return `<div class="subj-row" style="flex-wrap:wrap;gap:4px" id="subjRow_${i}">
@@ -574,11 +567,12 @@ function wizStep1() {
             <option value="sem2" ${s.duration==='sem2'?'selected':''}>II semestr</option>
           </select></div>
         <div><label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Pozycja w planie</label>
-           <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+          <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
             background:var(--s1);color:var(--text);font-size:.78rem"
             onchange="wUpdateSubj(${i},'position',this.value)">
             <option value="any" ${s.position==='any'?'selected':''}>Dowolnie</option>
-            <option value="edge" ${s.position==='edge'?'selected':''}>Na krańcu dnia</option>
+            <option value="start" ${s.position==='start'?'selected':''}>Na początku zajęć</option>
+            <option value="end" ${s.position==='end'?'selected':''}>Na końcu zajęć</option>
           </select></div>
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
@@ -622,7 +616,153 @@ function wizStep1() {
         </label>
       </div>
     </div>
-          </select>
+
+    <!-- ── Separator ── -->
+    <div style="border-top:1px solid var(--border);margin:16px 0 12px"></div>
+
+    <!-- ── Przedmioty ── -->
+    <div class="wcard-title">Przedmioty nauczane w szkole</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Dodaj przedmioty realizowane w szkole. Dla każdego możesz ustalić godziny w tygodniu,
+      semestr, pozycję w planie oraz czy jest opcjonalny.
+    </p>
+    <div class="wrow">
+      <div class="wfield" style="flex:2"><label>Nazwa przedmiotu</label>
+        <input class="winput" id="wSubjName" placeholder="np. Matematyka"></div>
+      <div class="wfield" style="flex:0 0 80px"><label>Skrót</label>
+        <input class="winput" id="wSubjAbbr" placeholder="MAT" maxlength="5"></div>
+      <div class="wfield" style="flex:0 0 70px"><label>Godz./tydz.</label>
+        <input class="winput" id="wSubjHours" type="number" min="0" max="20" value="3" style="text-align:center"></div>
+    </div>
+    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddSubj()">+ Dodaj przedmiot</button>
+    ${subjRows}
+    ${!wData.subjects.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak przedmiotów — dodaj co najmniej jeden</div>':''}
+    <p class="import-hint">Szybkie dodawanie: <em>Matematyka;Język polski;Historia;Biologia</em></p>
+    <div class="tag-add-row">
+      <input class="winput" id="wSubjBulk" placeholder="Matematyka;Fizyka;Chemia — masowe dodawanie">
+      <button class="tag-add-btn" onclick="wAddSubjBulk()">Importuj</button>
+    </div>
+  </div>
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+function wToggleSubjDetails(i) {
+  if(wData.subjects[i]) {
+    wData.subjects[i]._expanded = !wData.subjects[i]._expanded;
+    renderWizStep();
+  }
+}
+
+function wUpdateSubj(i, field, value) {
+  if(wData.subjects[i]) {
+    wData.subjects[i][field] = value;
+  }
+}
+
+function wizStep2() {
+  const CLS_LETTERS = 'ABCDEFGHIJ'.split('');
+  // Poziomy nauczania — definiowane przez użytkownika
+  const levels = wData._classLevels || [{from:1, to:3, label:'Wczesnoszkolne', cat:'wczesnoszkolne'},{from:4, to:8, label:'Podstawowa', cat:'podstawowa'}];
+  if(!wData._classLevels) wData._classLevels = levels;
+
+  // Generuj podgląd klas z poziomów
+  const levelRows = levels.map((lv,li) => {
+    const count = lv.classCount || 2;
+    const letters = CLS_LETTERS.slice(0, count);
+    const generated = [];
+    for(let yr = lv.from; yr <= lv.to; yr++) {
+      letters.forEach(ltr => generated.push({name: yr+ltr.toLowerCase(), level: lv.cat}));
+    }
+    const genTags = generated.map(g =>
+      `<span class="tag" style="font-size:.68rem">${g.name}</span>`
+    ).join('');
+    return `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-size:.78rem;font-weight:700;color:${lv.cat==='wczesnoszkolne'?'var(--accent)':'var(--orange)'}">
+          ${lv.label||'Poziom '+(li+1)}
+        </span>
+        <span style="font-size:.68rem;color:var(--text-m)">Rok</span>
+        <input type="number" min="0" max="12" value="${lv.from}"
+          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'from',parseInt(this.value)||1)">
+        <span style="font-size:.68rem;color:var(--text-m)">do</span>
+        <input type="number" min="0" max="12" value="${lv.to}"
+          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'to',parseInt(this.value)||8)">
+        <span style="font-size:.68rem;color:var(--text-m)">Klas na rok:</span>
+        <input type="number" min="1" max="10" value="${count}"
+          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'classCount',parseInt(this.value)||2)">
+        <span style="font-size:.68rem;color:var(--text-m)">(${letters.join(', ')})</span>
+        <span class="tag-del" onclick="wRemoveLevel(${li})" title="Usuń poziom">✕</span>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${genTags}</div>
+      ${lv.studentCount!==undefined ? `<div style="margin-top:6px;display:flex;align-items:center;gap:4px">
+        <span style="font-size:.68rem;color:var(--text-m)">Uczniów w klasie:</span>
+        <input type="number" min="1" max="45" value="${lv.studentCount||28}"
+          style="width:50px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
+          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
+          onchange="wUpdateLevel(${li},'studentCount',parseInt(this.value)||28)">
+      </div>` : `<button style="font-size:.65rem;color:var(--text-d);background:none;border:none;cursor:pointer;margin-top:4px"
+        onclick="wUpdateLevel(${li},'studentCount',28);renderWizStep()">+ Podaj liczbę uczniów</button>`}
+    </div>`;
+  }).join('');
+
+  // Podsumowanie
+  let totalClasses = 0;
+  levels.forEach(lv => {
+    const count = lv.classCount || 2;
+    totalClasses += (lv.to - lv.from + 1) * count;
+  });
+
+  return `<div class="wcard">
+    <div class="wcard-title">Klasy</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
+      Zdefiniuj poziomy nauczania — ile lat nauki i ile klas na każdy rok.
+      Nazwy klas wygenerują się automatycznie (np. 1a, 1b, 2a, 2b...).
+    </p>
+
+    ${levelRows}
+
+    <button class="tag-add-btn" style="width:100%;margin:8px 0" onclick="wAddLevel()">+ Dodaj poziom nauczania</button>
+
+    <div style="font-size:.72rem;color:var(--text-m);padding:8px 12px;background:var(--s2);border-radius:6px;text-align:center">
+      Łącznie: <strong>${totalClasses}</strong> klas
+    </div>
+
+    <!-- Ręczne dodawanie / import -->
+    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+      <div style="font-size:.72rem;font-weight:600;color:var(--text-m);margin-bottom:6px">
+        Lub dodaj klasy ręcznie / importem:
+      </div>
+      <div class="wrow">
+        <div class="wfield"><label>Nazwa klasy</label>
+          <input class="winput" id="wClassName" placeholder="np. 3a, 4b"></div>
+        <div class="wfield" style="flex:.6"><label>Kategoria</label>
+          <select class="wselect" id="wClassLevel">
+            <option value="wczesnoszkolne">1–3</option>
+            <option value="podstawowa">4–8</option>
+          </select></div>
+      </div>
+      <button class="tag-add-btn" style="width:100%;margin-bottom:8px" onclick="wAddClass()">+ Dodaj klasę</button>
+
+      <div class="tag-list">${wData.classes.map((c,i) =>
+        `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${i})">×</span></div>`
+      ).join('')||'<div class="tag-list"><span style="font-size:.72rem;color:var(--text-d)">Brak ręcznie dodanych klas</span></div>'}</div>
+
+      <p class="import-hint" style="margin-top:8px">Masowe dodawanie: <em>1a;1b;2a;2b</em></p>
+      <div class="tag-add-row">
+        <input class="winput" id="wClassBulk" placeholder="1a;1b;2a;2b">
+        <select class="wselect" id="wClassBulkLevel" style="flex:.5">
+          <option value="wczesnoszkolne">1–3</option>
+          <option value="podstawowa">4–8</option>
+        </select>
         <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
       </div>
     </div>
@@ -2452,7 +2592,7 @@ function defaultConstraints() {
     lessonBlocks: {},
     // Przedmioty nieblokowane: Set subjId (przechowywany jako tablica)
     noBlock: [],
-    // Pozycja przedmiotu: {subjId: 'edge'|'any'}
+    // Pozycja przedmiotu: {subjId: 'first'|'last'|'any'}
     subjPosition: {},
     // Podział na grupy: {clsId_subjId: {groups:2}}
     groupSplit: {},
@@ -2854,8 +2994,8 @@ function genPositionUI(C) {
   const POS = [
     ['any',   'Dowolna',      ''],
     ['edge',  'Skrajne',      '⇔'],
-
-
+    ['first', 'Na początku',  '🌅'],
+    ['last',  'Na końcu',     '🌇'],
   ];
 
   return activeSubjects.map(s => {
@@ -4159,8 +4299,8 @@ function genWorkerFn() {
           // Okno szkoły
           if(!block.every(hn=>inWindow(di,hn))) continue;
           // Pozycja
-          // 'first' removed - use 'edge' instead
-          // 'last' removed - use 'edge' instead
+          if(task.pos==='first' && hi>1) continue;
+          if(task.pos==='last'  && hi<hours.length-2) continue;
           if(task.pos==='edge'  && hi>0 && hi<hours.length-task.blkSz) continue;
           // Wolność nauczyciela
           if(!block.every(hn=>isTchFree(task.tchId,di,hn))) continue;
