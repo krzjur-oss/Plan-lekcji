@@ -13,7 +13,7 @@ const SUBJ_COLORS = [
   '#a78bfa','#2dd4bf','#fb923c','#f472b6',
   '#818cf8','#4ade80','#e879f9','#67e8f9'
 ];
-const WIZ_STEPS = ['Rok szkolny','Szkoła','Klasy','Nauczyciele','Budynki i sale','Godziny','Grupy'];
+const WIZ_STEPS = ['Rok szkolny','Szkoła','Klasy','Grupy','Budynki i sale','Nauczyciele','Godziny'];
 const LS = {
   STATE:    'pl_state',
   SCHED:    'pl_sched',
@@ -45,6 +45,13 @@ function loadAll() {
 }
 
 function migrateAppState() {
+  // Migracja pozycji: start/end -> edge
+  (appState.subjects||[]).forEach(s => {
+    if(s.position==='start' || s.position==='end') s.position = 'edge';
+  });
+  (wData?.subjects||[]).forEach(s => {
+    if(s.position==='start' || s.position==='end') s.position = 'edge';
+  });
   // Zapewnij że wszystkie pola tablicowe istnieją
   if(!appState.buildings)   appState.buildings = [];
   if(!appState.teachers)    appState.teachers  = [];
@@ -285,6 +292,7 @@ function showApp() {
   document.getElementById('wizardOverlay').classList.remove('show');
   const app = document.getElementById('appRoot');
   app.classList.add('show');
+  updateTopbarInfo();
   populateSelects();
   populateRoomBuildingFilter();
   renderCurrentView();
@@ -387,7 +395,7 @@ function openSettings() {
 // ================================================================
 let wStep = 0;
 let wData = { yearMode:'new', copyFrom:[], schoolContact:'', schoolAddress:'',
-  name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
+  name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[], _classLevels:[] };
 
 function startWizard(resume=false) {
   if(resume) {
@@ -398,7 +406,7 @@ function startWizard(resume=false) {
   } else {
     wStep = 0;
     wData = { yearMode:'new', copyFrom:[], schoolContact:'', schoolAddress:'',
-      name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[] };
+      name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[], _classLevels:[] };
     localStorage.removeItem(LS.WIZ);
   }
   document.getElementById('wizardOverlay').classList.add('show');
@@ -443,10 +451,10 @@ function renderWizStep() {
     case 0: body.innerHTML = wizStep0(); break;       // Rok szkolny
     case 1: body.innerHTML = wizStep1(); break;       // Szkoła + przedmioty
     case 2: body.innerHTML = wizStep2(); break;       // Klasy
-    case 3: body.innerHTML = wizStep4(); break;       // Nauczyciele
-    case 4: body.innerHTML = wizStep5(); break;       // Budynki + Sale
-    case 5: body.innerHTML = wizStep6(); break;       // Godziny
-    case 6: body.innerHTML = wizStep7(); break;       // Grupy + NI
+    case 3: body.innerHTML = wizStep7(); break;       // Grupy + NI
+    case 4: body.innerHTML = wizStep4(); break;       // Budynki + Sale
+    case 5: body.innerHTML = wizStep5(); break;       // Nauczyciele
+    case 6: body.innerHTML = wizStep6(); break;       // Godziny
   }
 }
 
@@ -535,7 +543,7 @@ function wizStep1() {
       `<div class="color-swatch ${s.color===c?'sel':''}" style="background:${c}" onclick="wSetSubjColor(${i},'${c}')"></div>`
     ).join('');
     const durLabel = s.duration==='sem1'?'I sem.':s.duration==='sem2'?'II sem.':'Cały rok';
-    const posLabel = s.position==='start'?'Na początku':s.position==='end'?'Na końcu':'Dowolnie';
+    const posLabel = s.position==='edge'?'Na krańcu dnia':'Dowolnie';
     const fixedBadge = s.fixed?'<span style="font-size:.58rem;padding:1px 5px;border-radius:6px;background:var(--green-g);color:var(--green);border:1px solid rgba(52,211,153,.2)">stały</span>':'';
     const optBadge = s.optional?'<span style="font-size:.58rem;padding:1px 5px;border-radius:6px;background:var(--accent-g);color:var(--accent);border:1px solid rgba(56,189,248,.2)">opcjonalny</span>':'';
     return `<div class="subj-row" style="flex-wrap:wrap;gap:4px" id="subjRow_${i}">
@@ -567,12 +575,11 @@ function wizStep1() {
             <option value="sem2" ${s.duration==='sem2'?'selected':''}>II semestr</option>
           </select></div>
         <div><label style="font-weight:600;color:var(--text-m);display:block;margin-bottom:3px">Pozycja w planie</label>
-          <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+           <select style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
             background:var(--s1);color:var(--text);font-size:.78rem"
             onchange="wUpdateSubj(${i},'position',this.value)">
             <option value="any" ${s.position==='any'?'selected':''}>Dowolnie</option>
-            <option value="start" ${s.position==='start'?'selected':''}>Na początku zajęć</option>
-            <option value="end" ${s.position==='end'?'selected':''}>Na końcu zajęć</option>
+            <option value="edge" ${s.position==='edge'?'selected':''}>Na krańcu dnia</option>
           </select></div>
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
@@ -616,157 +623,44 @@ function wizStep1() {
         </label>
       </div>
     </div>
+  </div>
 
-    <!-- ── Separator ── -->
-    <div style="border-top:1px solid var(--border);margin:16px 0 12px"></div>
-
-    <!-- ── Przedmioty ── -->
-    <div class="wcard-title">Przedmioty nauczane w szkole</div>
-    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
-      Dodaj przedmioty realizowane w szkole. Dla każdego możesz ustalić godziny w tygodniu,
-      semestr, pozycję w planie oraz czy jest opcjonalny.
+  <!-- ── Przedmioty ── -->
+  <div class="wcard">
+    <div class="wcard-title">Przedmioty</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin:0 0 12px;line-height:1.5">
+      Dodaj przedmioty realizowane w szkole. Możesz je edytować w szczegółach (⚙).
     </p>
-    <div class="wrow">
-      <div class="wfield" style="flex:2"><label>Nazwa przedmiotu</label>
-        <input class="winput" id="wSubjName" placeholder="np. Matematyka"></div>
-      <div class="wfield" style="flex:0 0 80px"><label>Skrót</label>
-        <input class="winput" id="wSubjAbbr" placeholder="MAT" maxlength="5"></div>
-      <div class="wfield" style="flex:0 0 70px"><label>Godz./tydz.</label>
-        <input class="winput" id="wSubjHours" type="number" min="0" max="20" value="3" style="text-align:center"></div>
+    <div id="wSubjList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px">
+      ${subjRows || '<div style="color:var(--text-d);font-size:.78rem;padding:8px 0">Brak przedmiotów — dodaj poniżej</div>'}
     </div>
-    <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddSubj()">+ Dodaj przedmiot</button>
-    ${subjRows}
-    ${!wData.subjects.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak przedmiotów — dodaj co najmniej jeden</div>':''}
-    <p class="import-hint">Szybkie dodawanie: <em>Matematyka;Język polski;Historia;Biologia</em></p>
-    <div class="tag-add-row">
-      <input class="winput" id="wSubjBulk" placeholder="Matematyka;Fizyka;Chemia — masowe dodawanie">
+    <div class="wrow" style="align-items:flex-end;gap:6px;flex-wrap:wrap">
+      <div class="wfield" style="flex:2;min-width:130px">
+        <label>Nazwa przedmiotu</label>
+        <input class="winput" id="wSubjName" placeholder="np. Matematyka"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();wAddSubj()}">
+      </div>
+      <div class="wfield" style="flex:1;min-width:80px">
+        <label>Skrót</label>
+        <input class="winput" id="wSubjAbbr" placeholder="np. Mat" maxlength="6"
+          style="font-family:var(--mono);font-weight:700;text-transform:uppercase">
+      </div>
+      <div class="wfield" style="flex:0 0 70px">
+        <label>Godz./tydz.</label>
+        <input class="winput" id="wSubjHours" type="number" min="0" max="20" value="3"
+          style="text-align:center">
+      </div>
+      <button class="wbtn wbtn-primary" style="padding:9px 16px;white-space:nowrap;align-self:flex-end" onclick="wAddSubj()">+ Dodaj</button>
+    </div>
+    <div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+      <div class="wfield" style="flex:1;min-width:180px">
+        <label>Importuj wiele naraz (oddziel średnikiem)</label>
+        <input class="winput" id="wSubjBulk" placeholder="np. Matematyka;Język polski;Przyroda">
+      </div>
       <button class="tag-add-btn" onclick="wAddSubjBulk()">Importuj</button>
     </div>
   </div>
-  <div class="wbtn-row">
-    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
-    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
-  </div>`;
-}
 
-function wToggleSubjDetails(i) {
-  if(wData.subjects[i]) {
-    wData.subjects[i]._expanded = !wData.subjects[i]._expanded;
-    renderWizStep();
-  }
-}
-
-function wUpdateSubj(i, field, value) {
-  if(wData.subjects[i]) {
-    wData.subjects[i][field] = value;
-  }
-}
-
-function wizStep2() {
-  const CLS_LETTERS = 'ABCDEFGHIJ'.split('');
-  // Poziomy nauczania — definiowane przez użytkownika
-  const levels = wData._classLevels || [{from:1, to:3, label:'Wczesnoszkolne', cat:'wczesnoszkolne'},{from:4, to:8, label:'Podstawowa', cat:'podstawowa'}];
-  if(!wData._classLevels) wData._classLevels = levels;
-
-  // Generuj podgląd klas z poziomów
-  const levelRows = levels.map((lv,li) => {
-    const count = lv.classCount || 2;
-    const letters = CLS_LETTERS.slice(0, count);
-    const generated = [];
-    for(let yr = lv.from; yr <= lv.to; yr++) {
-      letters.forEach(ltr => generated.push({name: yr+ltr.toLowerCase(), level: lv.cat}));
-    }
-    const genTags = generated.map(g =>
-      `<span class="tag" style="font-size:.68rem">${g.name}</span>`
-    ).join('');
-    return `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <span style="font-size:.78rem;font-weight:700;color:${lv.cat==='wczesnoszkolne'?'var(--accent)':'var(--orange)'}">
-          ${lv.label||'Poziom '+(li+1)}
-        </span>
-        <span style="font-size:.68rem;color:var(--text-m)">Rok</span>
-        <input type="number" min="0" max="12" value="${lv.from}"
-          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
-          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
-          onchange="wUpdateLevel(${li},'from',parseInt(this.value)||1)">
-        <span style="font-size:.68rem;color:var(--text-m)">do</span>
-        <input type="number" min="0" max="12" value="${lv.to}"
-          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
-          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
-          onchange="wUpdateLevel(${li},'to',parseInt(this.value)||8)">
-        <span style="font-size:.68rem;color:var(--text-m)">Klas na rok:</span>
-        <input type="number" min="1" max="10" value="${count}"
-          style="width:40px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
-          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
-          onchange="wUpdateLevel(${li},'classCount',parseInt(this.value)||2)">
-        <span style="font-size:.68rem;color:var(--text-m)">(${letters.join(', ')})</span>
-        <span class="tag-del" onclick="wRemoveLevel(${li})" title="Usuń poziom">✕</span>
-      </div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">${genTags}</div>
-      ${lv.studentCount!==undefined ? `<div style="margin-top:6px;display:flex;align-items:center;gap:4px">
-        <span style="font-size:.68rem;color:var(--text-m)">Uczniów w klasie:</span>
-        <input type="number" min="1" max="45" value="${lv.studentCount||28}"
-          style="width:50px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;
-          background:var(--s1);color:var(--text);font-size:.78rem;text-align:center"
-          onchange="wUpdateLevel(${li},'studentCount',parseInt(this.value)||28)">
-      </div>` : `<button style="font-size:.65rem;color:var(--text-d);background:none;border:none;cursor:pointer;margin-top:4px"
-        onclick="wUpdateLevel(${li},'studentCount',28);renderWizStep()">+ Podaj liczbę uczniów</button>`}
-    </div>`;
-  }).join('');
-
-  // Podsumowanie
-  let totalClasses = 0;
-  levels.forEach(lv => {
-    const count = lv.classCount || 2;
-    totalClasses += (lv.to - lv.from + 1) * count;
-  });
-
-  return `<div class="wcard">
-    <div class="wcard-title">Klasy</div>
-    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
-      Zdefiniuj poziomy nauczania — ile lat nauki i ile klas na każdy rok.
-      Nazwy klas wygenerują się automatycznie (np. 1a, 1b, 2a, 2b...).
-    </p>
-
-    ${levelRows}
-
-    <button class="tag-add-btn" style="width:100%;margin:8px 0" onclick="wAddLevel()">+ Dodaj poziom nauczania</button>
-
-    <div style="font-size:.72rem;color:var(--text-m);padding:8px 12px;background:var(--s2);border-radius:6px;text-align:center">
-      Łącznie: <strong>${totalClasses}</strong> klas
-    </div>
-
-    <!-- Ręczne dodawanie / import -->
-    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
-      <div style="font-size:.72rem;font-weight:600;color:var(--text-m);margin-bottom:6px">
-        Lub dodaj klasy ręcznie / importem:
-      </div>
-      <div class="wrow">
-        <div class="wfield"><label>Nazwa klasy</label>
-          <input class="winput" id="wClassName" placeholder="np. 3a, 4b"></div>
-        <div class="wfield" style="flex:.6"><label>Kategoria</label>
-          <select class="wselect" id="wClassLevel">
-            <option value="wczesnoszkolne">1–3</option>
-            <option value="podstawowa">4–8</option>
-          </select></div>
-      </div>
-      <button class="tag-add-btn" style="width:100%;margin-bottom:8px" onclick="wAddClass()">+ Dodaj klasę</button>
-
-      <div class="tag-list">${wData.classes.map((c,i) =>
-        `<div class="tag"><span>${escapeHtml(c.name)}${c.groups&&c.groups.length?' (gr: '+c.groups.map(g=>typeof g==='object'?escapeHtml(g.name):escapeHtml(g)).join(', ')+')':''}</span><span class="tag-del" onclick="wRemoveClass(${i})">×</span></div>`
-      ).join('')||'<div class="tag-list"><span style="font-size:.72rem;color:var(--text-d)">Brak ręcznie dodanych klas</span></div>'}</div>
-
-      <p class="import-hint" style="margin-top:8px">Masowe dodawanie: <em>1a;1b;2a;2b</em></p>
-      <div class="tag-add-row">
-        <input class="winput" id="wClassBulk" placeholder="1a;1b;2a;2b">
-        <select class="wselect" id="wClassBulkLevel" style="flex:.5">
-          <option value="wczesnoszkolne">1–3</option>
-          <option value="podstawowa">4–8</option>
-        </select>
-        <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
-      </div>
-    </div>
-  </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
     <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
@@ -793,7 +687,128 @@ function wUpdateLevel(i, field, value) {
   renderWizStep();
 }
 
-// Step 2: Subjects
+// Step 2: Klasy
+function wizStep2() {
+  const classRows = wData.classes.map((c,i) => {
+    const grpStr = (c.groups||[]).map(g=>g.name).join(', ');
+    return `<div class="subj-row" style="flex-wrap:wrap;gap:4px">
+      <div class="subj-name" style="min-width:60px;font-family:var(--mono);font-weight:700">${escapeHtml(c.name)}</div>
+      <span style="font-size:.68rem;padding:1px 6px;border-radius:6px;background:var(--s3);color:var(--text-m)">${c.level==='wczesnoszkolne'?'kl. 1–3':'kl. 4–8'}</span>
+      ${grpStr?`<span style="font-size:.68rem;color:var(--text-m)">gr: ${escapeHtml(grpStr)}</span>`:''}
+      <span class="tag-del" onclick="wRemoveClass(${i})">×</span>
+    </div>`;
+  }).join('');
+
+  // Poziomy klas
+  const levels = wData._classLevels || [];
+  const levelRows = levels.map((lv,i)=>`
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 10px;
+      background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <input class="winput" style="flex:1;min-width:120px" value="${escapeHtml(lv.label)}"
+        placeholder="np. Klasy 1–3" oninput="wUpdateLevel(${i},'label',this.value)">
+      <div style="display:flex;gap:4px;align-items:center;font-size:.72rem;color:var(--text-m)">
+        <span>od kl.</span>
+        <input class="winput" style="width:52px;text-align:center" type="number" min="1" max="9"
+          value="${lv.from}" oninput="wUpdateLevel(${i},'from',parseInt(this.value)||1)">
+        <span>do kl.</span>
+        <input class="winput" style="width:52px;text-align:center" type="number" min="1" max="9"
+          value="${lv.to}" oninput="wUpdateLevel(${i},'to',parseInt(this.value)||lv.from)">
+        <span>oddziałów:</span>
+        <input class="winput" style="width:52px;text-align:center" type="number" min="1" max="10"
+          value="${lv.classCount||2}" oninput="wUpdateLevel(${i},'classCount',parseInt(this.value)||2)">
+        <span>ucz./kl.:</span>
+        <input class="winput" style="width:52px;text-align:center" type="number" min="1" max="60"
+          value="${lv.studentCount||0}" placeholder="opt."
+          oninput="wUpdateLevel(${i},'studentCount',parseInt(this.value)||0)"
+          title="Opcjonalnie: liczba uczniów w każdej klasie">
+      </div>
+      <select class="winput" style="flex:0 0 auto" onchange="wUpdateLevel(${i},'cat',this.value)">
+        <option value="wczesnoszkolne" ${lv.cat==='wczesnoszkolne'?'selected':''}>1–3 Wczesnoszkolne</option>
+        <option value="podstawowa" ${lv.cat==='podstawowa'?'selected':''}>4–8 Podstawowa</option>
+      </select>
+      <span class="tag-del" onclick="wRemoveLevel(${i})">×</span>
+    </div>`).join('');
+
+  return `<div class="wcard">
+    <div class="wcard-title">Klasy</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin:0 0 12px;line-height:1.5">
+      Zdefiniuj poziomy klas — generator automatycznie utworzy oddziały (np. 1a, 1b, 2a…).
+      Możesz też dodać klasy ręcznie lub zaimportować.
+    </p>
+
+    <!-- Generator poziomów -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+        color:var(--text-m);margin-bottom:8px">Poziomy klas (generator)</div>
+      ${levelRows || '<div style="color:var(--text-d);font-size:.78rem;margin-bottom:8px">Brak poziomów — dodaj poniżej</div>'}
+      <button class="wbtn wbtn-ghost" style="font-size:.74rem;padding:5px 12px" onclick="wAddLevel()">
+        + Dodaj poziom
+      </button>
+    </div>
+
+    <!-- Lista klas (ręczne + wygenerowane przy next) -->
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+      color:var(--text-m);margin-bottom:8px">Klasy dodane ręcznie</div>
+    <div id="wClassList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px">
+      ${classRows || '<div style="color:var(--text-d);font-size:.78rem;padding:4px 0">Brak ręcznie dodanych klas</div>'}
+    </div>
+
+    <div class="wrow" style="align-items:flex-end;gap:6px;flex-wrap:wrap">
+      <div class="wfield" style="flex:1;min-width:90px">
+        <label>Nazwa klasy</label>
+        <input class="winput" id="wClassName" placeholder="np. 1a, 4b"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();wAddClass()}">
+      </div>
+      <div class="wfield" style="flex:1;min-width:120px">
+        <label>Grupy (opcjonalnie, po przecinku)</label>
+        <input class="winput" id="wClassGroups" placeholder="np. gr1, gr2">
+      </div>
+      <div class="wfield" style="flex:1;min-width:140px">
+        <label>Kategoria</label>
+        <select class="winput" id="wClassLevel">
+          <option value="wczesnoszkolne">1–3 Wczesnoszkolne</option>
+          <option value="podstawowa" selected>4–8 Podstawowa</option>
+        </select>
+      </div>
+      <button class="wbtn wbtn-primary" style="padding:9px 16px;white-space:nowrap;align-self:flex-end"
+        onclick="wAddClass()">+ Dodaj</button>
+    </div>
+
+    <div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;
+      padding-top:8px;border-top:1px solid var(--border)">
+      <div class="wfield" style="flex:2;min-width:200px">
+        <label>Importuj wiele klas naraz (oddziel średnikiem)</label>
+        <input class="winput" id="wClassBulk" placeholder="np. 1a;1b;2a;2b;3a">
+      </div>
+      <div class="wfield" style="flex:0 0 auto">
+        <label>Kategoria</label>
+        <select class="winput" id="wClassBulkLevel">
+          <option value="wczesnoszkolne">1–3 Wczesnoszkolne</option>
+          <option value="podstawowa" selected>4–8 Podstawowa</option>
+        </select>
+      </div>
+      <button class="tag-add-btn" onclick="wAddClassBulk()">Importuj</button>
+    </div>
+  </div>
+
+  <div class="wbtn-row">
+    <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+  </div>`;
+}
+
+function wToggleSubjDetails(i) {
+  if(!wData.subjects[i]) return;
+  wData.subjects[i]._expanded = !wData.subjects[i]._expanded;
+  renderWizStep();
+}
+
+function wUpdateSubj(i, field, value) {
+  if(!wData.subjects[i]) return;
+  wData.subjects[i][field] = value;
+  renderWizStep();
+}
+
 // Step 4: Budynki i Sale
 function wizStep4() {
   const BCOLORS = ['#38bdf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#f472b6'];
@@ -932,10 +947,14 @@ function wizStep5() {
     const assignedH = (t.assignments||[]).reduce((s,a)=>s+(a.hours||0),0);
     const overH = assignedH - totalH;
     const isSpecialist = t.isSpecialist ? '🔧' : '📚';
+    const emplLabel = t.employment==='half' ? '½ etatu'
+      : t.employment==='other' ? `${t.employmentFraction||'?'} etatu`
+      : '1/1';
     return `<div class="subj-row" style="flex-wrap:wrap;gap:4px" id="tchRow_${i}">
       <span style="font-size:.8rem">${isSpecialist}</span>
       <div class="subj-name" style="flex:1;min-width:120px">${escapeHtml(t.first)} ${escapeHtml(t.last)}</div>
       <div class="subj-abbr" style="font-family:var(--mono)">${escapeHtml(t.abbr)}</div>
+      <span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">${emplLabel}</span>
       <span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">pensum: ${hoursTotal}h${hoursExtra?'+nadg. '+hoursExtra:''}</span>
       <span style="font-size:.7rem;color:var(--text-m);font-family:var(--mono)">przyp. ${assignedH}h</span>
       ${overH>0?`<span style="font-size:.68rem;padding:1px 5px;border-radius:6px;background:var(--red-g);color:var(--red)">+${overH}h nad etat</span>`:''}
@@ -1040,12 +1059,22 @@ function wizStep5() {
       <div class="wfield"><label>Nadgodziny stałe</label>
         <input class="winput" id="wTHoursExtra" type="number" min="0" max="20" placeholder="np. 2"
           title="Godziny ponad pensum wynikające z przydziału rocznego"></div>
+      <div class="wfield"><label>Wymiar etatu</label>
+        <select class="winput" id="wTEmployment" onchange="wTEmploymentChange()">
+          <option value="full">Pełny etat (1/1)</option>
+          <option value="half">Pół etatu (1/2)</option>
+          <option value="other">Inny ułamek</option>
+        </select>
+      </div>
+      <div class="wfield" id="wTFractionWrap" style="display:none"><label>Ułamek etatu</label>
+        <input class="winput" id="wTFraction" type="number" min="0.1" max="1" step="0.05"
+          placeholder="np. 0.75" title="np. 0.75 dla 3/4 etatu"></div>
     </div>
     <button class="tag-add-btn" style="width:100%;margin-bottom:10px" onclick="wAddTeacher()">+ Dodaj nauczyciela</button>
     ${rows}
     ${!wData.teachers.length?'<div style="font-size:.78rem;color:var(--text-d);text-align:center;padding:8px 0">Brak nauczycieli — dodaj co najmniej jednego</div>':''}
-    <p class="import-hint" style="margin-top:8px">Masowe: <em>Anna;Kowalska;AKow;18;0</em> — imię;nazwisko;skrót;pensum;nadgodz.</p>
-    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow;18;0&#10;Jan;Nowak;JNow;18;2&#10;Maria;Wiśniewska;MWis;20;0"></textarea>
+    <p class="import-hint" style="margin-top:8px">Masowe: <em>Anna;Kowalska;AKow;18;0;full</em> — imię;nazwisko;skrót;pensum;nadgodz.;etat (full/half/0.75)</p>
+    <textarea class="wtextarea" id="wTeacherBulk" placeholder="Anna;Kowalska;AKow;18;0;full&#10;Jan;Nowak;JNow;18;2;full&#10;Maria;Wiśniewska;MWis;20;0;half"></textarea>
     <button class="tag-add-btn" style="width:100%;margin-top:6px" onclick="wAddTeacherBulk()">Importuj z pola</button>
   </div>
   <div class="wbtn-row">
@@ -1192,7 +1221,7 @@ function wizStep6() {
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
-    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
+    <button class="wbtn wbtn-primary" onclick="wizFinish()">✓ Utwórz plan</button>
   </div>`;
 }
 
@@ -1364,7 +1393,7 @@ function wizStep7() {
   </div>
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
-    <button class="wbtn wbtn-primary" onclick="wizFinish()">✓ Utwórz plan</button>
+    <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
   </div>`;
 }
 
@@ -1479,14 +1508,17 @@ function wizCollectStep() {
       if(!wData.classes.length) { notify('Dodaj co najmniej jedną klasę'); return false; }
       break;
     case 3:
+      // Grupy + NI — krok opcjonalny
+      break;
+    case 4:
+      // Budynki i Sale — zbierz mainAddress (opcjonalny)
+      wData.mainAddress = (document.getElementById('wMainAddress')||{}).value || wData.mainAddress || '';
+      break;
+    case 5:
       // Nauczyciele
       if(!wData.teachers.length) { notify('Dodaj co najmniej jednego nauczyciela'); return false; }
       break;
-    case 4:
-      // Budynki i Sale — zbierz mainAddress
-      wData.mainAddress = (document.getElementById('wMainAddress')||{}).value||'';
-      break;
-    case 5:
+    case 6:
       // Godziny
       if(!wData.hours.length) { notify('Dodaj co najmniej jedną godzinę lekcyjną'); return false; }
       break;
@@ -1649,26 +1681,18 @@ function wAddSubjBulk() {
   });
   renderWizStep();
 }
-function wAddSubjBulk() {
-  const raw = document.getElementById('wSubjBulk').value.trim();
-  if(!raw) return;
-  raw.split(';').forEach(n=>{
-    n=n.trim(); if(!n)return;
-    if(!wData.subjects.find(s=>s.name===n))
-      wData.subjects.push({name:n,abbr:buildSubjAbbr(n),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
-        hoursPerWeek:0, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
-  });
-  renderWizStep();
-}
 function wRemoveSubj(i){wData.subjects.splice(i,1);renderWizStep();}
 function wSetSubjColor(i,c){wData.subjects[i].color=c;renderWizStep();}
 
 
 // ================================================================
-//  GENEROWANIE SKRÓTÓW NAUCZYCIELI (jak w SalePlan)
-//  Format: pierwsza litera imienia (duża) + 3 pierwsze litery nazwiska
-//  Np. Anna Kowalska → AKow, Jan Nowak → JNow
-//  Gdy duplikat: AKow → AKow2 → AKow3 itd.
+//  GENEROWANIE SKRÓTÓW NAUCZYCIELI
+//  Jedno nazwisko:  pierwsza litera imienia + 4 litery nazwiska
+//    np. Anna Kowalska → AKows, Jan Nowak → JNowa
+//  Nazwisko wieloczłonowe (myślnik lub spacja):
+//    pierwsza litera imienia + 2 litery pierwszego członu + 2 litery drugiego
+//    np. Anna Nowak-Kowalska → ANoko, Jan de Bruijn → JBru (pomija przedrostki)
+//  Gdy duplikat: AKows → AKows2 → AKows3 itd.
 // ================================================================
 function buildAbbr(first, last) {
   const f = (first||'').trim();
@@ -1727,6 +1751,11 @@ function wAutoAbbr() {
     el.value = uniqueAbbr(f, l, existing);
   }
 }
+function wTEmploymentChange() {
+  const val = document.getElementById('wTEmployment')?.value;
+  const wrap = document.getElementById('wTFractionWrap');
+  if(wrap) wrap.style.display = val==='other' ? '' : 'none';
+}
 function wAddTeacher() {
   const f=document.getElementById('wTFirst').value.trim();
   const l=document.getElementById('wTLast').value.trim();
@@ -1736,27 +1765,39 @@ function wAddTeacher() {
   if(!f&&!l) return;
   const hoursTotal=parseInt(document.getElementById('wTHoursTotal')?.value)||0;
   const hoursExtra=parseInt(document.getElementById('wTHoursExtra')?.value)||0;
-  wData.teachers.push({first:f,last:l,abbr:a,hoursTotal,hoursExtra});
+  const employment=document.getElementById('wTEmployment')?.value||'full';
+  const employmentFraction = employment==='other'
+    ? (parseFloat(document.getElementById('wTFraction')?.value)||1.0)
+    : (employment==='half' ? 0.5 : 1.0);
+  wData.teachers.push({first:f,last:l,abbr:a,hoursTotal,hoursExtra,employment,employmentFraction});
   document.getElementById('wTFirst').value='';
   document.getElementById('wTLast').value='';
   document.getElementById('wTAbbr').value='';
   document.getElementById('wTHoursTotal').value='';
   document.getElementById('wTHoursExtra').value='';
+  if(document.getElementById('wTEmployment')) document.getElementById('wTEmployment').value='full';
+  if(document.getElementById('wTFractionWrap')) document.getElementById('wTFractionWrap').style.display='none';
   renderWizStep();
 }
 function wAddTeacherBulk() {
   const raw = document.getElementById('wTeacherBulk').value.trim();
   if(!raw) return;
   raw.split('\n').forEach(line=>{
-    const [f,l,a,ht,he]=(line||'').split(';').map(x=>x.trim());
+    const [f,l,a,ht,he,empl]=(line||'').split(';').map(x=>x.trim());
     if(f||l) {
       const existing=(wData.teachers||[]).map(t=>t.abbr);
       const computedAbbr = a || uniqueAbbr(f||'', l||'', existing);
+      const employment = empl==='half'||empl==='0.5' ? 'half'
+        : empl && empl!=='full' && empl!=='1' ? 'other' : 'full';
+      const employmentFraction = employment==='other' ? (parseFloat(empl)||1.0)
+        : (employment==='half' ? 0.5 : 1.0);
       wData.teachers.push({
-        first:f||'',last:l||'',
+        first:f||'', last:l||'',
         abbr:computedAbbr,
         hoursTotal:parseInt(ht)||0,
-        hoursExtra:parseInt(he)||0
+        hoursExtra:parseInt(he)||0,
+        employment,
+        employmentFraction
       });
     }
   });
@@ -2592,7 +2633,7 @@ function defaultConstraints() {
     lessonBlocks: {},
     // Przedmioty nieblokowane: Set subjId (przechowywany jako tablica)
     noBlock: [],
-    // Pozycja przedmiotu: {subjId: 'first'|'last'|'any'}
+    // Pozycja przedmiotu: {subjId: 'edge'|'any'}
     subjPosition: {},
     // Podział na grupy: {clsId_subjId: {groups:2}}
     groupSplit: {},
@@ -2994,8 +3035,8 @@ function genPositionUI(C) {
   const POS = [
     ['any',   'Dowolna',      ''],
     ['edge',  'Skrajne',      '⇔'],
-    ['first', 'Na początku',  '🌅'],
-    ['last',  'Na końcu',     '🌇'],
+
+
   ];
 
   return activeSubjects.map(s => {
@@ -4299,8 +4340,8 @@ function genWorkerFn() {
           // Okno szkoły
           if(!block.every(hn=>inWindow(di,hn))) continue;
           // Pozycja
-          if(task.pos==='first' && hi>1) continue;
-          if(task.pos==='last'  && hi<hours.length-2) continue;
+          // 'first' removed - use 'edge' instead
+          // 'last' removed - use 'edge' instead
           if(task.pos==='edge'  && hi>0 && hi<hours.length-task.blkSz) continue;
           // Wolność nauczyciela
           if(!block.every(hn=>isTchFree(task.tchId,di,hn))) continue;
@@ -5863,6 +5904,10 @@ function saveTeacherModal() {
   const abbr = document.getElementById('tmAbbr').value.trim();
   const hoursTotal = parseInt(document.getElementById('tmHoursTotal').value) || 0;
   const hoursExtra = parseInt(document.getElementById('tmHoursExtra').value) || 0;
+  const employment = document.getElementById('tmEmployment').value || 'full';
+  const employmentFraction = employment === 'other'
+    ? (parseFloat(document.getElementById('tmFraction').value) || 1.0)
+    : (employment === 'half' ? 0.5 : 1.0);
   if (!first && !last) { notify('Podaj imię lub nazwisko'); return; }
   if (_tmId) {
     const t = appState.teachers.find(t => t.id === _tmId);
@@ -5870,6 +5915,8 @@ function saveTeacherModal() {
       t.first = first; t.last = last; t.abbr = abbr;
       t.hoursTotal = hoursTotal;
       t.hoursExtra = hoursExtra;
+      t.employment = employment;
+      t.employmentFraction = employmentFraction;
       t.assignments = _tmAssignments;
       t.individualTeaching = _tmIndiv;
     }
@@ -5879,6 +5926,8 @@ function saveTeacherModal() {
       first, last, abbr,
       hoursTotal,
       hoursExtra,
+      employment,
+      employmentFraction,
       assignments: _tmAssignments,
       individualTeaching: _tmIndiv
     });
@@ -5906,6 +5955,7 @@ function closeTeacherModal() {
   document.getElementById('teacherModal').classList.remove('show');
   _tmId = null;
   _tmAssignments = [];
+  _tmIndiv = [];
 }
 
 document.getElementById('teacherModal').addEventListener('click', function(e) {
@@ -7803,12 +7853,12 @@ const HELP = {
 // Pomoc w kreatorze
 const WIZ_HELP = [
   {t:'Rok szkolny', items:['Wybierz rok szkolny w formacie np. 2025/2026','Nowy rok — tworzysz plan od zera','Kontynuacja — kopiujesz dane z poprzedniego roku i edytujesz co trzeba','Zaznacz które dane skopiować: budynki, klasy, przedmioty, nauczyciele, sale, godziny, NI']},
-  {t:'Szkoła', items:['Podaj nazwę, adres i dane kontaktowe szkoły','Dodaj przedmioty nauczane w szkole — dla każdego ustal godziny/tydzień, semestr, pozycję','Przedmioty opcjonalne (religia, etyka) zaznacz checkboxem','Zmienne per rok odznacz "Dane stałe" — łatwiej edytować w kolejnym roku']},
-  {t:'Klasy', items:['Zdefiniuj poziomy nauczania — zakres lat (np. 1–8) i liczbę klas na rok (np. A, B, C)','Nazwy klas generują się automatycznie: 1a, 1b, 2a, 2b...','Możesz też dodać klasy ręcznie lub importem: 1a;1b;2a;2b','Opcjonalnie podaj liczbę uczniów w każdej klasie']},
-  {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny','Skrót generuje się automatycznie — pierwsza litera imienia + 4 litery nazwiska (dla dwuczłonowych: 2+2)','Zaznacz uprawnienia do przedmiotów — które przedmioty może prowadzić','Dodaj przydziały godzin: przedmiot → klasa → godz./tydz.','Nauczyciel specjalista: bibliotekarz, logopeda, psycholog, pedagog itp.','Solver automatycznie obliczy nadgodziny na podstawie przydziałów']},
+  {t:'Szkoła', items:['Podaj nazwę, adres i dane kontaktowe szkoły','Dodaj przedmioty nauczane w szkole — dla każdego ustal godziny/tydzień, semestr, pozycję','Przedmioty opcjonalne (religia, etyka) zaznacz checkboxem','Zmienne per rok odznacz \"Dane stałe\" — łatwiej edytować w kolejnym roku']},
+  {t:'Klasy', items:['Zdefiniuj poziomy nauczania — zakres lat (np. 1–8) i liczbę oddziałów na rok (np. A, B, C)','Nazwy klas generują się automatycznie: 1a, 1b, 2a, 2b...','Możesz też dodać klasy ręcznie lub importem: 1a;1b;2a;2b','Opcjonalnie podaj liczbę uczniów w każdej klasie (pole \"ucz./kl.\")']},
+  {t:'Grupy', items:['Dla każdej klasy zdefiniuj grupy — np. jęz.A, jęz.B, religia','Grupy typu \"2–5 os.\" to małe grupy zajęciowe lub NI','Zaznacz grupy łączone — solver umieści je w tej samej godzinie (np. religia z kilku klas razem)','Dodaj uczniów NI, rewalidację, logopedię — wybierz formę i klasę','Szczegóły (przedmioty, godziny per uczeń) ustawisz w Ustawieniach → 👤 NI/Grupy po stworzeniu planu']},
   {t:'Budynki i sale', items:['Budynki są opcjonalne — pomiń jeśli szkoła jest w jednym budynku','Dodaj piętra i segmenty do budynków — pomogą w organizacji sal','Sale możesz dodać teraz lub uzupełnić później w Ustawieniach','Sale specjalistyczne (komputerowa, gimnastyczna) oznacz odpowiednim typem','Przypisz sale do budynków i określ pojemność']},
+  {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny;Etat (full/half/0.75)','Skrót generuje się automatycznie — dla jednego nazwiska: litera imienia + 4 litery; dla dwuczłonowych: 2+2','Zaznacz uprawnienia do przedmiotów — które przedmioty może prowadzić','Dodaj przydziały godzin: przedmiot → klasa → godz./tydz.','Ustaw wymiar etatu (pełny / pół / inny ułamek)','Nauczyciel specjalista: bibliotekarz, logopeda, psycholog, pedagog itp.']},
   {t:'Godziny', items:['Lekcje mogą zaczynać się od godziny 0:00','Generator automatyczny: podaj start, czas lekcji, przerwę i liczbę lekcji','Możesz dodać godziny ręcznie z dowolnymi czasami','Ustaw różne długości przerw między poszczególnymi lekcjami','Podgląd dnia pokazuje przerwy i czasy trwania każdej lekcji']},
-  {t:'Grupy', items:['Dla każdej klasy zdefiniuj grupy — np. jęz.A, jęz.B, religia','Grupy typu "2–5 os." to małe grupy NI','Zaznacz grupy łączone — solver umieści je w tej samej godzinie','Dodaj uczniów NI, rewalidację, logopedię — wybierz formę i klasę','Szczegóły (przedmioty, godziny per uczeń) ustawisz w Ustawieniach po stworzeniu planu']},
 ];
 
 function openHelp(view) {
@@ -7848,9 +7898,6 @@ function openWizHelp(step) {
   document.getElementById('helpContent').innerHTML = html;
   overlay.classList.add('show');
 }
-// Upewnij się że funkcja jest dostępna globalnie
-window.openWizHelp = openWizHelp;
-// Upewnij się że funkcja jest dostępna globalnie
 window.openWizHelp = openWizHelp;
 
 
