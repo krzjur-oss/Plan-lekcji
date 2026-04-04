@@ -348,10 +348,14 @@ function wlInit() {
     const rezCard = document.getElementById('wlResumeCard');
     const rezDesc = document.getElementById('wlResumeDesc');
     if(w && rezCard) {
-      const STEPS = ['Rok szkolny','Szkoła','Klasy','Nauczyciele','Budynki i sale','Godziny','Grupy'];
-      const stepName = STEPS[w.step]||'';
+      const stepName = WIZ_STEPS[w.step]||'';
+      const ts = w.ts ? new Date(w.ts) : null;
+      const timeStr = ts ? ts.toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
       rezCard.style.display='';
-      if(rezDesc) rezDesc.textContent = 'Krok '+(w.step+1)+': '+stepName+(w.data?.name?' — '+w.data.name:'');
+      if(rezDesc) rezDesc.textContent =
+        'Krok '+(w.step+1)+': '+stepName
+        +(w.data?.name?' — '+w.data.name:'')
+        +(timeStr?' · '+timeStr:'');
     }
   } catch(e) {}
 }
@@ -413,6 +417,39 @@ function startWizard(resume=false) {
   renderWizStep();
 }
 
+// Zbiera wartości z widocznych pól formularza DO wData — wywoływana przed każdym rerenderem
+function wizSaveCurrentFields() {
+  const g = id => document.getElementById(id);
+  switch(wStep) {
+    case 0:
+      if(g('wYear'))        wData.year      = g('wYear').value.trim();
+      break;
+    case 1:
+      if(g('wName'))        wData.name        = g('wName').value.trim();
+      if(g('wMainAddress')) wData.mainAddress = g('wMainAddress').value;
+      if(g('wSchoolPhone')) wData.schoolPhone = g('wSchoolPhone').value;
+      if(g('wSchoolEmail')) wData.schoolEmail = g('wSchoolEmail').value;
+      if(g('wSchoolFixed')) wData.schoolFixed = g('wSchoolFixed').checked;
+      break;
+    case 2:
+      // Klasy — pola są dynamiczne (per poziom), zbieramy przez wUpdateLevel onclick
+      break;
+    case 4: // Budynki — mainAddress jest też tu
+      if(g('wMainAddress')) wData.mainAddress = g('wMainAddress').value;
+      break;
+      break;
+    case 6: // Godziny — pola zbierane przy dodawaniu
+      break;
+  }
+}
+
+// Autozapis z debouncingiem — wywołuj po każdej zmianie
+let _wizSaveTimer = null;
+function wizSaveDebounced() {
+  clearTimeout(_wizSaveTimer);
+  _wizSaveTimer = setTimeout(() => { wizSaveCurrentFields(); wizSave(); }, 400);
+}
+
 function wizSave() {
   try {
     localStorage.setItem(LS.WIZ, JSON.stringify({step:wStep, data:wData, ts:Date.now()}));
@@ -436,6 +473,8 @@ function renderWizStepsIndicator() {
 }
 
 function renderWizStep() {
+  // Zapisz dane z aktualnie widocznych pól PRZED przebudową HTML
+  wizSaveCurrentFields();
   renderWizStepsIndicator();
   // Przycisk pomocy w headerze kreatora
   const helpEl = document.getElementById('wizHelpBtn');
@@ -455,6 +494,16 @@ function renderWizStep() {
     case 4: body.innerHTML = wizStep4(); break;       // Budynki + Sale
     case 5: body.innerHTML = wizStep5(); break;       // Nauczyciele
     case 6: body.innerHTML = wizStep6(); break;       // Godziny
+  }
+  // Autozapis po każdej zmianie w kreatorze
+  wizSaveDebounced();
+  // Nasłuchuj zmian w polach tekstowych bieżącego kroku
+  const body2 = document.getElementById('wizBody');
+  if(body2) {
+    body2.querySelectorAll('input,select,textarea').forEach(el => {
+      el.addEventListener('input', wizSaveDebounced, {passive:true});
+      el.addEventListener('change', wizSaveDebounced, {passive:true});
+    });
   }
 }
 
