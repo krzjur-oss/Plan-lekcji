@@ -733,7 +733,9 @@ function wRemoveLevel(i) {
 function wUpdateLevel(i, field, value) {
   if(!wData._classLevels || !wData._classLevels[i]) return;
   wData._classLevels[i][field] = value;
-  renderWizStep();
+  // NIE renderujemy — rerender przy każdym oninput niszczy focus pola
+  // Debounced save wystarczy (nasłuchiwacze input są podpięte po renderze)
+  wizSaveDebounced();
 }
 
 // Step 2: Klasy
@@ -855,7 +857,9 @@ function wToggleSubjDetails(i) {
 function wUpdateSubj(i, field, value) {
   if(!wData.subjects[i]) return;
   wData.subjects[i][field] = value;
-  renderWizStep();
+  // renderWizStep tylko dla pól select/checkbox (nie text/number — niszczyłoby focus)
+  if(field !== 'hoursPerWeek') renderWizStep();
+  else wizSaveDebounced();
 }
 
 // Step 4: Budynki i Sale
@@ -1142,7 +1146,10 @@ function wToggleTchDetails(i) {
 function wUpdateTch(i, field, value) {
   if(wData.teachers[i]) {
     wData.teachers[i][field] = value;
-    renderWizStep();
+    // isSpecialist/specialistRole to select — rerender OK (zmienia widok)
+    // Pola tekstowe (np. nazwa roli) — tylko save
+    if(field === 'isSpecialist' || field === 'specialistRole') renderWizStep();
+    else wizSaveDebounced();
   }
 }
 
@@ -1530,7 +1537,7 @@ function wGrpSetCount(gi, ci, count) {
   const g = wData.schoolGroups[gi];
   if(!g) return;
   const lc = (g.linkedClasses||[]).find(lc=>lc.clsIdx===ci);
-  if(lc) lc.studentCount = count;
+  if(lc) { lc.studentCount = count; wizSaveDebounced(); }
 }
 
 function wGrpToggleLink(gi, otherGi, checked) {
