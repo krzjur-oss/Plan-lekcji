@@ -395,7 +395,7 @@ function openSettings() {
 // ================================================================
 let wStep = 0;
 let wData = { yearMode:'new', copyFrom:[], schoolContact:'', schoolAddress:'',
-  name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[], _classLevels:[] };
+  name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[], _classLevels:[], schoolGroups:[] };
 
 function startWizard(resume=false) {
   if(resume) {
@@ -406,7 +406,7 @@ function startWizard(resume=false) {
   } else {
     wStep = 0;
     wData = { yearMode:'new', copyFrom:[], schoolContact:'', schoolAddress:'',
-      name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[], _classLevels:[] };
+      name:'', year:'', buildings:[], classes:[], subjects:[], teachers:[], rooms:[], hours:[], niStudents:[], _classLevels:[], schoolGroups:[] };
     localStorage.removeItem(LS.WIZ);
   }
   document.getElementById('wizardOverlay').classList.add('show');
@@ -1241,195 +1241,263 @@ function wSetBreak(afterHourIdx, minutes) {
 }
 
 // Step 7: Grupy i NI
+// ── Grupy szkoły — nowe podejście: globalny katalog → przypisanie do klas ──
+// wData.schoolGroups = [{id, name, type, optional, linkedClasses:[{clsIdx, studentCount}], linkedWith:[grpId,...]}]
+
 function wizStep7() {
   if(!wData.niStudents) wData.niStudents = [];
-  const subjects = wData.subjects||[];
-  const classes  = wData.classes||[];
+  if(!wData.schoolGroups) wData.schoolGroups = [];
+  const classes = wData.classes||[];
+  const groups  = wData.schoolGroups;
 
-  // ── Sekcja 1: Grupy w klasach ──
-  const classGroupsHtml = classes.map((c,ci) => {
-    if(!c.groups) c.groups = [];
-    const grpTags = c.groups.map((g,gi) => {
-      const gName = typeof g === 'object' ? g.name : g;
-      const gType = typeof g === 'object' ? (g.type||'group') : 'group';
-      const gCount = typeof g === 'object' ? (g.studentCount||0) : 0;
-      const linked = typeof g === 'object' ? (g.linkedWith||[]) : [];
-      const typeBadge = gType==='small'?'<span style="font-size:.58rem;padding:1px 4px;border-radius:4px;background:var(--accent-g);color:var(--accent)">2-5</span>':'';
-      const linkedBadge = linked.length?`<span style="font-size:.58rem;padding:1px 4px;border-radius:4px;background:var(--green-g);color:var(--green)">⇄ ${linked.length} kl.</span>`:'';
-      const countBadge = gCount?`<span style="font-size:.62rem;color:var(--text-m)">${gCount} os.</span>`:'';
-      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;
-        background:var(--s3);border-radius:6px;font-size:.78rem">
-        <span style="font-weight:600">${escapeHtml(gName)}</span>
-        ${typeBadge}${linkedBadge}${countBadge}
-        <span style="cursor:pointer;font-size:.68rem;color:var(--accent)" onclick="wEditGroup(${ci},${gi})" title="Edytuj">⚙</span>
-        <span class="tag-del" onclick="wRemoveGroup(${ci},${gi})">×</span>
-      </div>`;
-    }).join('');
+  // ── Sekcja 1: Katalog grup szkoły ──
+  const grpRows = groups.map((g,gi) => {
+    const typeLabel = g.type==='small' ? '👤 2–5 os.' : g.optional ? '☑ Opcjonalna' : '👥 Podgrupa';
+    const clsCount  = (g.linkedClasses||[]).length;
+    const linkedIds = g.linkedWith||[];
 
-    return `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-weight:700;font-size:.82rem">${escapeHtml(c.name)}</span>
-        <span style="font-size:.68rem;color:var(--text-m)">${c.groups.length?c.groups.length+' grup':'bez grup'}</span>
+    // Macierz przypisania do klas
+    const clsMatrix = classes.length ? `
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:.68rem;font-weight:700;color:var(--text-m);text-transform:uppercase;
+          letter-spacing:.04em;margin-bottom:2px">Klasy z tą grupą</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          ${classes.map((c,ci) => {
+            const assigned = (g.linkedClasses||[]).find(lc=>lc.clsIdx===ci);
+            return `<div style="display:flex;align-items:center;gap:3px;padding:3px 6px;
+              border-radius:5px;border:1px solid ${assigned?'var(--accent)':'var(--border)'};
+              background:${assigned?'var(--accent-g)':'var(--s3)'};font-size:.72rem;cursor:pointer"
+              onclick="wGrpToggleClass(${gi},${ci})">
+              <span style="font-weight:600">${escapeHtml(c.name)}</span>
+              ${assigned && assigned.studentCount ? `<span style="color:var(--text-m)">${assigned.studentCount}os.</span>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+        ${clsCount ? `
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center">
+          <span style="font-size:.68rem;color:var(--text-m)">Liczba uczniów per klasa:</span>
+          ${(g.linkedClasses||[]).map(lc => {
+            const cls = classes[lc.clsIdx];
+            return cls ? `<div style="display:flex;align-items:center;gap:3px;font-size:.72rem">
+              <span style="color:var(--text-m)">${escapeHtml(cls.name)}:</span>
+              <input type="number" min="0" max="60" value="${lc.studentCount||0}"
+                style="width:44px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;
+                background:var(--s1);color:var(--text);font-size:.72rem;text-align:center"
+                oninput="wGrpSetCount(${gi},${lc.clsIdx},parseInt(this.value)||0)">
+            </div>` : '';
+          }).join('')}
+        </div>` : ''}
+      </div>` : '<div style="font-size:.72rem;color:var(--text-d);margin-top:6px">Dodaj najpierw klasy w kroku 2</div>';
+
+    // Grupy łączone (współne zajęcia)
+    const otherGrps = groups.filter((_,i)=>i!==gi && (_.type==='group'||_.optional));
+    const linkedSection = otherGrps.length ? `
+      <div style="margin-top:8px">
+        <div style="font-size:.68rem;font-weight:700;color:var(--text-m);text-transform:uppercase;
+          letter-spacing:.04em;margin-bottom:4px">Łączone z grupami (wspólne zajęcia)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${otherGrps.map(og => {
+            const oIdx = groups.indexOf(og);
+            const isLinked = linkedIds.includes(og.id);
+            return `<label style="display:flex;align-items:center;gap:4px;padding:3px 8px;
+              border-radius:5px;border:1px solid ${isLinked?'var(--accent)':'var(--border)'};
+              background:${isLinked?'var(--accent-g)':'var(--s3)'};font-size:.72rem;cursor:pointer">
+              <input type="checkbox" ${isLinked?'checked':''} style="accent-color:var(--accent)"
+                onchange="wGrpToggleLink(${gi},${oIdx},this.checked)">
+              ${escapeHtml(og.name)}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+    return `<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);cursor:pointer"
+        onclick="wGrpToggleExpand(${gi})">
+        <div style="flex:1">
+          <span style="font-weight:700;font-size:.85rem">${escapeHtml(g.name)}</span>
+          <span style="font-size:.68rem;color:var(--text-m);margin-left:8px">${typeLabel}</span>
+          ${clsCount ? `<span style="font-size:.68rem;color:var(--accent);margin-left:6px">${clsCount} klas</span>` : ''}
+          ${linkedIds.length ? `<span style="font-size:.68rem;color:var(--green);margin-left:6px">⇄ ${linkedIds.length} połącz.</span>` : ''}
+        </div>
+        <span style="font-size:.7rem;color:var(--text-m)">${g._expanded?'▲':'▼'}</span>
+        <span class="tag-del" onclick="event.stopPropagation();wGrpRemove(${gi})">×</span>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${grpTags||'<span style="font-size:.72rem;color:var(--text-d)">Brak grup</span>'}</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input class="winput" id="wGrpName_${ci}" placeholder="np. gr1, jęz.A" style="flex:1;padding:4px 8px;font-size:.72rem">
-        <select class="wselect" id="wGrpType_${ci}" style="flex:0 0 90px;padding:4px 6px;font-size:.72rem">
-          <option value="group">Grupa</option>
-          <option value="small">2–5 os.</option>
-        </select>
-        <button class="tag-add-btn" style="padding:4px 10px;font-size:.72rem" onclick="wAddGroup(${ci})">+</button>
-      </div>
+      ${g._expanded ? `<div style="padding:10px 12px;border-top:1px solid var(--border)">
+        ${clsMatrix}
+        ${linkedSection}
+      </div>` : ''}
     </div>`;
   }).join('');
 
-  // ── Sekcja 2: Grupy łączone między klasami ──
-  const allGroups = [];
-  classes.forEach((c,ci) => {
-    (c.groups||[]).forEach((g,gi) => {
-      const gName = typeof g === 'object' ? g.name : g;
-      allGroups.push({clsIdx:ci, grpIdx:gi, clsName:c.name, grpName:gName, obj:g});
-    });
-  });
-  const linkedPairs = [];
-  allGroups.forEach(g => {
-    if(typeof g.obj === 'object' && g.obj.linkedWith) {
-      g.obj.linkedWith.forEach(lw => {
-        const other = allGroups.find(og => og.clsName === lw.classId || og.clsName === lw);
-        if(other) linkedPairs.push({from:g, to:other});
-      });
-    }
-  });
-
-  let linkedHtml = '';
-  if(allGroups.length >= 2) {
-    linkedHtml = `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
-      <div style="font-size:.78rem;font-weight:700;margin-bottom:6px">Grupy łączone między klasami</div>
-      <p style="font-size:.72rem;color:var(--text-m);margin-bottom:8px;line-height:1.4">
-        Zaznacz pary grup, które mogą mieć wspólne zajęcia (np. religia, języki obce).
-        Solver będzie umieszczał je w tej samej godzinie.
-      </p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        ${allGroups.map(g => {
-          const linked = typeof g.obj==='object' && g.obj.linkedWith ? g.obj.linkedWith : [];
-          const isLinked = linked.length > 0;
-          return `<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;
-            background:${isLinked?'var(--accent-g)':'var(--s3)'};border:1px solid ${isLinked?'rgba(56,189,248,.2)':'var(--border)'};border-radius:6px;
-            cursor:pointer;font-size:.72rem">
-            <input type="checkbox" ${isLinked?'checked':''} style="accent-color:var(--accent)"
-              onchange="wToggleLinked(${g.clsIdx},${g.grpIdx},this.checked)">
-            ${escapeHtml(g.clsName)} / ${escapeHtml(g.grpName)}
-          </label>`;
-        }).join('')}
-      </div>
-    </div>`;
-  }
-
-  // ── Sekcja 3: NI / Uczniowie specjalni ──
+  // ── Sekcja 2: NI / Uczniowie specjalni ──
+  const subjects = wData.subjects||[];
   const niRows = (wData.niStudents||[]).map((s,i) => {
     const cls = classes.find(c=>c.id===s.classId);
-    const hours = (s.subjects||[]).filter(r=>r.mode==='indiv').reduce((h,r)=>h+(r.hours||0),0);
-    const niSubjs = (s.subjects||[]).filter(r=>r.mode==='indiv')
-      .map(r=>{const subj=subjects.find(ss=>ss.id===r.subjId);return escapeHtml(subj?.abbr||'?');}).join(', ');
-    const formLabel = s.form==='rewalidacja'?'🔄':s.form==='logopedia'?'🗣️':s.form==='grupowe-2-5'?'👥':'👤';
+    const formLabel = {rewalidacja:'🔄',logopedia:'🗣️','grupowe-2-5':'👥'}[s.form]||'👤';
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
       background:var(--s2);border-radius:7px;border:1px solid var(--border);margin-bottom:5px">
       <span style="font-weight:600;flex:1">${formLabel} ${escapeHtml(s.name)}</span>
       ${cls?`<span style="font-size:.7rem;color:var(--text-m)">${escapeHtml(cls.name)}</span>`:''}
       <span style="font-size:.68rem;color:var(--text-d)">${s.form||'indywidualne'}</span>
-      ${niSubjs?`<span style="font-size:.7rem;color:var(--accent)">${niSubjs}</span>`:''}
-      ${hours?`<span style="font-size:.7rem;font-family:var(--mono);color:var(--accent)">${hours}h</span>`:''}
       <span class="tag-del" onclick="wNIRemove(${i})">×</span>
     </div>`;
   }).join('');
 
   return `<div class="wcard">
-    <div class="wcard-title">Grupy i nauczanie indywidualne</div>
-
-    <!-- Grupy w klasach -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
-      letter-spacing:.04em;margin-bottom:8px">Grupy w klasach</div>
-    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
-      Dla każdej klasy zdefiniuj grupy (np. do języków obcych, religii).
-      Grupy typu "2–5 os." to małe grupy nauczania indywidualnego.
+    <div class="wcard-title">Grupy</div>
+    <p style="font-size:.78rem;color:var(--text-m);margin-bottom:16px;line-height:1.5">
+      Zdefiniuj grupy raz dla całej szkoły, a następnie zaznacz które klasy je mają.
+      Kliknij nazwę klasy aby ją przypisać — możesz też wpisać liczbę uczniów per klasa.
     </p>
-    ${classGroupsHtml}
 
-    <!-- Grupy łączone -->
-    ${linkedHtml}
+    <!-- Lista grup -->
+    <div style="margin-bottom:10px">${grpRows||'<div style="font-size:.78rem;color:var(--text-d);padding:12px;text-align:center;border:1px dashed var(--border);border-radius:8px;margin-bottom:10px">Brak grup — dodaj poniżej</div>'}</div>
 
-    <!-- Separator -->
-    <div style="border-top:1px solid var(--border);margin:16px 0 12px"></div>
+    <!-- Formularz dodawania grupy -->
+    <div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding:10px 12px;
+      background:var(--s2);border-radius:8px;border:1px solid var(--border)">
+      <div class="wfield" style="flex:2;min-width:120px">
+        <label>Nazwa grupy</label>
+        <input class="winput" id="wSGrpName" placeholder="np. gr1, religia, język A"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();wGrpAdd()}">
+      </div>
+      <div class="wfield" style="flex:1;min-width:120px">
+        <label>Typ</label>
+        <select class="winput" id="wSGrpType">
+          <option value="group">Podgrupa klasy</option>
+          <option value="optional">Opcjonalna (religia/etyka)</option>
+          <option value="small">Mała grupa (2–5 os.)</option>
+        </select>
+      </div>
+      <button class="wbtn wbtn-primary" style="padding:9px 16px;white-space:nowrap;align-self:flex-end"
+        onclick="wGrpAdd()">+ Dodaj grupę</button>
+    </div>
+    <div style="margin-top:6px;font-size:.68rem;color:var(--text-d)">
+      Import masowy (średnik): <em>gr1;gr2;religia;etyka;język A;język B</em>
+      <button class="tag-add-btn" style="margin-left:6px" onclick="wGrpBulk()">Importuj</button>
+      <input class="winput" id="wSGrpBulk" placeholder="gr1;gr2;religia" style="margin-top:4px;width:100%">
+    </div>
+  </div>
 
-    <!-- NI -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;
-      letter-spacing:.04em;margin-bottom:8px">Uczniowie ze specjalnymi potrzebami</div>
+  <div class="wcard" style="margin-top:12px">
+    <div class="wcard-title">Uczniowie ze specjalnymi potrzebami</div>
     <p style="font-size:.78rem;color:var(--text-m);margin-bottom:12px;line-height:1.5">
-      Dodaj uczniów objętych nauczaniem indywidualnym, rewalidacją, logopedią lub zajęciami w małych grupach.
+      Dodaj uczniów NI, rewalidację, logopedię lub zajęcia w małych grupach.
+      Szczegóły (przedmioty, godziny) ustaw później w Ustawieniach → 👤 NI / Grupy.
     </p>
-    ${niRows || `<div style="padding:16px;text-align:center;color:var(--text-d);
-      border:1px dashed var(--border);border-radius:8px;font-size:.78rem;margin-bottom:12px">
-      Brak uczniów — możesz dodać ich tutaj lub później w Ustawieniach</div>`}
+    ${niRows||'<div style="font-size:.78rem;color:var(--text-d);margin-bottom:10px">Brak uczniów — krok opcjonalny</div>'}
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <input class="winput" id="wNIName" placeholder="Imię Nazwisko ucznia" style="flex:2;min-width:150px">
-      <select class="wselect" id="wNIClass" style="flex:1;min-width:100px">
+      <select class="winput" id="wNIClass" style="flex:1;min-width:100px">
         <option value="">— klasa —</option>
         ${classes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
       </select>
-      <select class="wselect" id="wNIForm" style="flex:0 0 120px">
+      <select class="winput" id="wNIForm" style="flex:0 0 130px">
         <option value="indywidualne">Indywidualne</option>
-        <option value="grupowe-2-5">Grupowe 2-5</option>
+        <option value="grupowe-2-5">Grupowe 2–5</option>
         <option value="rewalidacja">Rewalidacja</option>
+        <option value="rewalidacja-grupowa">Rewaliacja grupowa</option>
         <option value="logopedia">Logopedia</option>
         <option value="zajęcia wyrównawcze">Wyrównawcze</option>
+        <option value="zajęcia rozwijające">Rozwijające</option>
         <option value="inne">Inne</option>
       </select>
       <button class="tag-add-btn" onclick="wNIAdd()">+ Dodaj</button>
     </div>
-    <p style="font-size:.68rem;color:var(--text-d);margin-top:8px">
-      💡 Szczegóły (przedmioty, nauczyciel, godziny per przedmiot) ustaw po stworzeniu planu
-      w <strong>Ustawieniach → 👤 NI / Grupy</strong>.
-    </p>
   </div>
+
   <div class="wbtn-row">
     <button class="wbtn wbtn-ghost" onclick="wizPrev()">← Wstecz</button>
     <button class="wbtn wbtn-primary" onclick="wizNext()">Dalej →</button>
   </div>`;
 }
 
-function wAddGroup(ci) {
-  const nameEl = document.getElementById('wGrpName_'+ci);
-  const typeEl = document.getElementById('wGrpType_'+ci);
-  const name = (nameEl||{}).value?.trim();
+// ── Funkcje obsługi globalnych grup szkoły ──
+function wGrpAdd() {
+  if(!wData.schoolGroups) wData.schoolGroups = [];
+  const nameEl = document.getElementById('wSGrpName');
+  const name = nameEl?.value.trim();
   if(!name) return;
-  if(!wData.classes[ci].groups) wData.classes[ci].groups = [];
-  wData.classes[ci].groups.push({id:'grp'+ci+'_'+Date.now(), name, type:typeEl?.value||'group', studentCount:0, subjects:[], linkedWith:[]});
+  const type = document.getElementById('wSGrpType')?.value || 'group';
+  wData.schoolGroups.push({
+    id: 'sg_'+Date.now()+Math.random().toString(36).slice(2,5),
+    name, type,
+    optional: type==='optional',
+    linkedClasses: [],
+    linkedWith: [],
+    _expanded: true
+  });
   if(nameEl) nameEl.value = '';
   renderWizStep();
 }
 
-function wRemoveGroup(ci, gi) {
-  if(wData.classes[ci] && wData.classes[ci].groups) {
-    wData.classes[ci].groups.splice(gi, 1);
-    renderWizStep();
-  }
+function wGrpBulk() {
+  if(!wData.schoolGroups) wData.schoolGroups = [];
+  const raw = document.getElementById('wSGrpBulk')?.value.trim();
+  if(!raw) return;
+  raw.split(';').forEach(n => {
+    n = n.trim();
+    if(!n || wData.schoolGroups.find(g=>g.name===n)) return;
+    wData.schoolGroups.push({
+      id: 'sg_'+Date.now()+Math.random().toString(36).slice(2,5),
+      name: n, type: 'group', optional: false,
+      linkedClasses: [], linkedWith: [], _expanded: false
+    });
+  });
+  renderWizStep();
 }
 
-function wEditGroup(ci, gi) {
-  // Placeholder — szczegóły grupy można edytować w Ustawieniach
-  notify('Szczegóły grupy edytuj w Ustawieniach → Klasy');
+function wGrpRemove(gi) {
+  const g = wData.schoolGroups[gi];
+  if(!g) return;
+  // Usuń też powiązania z innymi grupami
+  wData.schoolGroups.forEach(og => {
+    og.linkedWith = (og.linkedWith||[]).filter(id=>id!==g.id);
+  });
+  wData.schoolGroups.splice(gi, 1);
+  renderWizStep();
 }
 
-function wToggleLinked(ci, gi, checked) {
-  const g = wData.classes[ci]?.groups?.[gi];
-  if(!g || typeof g !== 'object') return;
-  if(!g.linkedWith) g.linkedWith = [];
-  if(checked) {
-    // Dodaj oznaczenie że grupa jest łączona
-    if(!g.linkedWith.includes('__linked__')) g.linkedWith.push('__linked__');
+function wGrpToggleExpand(gi) {
+  if(!wData.schoolGroups[gi]) return;
+  wData.schoolGroups[gi]._expanded = !wData.schoolGroups[gi]._expanded;
+  renderWizStep();
+}
+
+function wGrpToggleClass(gi, ci) {
+  const g = wData.schoolGroups[gi];
+  if(!g) return;
+  if(!g.linkedClasses) g.linkedClasses = [];
+  const idx = g.linkedClasses.findIndex(lc=>lc.clsIdx===ci);
+  if(idx >= 0) {
+    g.linkedClasses.splice(idx, 1);
   } else {
-    g.linkedWith = [];
+    g.linkedClasses.push({clsIdx: ci, studentCount: 0});
   }
+  renderWizStep();
+}
+
+function wGrpSetCount(gi, ci, count) {
+  const g = wData.schoolGroups[gi];
+  if(!g) return;
+  const lc = (g.linkedClasses||[]).find(lc=>lc.clsIdx===ci);
+  if(lc) lc.studentCount = count;
+}
+
+function wGrpToggleLink(gi, otherGi, checked) {
+  const g = wData.schoolGroups[gi];
+  const og = wData.schoolGroups[otherGi];
+  if(!g || !og) return;
+  if(!g.linkedWith) g.linkedWith = [];
+  if(!og.linkedWith) og.linkedWith = [];
+  if(checked) {
+    if(!g.linkedWith.includes(og.id)) g.linkedWith.push(og.id);
+    if(!og.linkedWith.includes(g.id)) og.linkedWith.push(g.id);
+  } else {
+    g.linkedWith  = g.linkedWith.filter(id=>id!==og.id);
+    og.linkedWith = og.linkedWith.filter(id=>id!==g.id);
+  }
+  renderWizStep();
 }
 
 function wNIAdd() {
@@ -1537,15 +1605,43 @@ function wizFinish() {
     schoolEmail: wData.schoolEmail||'',
     schoolFixed: !!wData.schoolFixed,
     buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||'', floors:b.floors||[]})),
-    classes: wData.classes.map((c,i)=>({
-      id:'cls'+i, name:c.name,
-      groups:(c.groups||[]).map((g,gi)=>typeof g==='string'
+    classes: wData.classes.map((c,i)=>{
+      // Zbierz grupy z katalogu schoolGroups przypisane do tej klasy
+      const schoolGrps = (wData.schoolGroups||[])
+        .filter(sg=>(sg.linkedClasses||[]).some(lc=>lc.clsIdx===i))
+        .map(sg=>{
+          const lc = sg.linkedClasses.find(lc=>lc.clsIdx===i);
+          // Przelicz powiązania między grupami na format appState (id innych grup)
+          const linkedWith = (sg.linkedWith||[]).map(lid=>{
+            const og = (wData.schoolGroups||[]).find(g=>g.id===lid);
+            // Grupy łączone — znajdź clsIdx klas które mają tę grupę
+            return og ? (og.linkedClasses||[]).map(olc=>({
+              clsId:'cls'+olc.clsIdx, grpId:'sg_'+og.id+'_cls'+olc.clsIdx
+            })) : [];
+          }).flat();
+          return {
+            id: 'sg_'+sg.id+'_cls'+i,
+            name: sg.name,
+            type: sg.type==='optional'?'group':sg.type,
+            optional: !!sg.optional,
+            studentCount: lc?.studentCount||0,
+            teacherId: null,
+            subjects: [],
+            linkedWith
+          };
+        });
+      // Zachowaj też grupy dodane bezpośrednio do klasy (backward compat)
+      const directGrps = (c.groups||[]).map((g,gi)=>typeof g==='string'
         ? {id:'grp'+i+'_'+gi, name:g, type:'group', studentCount:0, teacherId:null, subjects:[], linkedWith:[]}
-        : g),
-      studentCount:c.studentCount||0,
-      homeroomTeacherId:null, homeRooms:[],
-      optionalSubjects:[]
-    })),
+        : g);
+      return {
+        id:'cls'+i, name:c.name,
+        groups: [...schoolGrps, ...directGrps],
+        studentCount:c.studentCount||0,
+        homeroomTeacherId:null, homeRooms:[],
+        optionalSubjects:[]
+      };
+    }),
     subjects: wData.subjects.map((s,i)=>({
       id:'subj'+i, name:s.name, abbr:s.abbr,
       color:s.color||SUBJ_COLORS[i%SUBJ_COLORS.length],
@@ -7855,7 +7951,7 @@ const WIZ_HELP = [
   {t:'Rok szkolny', items:['Wybierz rok szkolny w formacie np. 2025/2026','Nowy rok — tworzysz plan od zera','Kontynuacja — kopiujesz dane z poprzedniego roku i edytujesz co trzeba','Zaznacz które dane skopiować: budynki, klasy, przedmioty, nauczyciele, sale, godziny, NI']},
   {t:'Szkoła', items:['Podaj nazwę, adres i dane kontaktowe szkoły','Dodaj przedmioty nauczane w szkole — dla każdego ustal godziny/tydzień, semestr, pozycję','Przedmioty opcjonalne (religia, etyka) zaznacz checkboxem','Zmienne per rok odznacz \"Dane stałe\" — łatwiej edytować w kolejnym roku']},
   {t:'Klasy', items:['Zdefiniuj poziomy nauczania — zakres lat (np. 1–8) i liczbę oddziałów na rok (np. A, B, C)','Nazwy klas generują się automatycznie: 1a, 1b, 2a, 2b...','Możesz też dodać klasy ręcznie lub importem: 1a;1b;2a;2b','Opcjonalnie podaj liczbę uczniów w każdej klasie (pole \"ucz./kl.\")']},
-  {t:'Grupy', items:['Dla każdej klasy zdefiniuj grupy — np. jęz.A, jęz.B, religia','Grupy typu \"2–5 os.\" to małe grupy zajęciowe lub NI','Zaznacz grupy łączone — solver umieści je w tej samej godzinie (np. religia z kilku klas razem)','Dodaj uczniów NI, rewalidację, logopedię — wybierz formę i klasę','Szczegóły (przedmioty, godziny per uczeń) ustawisz w Ustawieniach → 👤 NI/Grupy po stworzeniu planu']},
+  {t:'Grupy', items:['Zdefiniuj grupy raz dla całej szkoły (np. gr1, gr2, religia, język A) — bez powtarzania dla każdej klasy osobno','Kliknij nazwę klasy aby przypisać do niej grupę — podświetli się na niebiesko','Wpisz liczbę uczniów per klasa bezpośrednio przy przypisaniu','Grupy łączone (np. religia z kilku klas razem) — zaznacz które grupy mają wspólne zajęcia','Import masowy: gr1;gr2;religia;etyka;język A — średnikiem','Uczniowie NI, rewalidacja, logopedia — dodaj w sekcji poniżej, szczegóły w Ustawieniach po stworzeniu planu']},
   {t:'Budynki i sale', items:['Budynki są opcjonalne — pomiń jeśli szkoła jest w jednym budynku','Dodaj piętra i segmenty do budynków — pomogą w organizacji sal','Sale możesz dodać teraz lub uzupełnić później w Ustawieniach','Sale specjalistyczne (komputerowa, gimnastyczna) oznacz odpowiednim typem','Przypisz sale do budynków i określ pojemność']},
   {t:'Nauczyciele', items:['Format importu masowego: Imię;Nazwisko;Skrót;Pensum;Nadgodziny;Etat (full/half/0.75)','Skrót generuje się automatycznie — dla jednego nazwiska: litera imienia + 4 litery; dla dwuczłonowych: 2+2','Zaznacz uprawnienia do przedmiotów — które przedmioty może prowadzić','Dodaj przydziały godzin: przedmiot → klasa → godz./tydz.','Ustaw wymiar etatu (pełny / pół / inny ułamek)','Nauczyciel specjalista: bibliotekarz, logopeda, psycholog, pedagog itp.']},
   {t:'Godziny', items:['Lekcje mogą zaczynać się od godziny 0:00','Generator automatyczny: podaj start, czas lekcji, przerwę i liczbę lekcji','Możesz dodać godziny ręcznie z dowolnymi czasami','Ustaw różne długości przerw między poszczególnymi lekcjami','Podgląd dnia pokazuje przerwy i czasy trwania każdej lekcji']},
@@ -7887,9 +7983,9 @@ function closeHelp() {
 
 function openWizHelp(step) {
   const data = WIZ_HELP[step];
-  if(!data) { console.log('openWizHelp: brak danych dla kroku', step, 'WIZ_HELP.length:', WIZ_HELP.length); return; }
+  if(!data) return;
   const overlay = document.getElementById('helpOverlay');
-  if(!overlay) { console.log('openWizHelp: brak helpOverlay'); return; }
+  if(!overlay) return;
   document.getElementById('helpTitle').textContent = '❓ Pomoc — '+data.t;
   document.getElementById('helpSub').textContent = 'Kreator — krok '+(step+1);
   let html = `<div class="help-section"><div class="help-section-title">Wskazówki</div>`;
