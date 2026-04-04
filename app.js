@@ -1566,7 +1566,7 @@ function wizCollectStep() {
             letters.forEach(ltr => {
               const name = yr + ltr.toLowerCase();
               if(!wData.classes.find(c=>c.name===name) && !generated.find(c=>c.name===name)) {
-                generated.push({name, level: lv.cat, groups:[], studentCount: lv.studentCount||0});
+                generated.push({id:'wc_'+Date.now()+Math.random().toString(36).slice(2,6)+name, name, level: lv.cat, groups:[], studentCount: lv.studentCount||0});
               }
             });
           }
@@ -1653,17 +1653,26 @@ function wizFinish() {
       scope:s.scope||'class',
       classes:[], level:''
     })),
-    teachers: wData.teachers.map((t,i)=>({
-      id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr,
-      hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0,
-      employment:t.employment||'full',
-      employmentFraction:t.employmentFraction||1,
-      isSpecialist:!!t.isSpecialist,
-      specialistRole:t.specialistRole||'',
-      subjects:t.subjects||[],
-      assignments:t.assignments||[],
-      individualTeaching:[]
-    })),
+    teachers: wData.teachers.map((t,i)=>{
+      // Przetłumacz tymczasowe ID (ws_..., wc_...) na finalne (subj0, cls0)
+      const subjIdMap = Object.fromEntries(wData.subjects.map((s,si)=>[s.id,'subj'+si]));
+      const clsIdMap  = Object.fromEntries(wData.classes.map((c,ci)=>[c.id,'cls'+ci]));
+      return {
+        id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr,
+        hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0,
+        employment:t.employment||'full',
+        employmentFraction:t.employmentFraction||1,
+        isSpecialist:!!t.isSpecialist,
+        specialistRole:t.specialistRole||'',
+        subjects:(t.subjects||[]).map(sid=>subjIdMap[sid]||sid).filter(Boolean),
+        assignments:(t.assignments||[]).map(a=>({
+          subjectId: subjIdMap[a.subjectId]||a.subjectId,
+          classId:   clsIdMap[a.classId]  ||a.classId,
+          hours:     a.hours||0
+        })),
+        individualTeaching:[]
+      };
+    }),
     rooms: wData.rooms.map((r,i)=>({
       id:'room'+i, name:r.name, type:r.type||'full',
       capacity:r.capacity||0, note:r.note||'',
@@ -1715,7 +1724,7 @@ function wAddClass() {
   const g = document.getElementById('wClassGroups').value.trim();
   const lv = document.getElementById('wClassLevel').value || 'podstawowa';
   if(!n) return;
-  wData.classes.push({name:n, level:lv, groups: g
+  wData.classes.push({id:'wc_'+Date.now()+Math.random().toString(36).slice(2,6), name:n, level:lv, groups: g
     ? g.split(',').map(x=>x.trim()).filter(Boolean).map(gname=>({
         id:'grp'+Date.now()+Math.random().toString(36).slice(2,5),
         name:gname, type:'group', studentCount:0, teacherId:null, subjects:[], linkedWith:[]
@@ -1729,7 +1738,7 @@ function wAddClassBulk() {
   const raw = document.getElementById('wClassBulk').value.trim();
   if(!raw) return;
   const lv = document.getElementById('wClassBulkLevel')?.value || 'podstawowa';
-  raw.split(';').forEach(n=>{n=n.trim();if(n&&!wData.classes.find(c=>c.name===n))wData.classes.push({name:n,level:lv,groups:[]});});
+  raw.split(';').forEach(n=>{n=n.trim();if(n&&!wData.classes.find(c=>c.name===n))wData.classes.push({id:'wc_'+Date.now()+Math.random().toString(36).slice(2,6),name:n,level:lv,groups:[]});});
   renderWizStep();
 }
 function wRemoveClass(i){wData.classes.splice(i,1);renderWizStep();}
@@ -1759,7 +1768,7 @@ function wAddSubj() {
   const a = document.getElementById('wSubjAbbr').value.trim()||buildSubjAbbr(n);
   const h = parseInt(document.getElementById('wSubjHours').value)||0;
   if(!n) return;
-  wData.subjects.push({name:n,abbr:a,color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
+  wData.subjects.push({id:'ws_'+Date.now()+Math.random().toString(36).slice(2,6), name:n,abbr:a,color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
     hoursPerWeek:h, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
   document.getElementById('wSubjName').value='';
   document.getElementById('wSubjAbbr').value='';
@@ -1772,7 +1781,7 @@ function wAddSubjBulk() {
   raw.split(';').forEach(n=>{
     n=n.trim(); if(!n)return;
     if(!wData.subjects.find(s=>s.name===n))
-      wData.subjects.push({name:n,abbr:buildSubjAbbr(n),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
+      wData.subjects.push({id:'ws_'+Date.now()+Math.random().toString(36).slice(2,6), name:n,abbr:buildSubjAbbr(n),color:SUBJ_COLORS[wData.subjects.length%SUBJ_COLORS.length],
         hoursPerWeek:0, duration:'year', position:'any', optional:false, fixed:false, scope:'class'});
   });
   renderWizStep();
