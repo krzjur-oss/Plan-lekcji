@@ -378,11 +378,9 @@ function wlImportWizProgress(file) {
         notify('Nieprawidłowy plik — wybierz plik postępu kreatora (.json)');
         return;
       }
-      // Otwórz kreator z danymi z pliku
-      document.getElementById('welcomeScreen').classList.remove('show');
-      startWizard(false); // inicjalizuj kreator
+      // Otwórz kreator z danymi z pliku — NIE używaj startWizard(false) bo reset wData
       wStep = payload.step || 0;
-      wData = payload.data || wData;
+      wData = payload.data || {};
       if(!wData.classes)      wData.classes      = [];
       if(!wData.subjects)     wData.subjects     = [];
       if(!wData.teachers)     wData.teachers     = [];
@@ -393,7 +391,10 @@ function wlImportWizProgress(file) {
       if(!wData._classLevels) wData._classLevels = [];
       if(!wData.schoolGroups) wData.schoolGroups = [];
       if(!wData.copyFrom)     wData.copyFrom     = [];
+      if(!wData.yearMode)     wData.yearMode     = 'new';
       wizSave();
+      document.getElementById('welcomeScreen').classList.remove('show');
+      document.getElementById('wizardOverlay').classList.add('show');
       renderWizStep();
       const exportDate = payload._exportDate
         ? new Date(payload._exportDate).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
