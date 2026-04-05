@@ -81,6 +81,13 @@
         <div class="wl-card-title">Importuj</div>
         <div class="wl-card-desc">Wczytaj plan z pliku JSON</div>
       </div>
+      <label class="wl-card" style="cursor:pointer">
+        <div class="wl-card-icon">🔗</div>
+        <div class="wl-card-title">Wczytaj postęp</div>
+        <div class="wl-card-desc">Kontynuuj kreator z pliku przekazanego przez inną osobę</div>
+        <input type="file" accept=".json" style="display:none"
+          onchange="wlImportWizProgress(this.files[0]);this.value=''">
+      </label>
       <div class="wl-card" onclick="wlDemo()">
         <div class="wl-card-icon">🎓</div>
         <div class="wl-card-title">Demo</div>
@@ -113,7 +120,22 @@
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div class="wiz-badge">⚙ Konfiguracja</div>
       <div id="wizAutoSaveInfo" style="font-size:.68rem;color:var(--text-d)"></div>
-      <div id="wizHelpBtn"></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button onclick="wizExportProgress()"
+          style="background:none;border:1px solid var(--border);border-radius:6px;
+                 padding:2px 8px;font-size:.7rem;cursor:pointer;color:var(--text-m)"
+          title="Zapisz postęp do pliku — możesz przekazać go innemu urządzeniu">
+          💾 Zapisz postęp
+        </button>
+        <label style="background:none;border:1px solid var(--border);border-radius:6px;
+                 padding:2px 8px;font-size:.7rem;cursor:pointer;color:var(--text-m)"
+          title="Wczytaj postęp z pliku">
+          📂 Wczytaj postęp
+          <input type="file" accept=".json" style="display:none"
+            onchange="wizImportProgress(this.files[0]);this.value=''">
+        </label>
+        <div id="wizHelpBtn"></div>
+      </div>
     </div>
         <div class="wiz-title">Nowy <span>plan lekcji</span></div>
         <div class="wiz-sub">Uzupełnij dane szkoły, aby zacząć układać plan</div>
@@ -366,8 +388,11 @@
       </div>
     </div>
 
-    <!-- Lista przedmiotów (ukryta — używana przez tmRenderSubjects) -->
-    <div id="tmSubjectList" style="display:none"></div>
+    <!-- Uprawnienia do przedmiotów -->
+    <div class="mfield" style="margin-top:4px">
+      <label>Uprawnienia do nauczania przedmiotów</label>
+      <div id="tmSubjectList" style="display:flex;flex-wrap:wrap;gap:5px;min-height:28px;padding:4px 0"></div>
+    </div>
     <!-- Select przedmiotów NI (ukryty — używany przez tmFillIndivSubject) -->
     <select id="tmIndivSubject" style="display:none"></select>
 

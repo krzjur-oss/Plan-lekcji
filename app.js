@@ -347,7 +347,8 @@ function wlInit() {
     const w = JSON.parse(localStorage.getItem(LS.WIZ)||'null');
     const rezCard = document.getElementById('wlResumeCard');
     const rezDesc = document.getElementById('wlResumeDesc');
-    if(w && rezCard) {
+    const hasData = w.step > 0 || w.data?.name || (w.data?.subjects||[]).length || (w.data?.classes||[]).length;
+    if(w && rezCard && hasData) {
       const stepName = WIZ_STEPS[w.step]||'';
       const ts = w.ts ? new Date(w.ts) : null;
       const timeStr = ts ? ts.toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
@@ -363,6 +364,46 @@ function wlInit() {
 function wlResume() {
   document.getElementById('welcomeScreen').classList.remove('show');
   startWizard(true);
+}
+
+function wlImportWizProgress(file) {
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const payload = JSON.parse(e.target.result);
+      if(payload._type !== 'planlekcji-wizard-progress') {
+        // Może to normalny plan JSON — spróbuj importować jako plan
+        if(payload.appState) { handleImportFile(file); return; }
+        notify('Nieprawidłowy plik — wybierz plik postępu kreatora (.json)');
+        return;
+      }
+      // Otwórz kreator z danymi z pliku
+      document.getElementById('welcomeScreen').classList.remove('show');
+      startWizard(false); // inicjalizuj kreator
+      wStep = payload.step || 0;
+      wData = payload.data || wData;
+      if(!wData.classes)      wData.classes      = [];
+      if(!wData.subjects)     wData.subjects     = [];
+      if(!wData.teachers)     wData.teachers     = [];
+      if(!wData.rooms)        wData.rooms        = [];
+      if(!wData.buildings)    wData.buildings    = [];
+      if(!wData.hours)        wData.hours        = [];
+      if(!wData.niStudents)   wData.niStudents   = [];
+      if(!wData._classLevels) wData._classLevels = [];
+      if(!wData.schoolGroups) wData.schoolGroups = [];
+      if(!wData.copyFrom)     wData.copyFrom     = [];
+      wizSave();
+      renderWizStep();
+      const exportDate = payload._exportDate
+        ? new Date(payload._exportDate).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+        : '';
+      notify('Wczytano postęp' + (exportDate?' z '+exportDate:'') + ' — krok '+(wStep+1)+': '+(WIZ_STEPS[wStep]||''));
+    } catch(err) {
+      notify('Błąd wczytywania: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
 }
 
 function wlStartNew() {
@@ -459,6 +500,64 @@ function wizSave() {
       el.textContent = '💾 Autozapis ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     }
   } catch(_) {}
+}
+
+// ── Eksport/Import postępu kreatora do pliku JSON ──
+function wizExportProgress() {
+  wizSaveCurrentFields();
+  const payload = {
+    _type: 'planlekcji-wizard-progress',
+    _version: 1,
+    _exportDate: new Date().toISOString(),
+    step: wStep,
+    data: wData
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const name = (wData.name||'kreator').replace(/[^a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ\s]/g,'').trim()||'kreator';
+  a.href = url;
+  a.download = `planlekcji_postep_${name}_krok${wStep+1}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  notify('Postęp zapisany do pliku — przekaż go innemu urządzeniu');
+}
+
+function wizImportProgress(file) {
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const payload = JSON.parse(e.target.result);
+      if(payload._type !== 'planlekcji-wizard-progress') {
+        notify('Nieprawidłowy plik — to nie jest plik postępu kreatora');
+        return;
+      }
+      if(!payload.data) throw new Error('Brak danych w pliku');
+      wStep = payload.step || 0;
+      wData = payload.data;
+      // Upewnij się że wszystkie wymagane pola istnieją
+      if(!wData.classes)      wData.classes      = [];
+      if(!wData.subjects)     wData.subjects     = [];
+      if(!wData.teachers)     wData.teachers     = [];
+      if(!wData.rooms)        wData.rooms        = [];
+      if(!wData.buildings)    wData.buildings    = [];
+      if(!wData.hours)        wData.hours        = [];
+      if(!wData.niStudents)   wData.niStudents   = [];
+      if(!wData._classLevels) wData._classLevels = [];
+      if(!wData.schoolGroups) wData.schoolGroups = [];
+      if(!wData.copyFrom)     wData.copyFrom     = [];
+      wizSave(); // zapisz też do localStorage
+      renderWizStep();
+      const exportDate = payload._exportDate
+        ? new Date(payload._exportDate).toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+        : '';
+      notify('Wczytano postęp' + (exportDate ? ' z ' + exportDate : '') + ' — krok ' + (wStep+1) + ': ' + (WIZ_STEPS[wStep]||''));
+    } catch(err) {
+      notify('Błąd wczytywania pliku: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
 }
 
 function renderWizStepsIndicator() {
@@ -1319,7 +1418,9 @@ function wizStep7() {
           letter-spacing:.04em;margin-bottom:2px">Klasy z tą grupą</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px">
           ${classes.map((c,ci) => {
-            const assigned = (g.linkedClasses||[]).find(lc=>lc.clsIdx===ci);
+            const assigned = (g.linkedClasses||[]).find(lc=>
+              (lc.clsId && lc.clsId===c.id) || (!lc.clsId && lc.clsIdx===ci)
+            );
             return `<div style="display:flex;align-items:center;gap:3px;padding:3px 6px;
               border-radius:5px;border:1px solid ${assigned?'var(--accent)':'var(--border)'};
               background:${assigned?'var(--accent-g)':'var(--s3)'};font-size:.72rem;cursor:pointer"
@@ -1332,14 +1433,15 @@ function wizStep7() {
         ${clsCount ? `
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center">
           <span style="font-size:.68rem;color:var(--text-m)">Liczba uczniów per klasa:</span>
-          ${(g.linkedClasses||[]).map(lc => {
-            const cls = classes[lc.clsIdx];
+          ${(g.linkedClasses||[]).map((lc,lci) => {
+            const cls = lc.clsId ? classes.find(cc=>cc.id===lc.clsId) : classes[lc.clsIdx];
+            const ci2 = cls ? classes.indexOf(cls) : lc.clsIdx;
             return cls ? `<div style="display:flex;align-items:center;gap:3px;font-size:.72rem">
               <span style="color:var(--text-m)">${escapeHtml(cls.name)}:</span>
               <input type="number" min="0" max="60" value="${lc.studentCount||0}"
                 style="width:44px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;
                 background:var(--s1);color:var(--text);font-size:.72rem;text-align:center"
-                oninput="wGrpSetCount(${gi},${lc.clsIdx},parseInt(this.value)||0)">
+                oninput="wGrpSetCount(${gi},${ci2},parseInt(this.value)||0)">
             </div>` : '';
           }).join('')}
         </div>` : ''}
@@ -1524,11 +1626,13 @@ function wGrpToggleClass(gi, ci) {
   const g = wData.schoolGroups[gi];
   if(!g) return;
   if(!g.linkedClasses) g.linkedClasses = [];
-  const idx = g.linkedClasses.findIndex(lc=>lc.clsIdx===ci);
+  const clsId = wData.classes[ci]?.id;
+  if(!clsId) return;
+  const idx = g.linkedClasses.findIndex(lc=>lc.clsIdx===ci && lc.clsId===clsId);
   if(idx >= 0) {
     g.linkedClasses.splice(idx, 1);
   } else {
-    g.linkedClasses.push({clsIdx: ci, studentCount: 0});
+    g.linkedClasses.push({clsIdx: ci, clsId, studentCount: 0});
   }
   renderWizStep();
 }
@@ -1536,7 +1640,10 @@ function wGrpToggleClass(gi, ci) {
 function wGrpSetCount(gi, ci, count) {
   const g = wData.schoolGroups[gi];
   if(!g) return;
-  const lc = (g.linkedClasses||[]).find(lc=>lc.clsIdx===ci);
+  const clsId = wData.classes[ci]?.id;
+  const lc = (g.linkedClasses||[]).find(lc=>
+    (clsId && lc.clsId===clsId) || (!lc.clsId && lc.clsIdx===ci)
+  );
   if(lc) { lc.studentCount = count; wizSaveDebounced(); }
 }
 
@@ -1662,21 +1769,29 @@ function wizFinish() {
     schoolFixed: !!wData.schoolFixed,
     buildings: wData.buildings.map((b,i)=>({id:'bld'+i, name:b.name, address:b.address, color:b.color||SUBJ_COLORS[i%SUBJ_COLORS.length], note:b.note||'', floors:b.floors||[]})),
     classes: wData.classes.map((c,i)=>{
+      const finalClsId = 'cls'+i;
       // Zbierz grupy z katalogu schoolGroups przypisane do tej klasy
+      // Dopasuj przez clsId (stabilne) LUB clsIdx (fallback dla starych zapisów)
       const schoolGrps = (wData.schoolGroups||[])
-        .filter(sg=>(sg.linkedClasses||[]).some(lc=>lc.clsIdx===i))
+        .filter(sg=>(sg.linkedClasses||[]).some(lc=>
+          (lc.clsId && lc.clsId===c.id) || (!lc.clsId && lc.clsIdx===i)
+        ))
         .map(sg=>{
-          const lc = sg.linkedClasses.find(lc=>lc.clsIdx===i);
-          // Przelicz powiązania między grupami na format appState (id innych grup)
+          const lc = sg.linkedClasses.find(lc=>
+            (lc.clsId && lc.clsId===c.id) || (!lc.clsId && lc.clsIdx===i)
+          );
           const linkedWith = (sg.linkedWith||[]).map(lid=>{
             const og = (wData.schoolGroups||[]).find(g=>g.id===lid);
-            // Grupy łączone — znajdź clsIdx klas które mają tę grupę
-            return og ? (og.linkedClasses||[]).map(olc=>({
-              clsId:'cls'+olc.clsIdx, grpId:'sg_'+og.id+'_cls'+olc.clsIdx
-            })) : [];
+            return og ? (og.linkedClasses||[]).map(olc=>{
+              const targetCls = wData.classes.find(cc=>
+                (olc.clsId && cc.id===olc.clsId) || (!olc.clsId && wData.classes.indexOf(cc)===olc.clsIdx)
+              );
+              const targetIdx = targetCls ? wData.classes.indexOf(targetCls) : olc.clsIdx;
+              return { clsId:'cls'+targetIdx, grpId:'sg_'+og.id+'_cls'+targetIdx };
+            }) : [];
           }).flat();
           return {
-            id: 'sg_'+sg.id+'_cls'+i,
+            id: 'sg_'+sg.id+'_'+finalClsId,
             name: sg.name,
             type: sg.type==='optional'?'group':sg.type,
             optional: !!sg.optional,
@@ -1686,12 +1801,11 @@ function wizFinish() {
             linkedWith
           };
         });
-      // Zachowaj też grupy dodane bezpośrednio do klasy (backward compat)
       const directGrps = (c.groups||[]).map((g,gi)=>typeof g==='string'
         ? {id:'grp'+i+'_'+gi, name:g, type:'group', studentCount:0, teacherId:null, subjects:[], linkedWith:[]}
         : g);
       return {
-        id:'cls'+i, name:c.name,
+        id: finalClsId, name:c.name,
         groups: [...schoolGrps, ...directGrps],
         studentCount:c.studentCount||0,
         homeroomTeacherId:null, homeRooms:[],
@@ -1709,11 +1823,12 @@ function wizFinish() {
       scope:s.scope||'class',
       classes:[], level:''
     })),
-    teachers: wData.teachers.map((t,i)=>{
+    teachers: (()=>{
       // Przetłumacz tymczasowe ID (ws_..., wc_...) na finalne (subj0, cls0)
+      // Mapy budujemy RAZ poza pętlą
       const subjIdMap = Object.fromEntries(wData.subjects.map((s,si)=>[s.id,'subj'+si]));
       const clsIdMap  = Object.fromEntries(wData.classes.map((c,ci)=>[c.id,'cls'+ci]));
-      return {
+      return wData.teachers.map((t,i)=>({
         id:'tch'+i, first:t.first, last:t.last, abbr:t.abbr,
         hoursTotal:t.hoursTotal||0, hoursExtra:t.hoursExtra||0,
         employment:t.employment||'full',
@@ -1727,8 +1842,8 @@ function wizFinish() {
           hours:     a.hours||0
         })),
         individualTeaching:[]
-      };
-    }),
+      }));
+    })(),
     rooms: wData.rooms.map((r,i)=>({
       id:'room'+i, name:r.name, type:r.type||'full',
       capacity:r.capacity||0, note:r.note||'',
@@ -5944,6 +6059,7 @@ function openAddTeacherModal() {
   document.getElementById('tmFraction').value = '';
   document.getElementById('tmFractionWrap').style.display='none';
   _tmIndiv = [];
+  tmRenderSubjects([]);
   tmFillIndivSubject();
   document.getElementById('tmDeleteBtn').style.display = 'none';
   tmRenderAssignments();
@@ -5969,6 +6085,7 @@ function openEditTeacherModal(id) {
   document.getElementById('tmFractionWrap').style.display = t.employment==='other' ? '' : 'none';
   document.getElementById('tmDeleteBtn').style.display = '';
   _tmIndiv = JSON.parse(JSON.stringify(t.individualTeaching || []));
+  tmRenderSubjects(t.subjects || []);
   tmRenderAssignments();
   tmFillSelects();
   niUpdateTeacherBadge(id);
@@ -5990,13 +6107,14 @@ function tmAutoAbbr() {
 
 function tmRenderSubjects(selected) {
   const container = document.getElementById('tmSubjectList');
-  if (!appState) { container.innerHTML = ''; return; }
+  if (!container || !appState) return;
   container.innerHTML = sortSubjects(appState.subjects).map(s => `
-    <label class="schk ${selected.includes(s.id) ? 'checked' : ''}">
+    <label class="schk ${selected.includes(s.id) ? 'checked' : ''}" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.75rem;border:1px solid ${selected.includes(s.id)?'rgba(56,189,248,.3)':'var(--border)'};background:${selected.includes(s.id)?'var(--accent-g)':'var(--s2)'}">
       <input type="checkbox" value="${s.id}" ${selected.includes(s.id) ? 'checked' : ''}
-        onchange="this.parentElement.classList.toggle('checked',this.checked)">
-      <span class="schk-dot" style="background:${s.color}"></span>
-      ${escapeHtml(s.name)}
+        style="accent-color:var(--accent)"
+        onchange="this.closest('label').classList.toggle('checked',this.checked);this.closest('label').style.background=this.checked?'var(--accent-g)':'var(--s2)';this.closest('label').style.borderColor=this.checked?'rgba(56,189,248,.3)':'var(--border)'">
+      <span style="width:8px;height:8px;border-radius:50%;background:${s.color};display:inline-block"></span>
+      ${escapeHtml(s.abbr)}
     </label>`).join('');
 }
 
@@ -6069,6 +6187,9 @@ function saveTeacherModal() {
   const employmentFraction = employment === 'other'
     ? (parseFloat(document.getElementById('tmFraction').value) || 1.0)
     : (employment === 'half' ? 0.5 : 1.0);
+  // Odczytaj zaznaczone uprawnienia do przedmiotów
+  const subjects = [...document.querySelectorAll('#tmSubjectList input[type=checkbox]:checked')]
+    .map(el => el.value);
   if (!first && !last) { notify('Podaj imię lub nazwisko'); return; }
   if (_tmId) {
     const t = appState.teachers.find(t => t.id === _tmId);
@@ -6078,6 +6199,7 @@ function saveTeacherModal() {
       t.hoursExtra = hoursExtra;
       t.employment = employment;
       t.employmentFraction = employmentFraction;
+      t.subjects = subjects;
       t.assignments = _tmAssignments;
       t.individualTeaching = _tmIndiv;
     }
@@ -6085,10 +6207,9 @@ function saveTeacherModal() {
     appState.teachers.push({
       id: 'tch' + Date.now(),
       first, last, abbr,
-      hoursTotal,
-      hoursExtra,
-      employment,
-      employmentFraction,
+      hoursTotal, hoursExtra,
+      employment, employmentFraction,
+      subjects,
       assignments: _tmAssignments,
       individualTeaching: _tmIndiv
     });
